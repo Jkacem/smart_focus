@@ -1,0 +1,39 @@
+# ===========================
+# Smart Focus API - Backend
+# ===========================
+
+# Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+
+# Base de données
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+alembic==1.14.0
+
+# Authentification
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.17
+
+# Configuration
+pydantic-settings==2.6.0
+python-dotenv==1.0.1
+
+# WebSocket
+websockets==14.1
+
+# Utilitaires
+httpx==0.28.0
+
+
+# RAG
+langchain==0.3.0
+langchain-community==0.3.0
+langchain-google-genai==2.0.0   # or langchain-groq
+chromadb==0.5.0
+pymupdf==1.24.0
+sentence-transformers==3.1.0
+langchain-huggingface
+google-generativeai>=0.7.0,<0.8.0
+email-validator==2.3.0
