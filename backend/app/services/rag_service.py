@@ -179,7 +179,7 @@ def query_rag(
         for c in all_chunks
     )
 
-    # Generate answer with Gemini 2.5 Flash using direct SDK
+    # Generate answer with Gemini 1.5 Flash using direct SDK
     genai.configure(api_key=settings.GOOGLE_API_KEY)
     llm = genai.GenerativeModel('gemini-2.5-flash')
     prompt_text = _RAG_PROMPT.format(context=context, question=question)
@@ -200,6 +200,20 @@ def query_rag(
             })
 
     return {"answer": answer, "sources": sources}
+
+
+def query_general(question: str) -> Dict[str, Any]:
+    """
+    Answer a general question directly with Gemini (No RAG context).
+    """
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    llm = genai.GenerativeModel('gemini-2.5-flash')
+    response = llm.generate_content(f"Tu es un assistant pédagogique intelligent pour l'application SmartFocus.\n\nRéponds à la question suivante : {question}")
+    
+    return {
+        "answer": response.text.strip(),
+        "sources": []
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════

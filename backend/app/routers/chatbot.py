@@ -157,44 +157,56 @@ def chat(
 ):
     """
     RAG chat endpoint.
-    Retrieves relevant chunks from selected documents and generates a grounded answer.
+    Retrieves relevant chunks from selected documents and generates a grounded answer, or answers generally if no documents selected.
     """
-    # Verify the requested documents belong to this user
-    docs = (
-        db.query(ChatDocument)
-        .filter(
-            ChatDocument.id.in_(request.document_ids),
-            ChatDocument.user_id == current_user.id,
+    if not request.document_ids:
+        # General non-RAG chat mode
+        try:
+            result = rag_service.query_general(question=request.question)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"General AI query failed: {str(e)}",
+            )
+        db_document_id = None
+    else:
+        # RAG mode
+        docs = (
+            db.query(ChatDocument)
+            .filter(
+                ChatDocument.id.in_(request.document_ids),
+                ChatDocument.user_id == current_user.id,
+            )
+            .all()
         )
-        .all()
-    )
-    if not docs:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No valid documents found. Please upload a PDF first.",
-        )
+        if not docs:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No valid documents found for the provided IDs. Please upload a PDF first.",
+            )
 
-    collection_names = [d.chroma_collection for d in docs]
+        collection_names = [d.chroma_collection for d in docs]
+        db_document_id = docs[0].id
 
-    # Call the RAG service
-    try:
-        result = rag_service.query_rag(
-            question=request.question,
-            collection_names=collection_names,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"RAG query failed: {str(e)}",
-        )
+        # Call the RAG service
+        try:
+            result = rag_service.query_rag(
+                question=request.question,
+                collection_names=collection_names,
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"RAG query failed: {str(e)}",
+            )
 
     answer   = result["answer"]
-    raw_src  = result["sources"]
+    raw_src  = result.get("sources", [])
 
-    # Persist the exchange in the DB (linked to first document for simplicity)
+    # Persist the exchange in the DB
     message = ChatMessage(
         user_id=current_user.id,
-        document_id=docs[0].id,
+        document_id=db_document_id,
         question=request.question,
         answer=answer,
         sources=raw_src,

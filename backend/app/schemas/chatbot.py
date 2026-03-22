@@ -49,8 +49,8 @@ class ChatRequest(BaseModel):
     """Request body for the /chatbot/chat endpoint."""
     question: str = Field(..., min_length=2, max_length=2000,
                           description="The question to ask the document(s)")
-    document_ids: List[int] = Field(..., min_length=1,
-                                    description="List of document IDs to search in")
+    document_ids: List[int] = Field(default_factory=list,
+                                    description="Optional list of document IDs to search in for RAG context")
 
 
 class ChatResponse(BaseModel):

@@ -1,44 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/document_section.dart';
+import '../providers/chat_provider.dart';
 
-class ChatbotScreen extends StatefulWidget {
+class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({Key? key}) : super(key: key);
 
   @override
-  State<ChatbotScreen> createState() => _ChatbotScreenState();
+  ConsumerState<ChatbotScreen> createState() => _ChatbotScreenState();
 }
 
-class _ChatbotScreenState extends State<ChatbotScreen> {
+class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   int _selectedIndex = 2; // Index for chatbot in BottomNav
   final TextEditingController _msgController = TextEditingController();
 
-  final List<Map<String, dynamic>> _messages = [
-    {
-      'text': 'Explique le cycle de Krebs',
-      'isUser': true,
-    },
-    {
-      'text':
-          'Le cycle de Krebs est une série de réactions chimiques qui produit de lATP dans la mitochondrie.',
-      'isUser': false,
-      'sources': ['Biochimie p.45', 'Biochimie p.47'],
-    },
-  ];
-
   void _sendMessage() {
     if (_msgController.text.trim().isEmpty) return;
-
-    setState(() {
-      _messages.add({
-        'text': _msgController.text.trim(),
-        'isUser': true,
-      });
-    });
+    
+    final text = _msgController.text.trim();
     _msgController.clear();
+    
+    ref.read(chatProvider.notifier).sendMessage(text).catchError((err) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(err.toString(), style: const TextStyle(color: Colors.white))),
+        );
+      }
+    });
   }
 
   void _onItemTapped(int index) {
@@ -91,25 +83,61 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
           ),
           // Starfield Background
           SizedBox.expand(child: CustomPaint(painter: StarfieldPainter())),
-          // Main Content
+        // Main Content
           SafeArea(
             child: Column(
               children: [
-                const DocumentSection(
-                  documents: ['📄 Biochimie_L2.pdf', '📄 Physique_S3.pdf'],
-                ),
+                const DocumentSection(),
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = _messages[index];
-                      return ChatBubble(
-                        text: msg['text'],
-                        isUser: msg['isUser'],
-                        sources: msg['sources'],
+                  child: ref.watch(chatProvider).when(
+                    data: (messages) {
+                      if (messages.isEmpty) {
+                        return const Center(
+                          child: Text("Posez votre première question!", style: TextStyle(color: Colors.white54)),
+                        );
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        reverse: true, // we reversed the list in provider so newest is at the bottom
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = messages[index];
+                          
+                          // Convert SourceCitation to String
+                          final sourceStrings = msg.sources.map((s) => 
+                            "${s.filename} (p.${s.page ?? '?'})").toList();
+                            
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // 1. The User's Question
+                              ChatBubble(
+                                text: msg.question,
+                                isUser: true,
+                              ),
+                              // 2. The Bot's Answer (if it's not empty / finished loading)
+                              if (msg.answer.isNotEmpty)
+                                ChatBubble(
+                                  text: msg.answer,
+                                  isUser: false,
+                                  sources: sourceStrings,
+                                )
+                              else
+                                // Optional loading indicator bubble could go here
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: CircularProgressIndicator(color: Colors.white54),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       );
                     },
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (err, st) => Center(child: Text("Erreur: $err", style: const TextStyle(color: Colors.red))),
                   ),
                 ),
                 _buildQuickActions(),
