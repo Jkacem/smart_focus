@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from sqlalchemy import (
     Column, Integer, String, DateTime, Boolean,
-    ForeignKey, JSON,
+    ForeignKey, JSON, Float,
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -38,6 +38,10 @@ class User(Base):
     chat_documents = relationship("ChatDocument", back_populates="user",
                                   cascade="all, delete-orphan")
     chat_messages   = relationship("ChatMessage",  back_populates="user",
+                                   cascade="all, delete-orphan")
+    quizzes         = relationship("Quiz",         back_populates="user",
+                                   cascade="all, delete-orphan")
+    flashcards      = relationship("Flashcard",    back_populates="user",
                                    cascade="all, delete-orphan")
 
 
@@ -76,9 +80,13 @@ class ChatDocument(Base):
     created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # relationships
-    user     = relationship("User", back_populates="chat_documents")
-    messages = relationship("ChatMessage", back_populates="document",
-                            cascade="all, delete-orphan")
+    user       = relationship("User", back_populates="chat_documents")
+    messages   = relationship("ChatMessage", back_populates="document",
+                              cascade="all, delete-orphan")
+    quizzes    = relationship("Quiz",        back_populates="document",
+                              cascade="all, delete-orphan")
+    flashcards = relationship("Flashcard",   back_populates="document",
+                              cascade="all, delete-orphan")
 
 
 class ChatMessage(Base):
@@ -96,4 +104,75 @@ class ChatMessage(Base):
     # relationships
     user     = relationship("User",         back_populates="chat_messages")
     document = relationship("ChatDocument", back_populates="messages")
+
+
+# ══════════════════════════════════════════════
+# QUIZ
+# ══════════════════════════════════════════════
+
+class Quiz(Base):
+    """A generated quiz (QCM) linked to a user and a document."""
+    __tablename__ = "quizzes"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    document_id   = Column(Integer, ForeignKey("chat_documents.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    title         = Column(String(255), nullable=False)
+    num_questions = Column(Integer, nullable=False, default=10)
+    score         = Column(Integer, nullable=True)          # filled after submission
+    completed_at  = Column(DateTime, nullable=True)
+    created_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # relationships
+    user      = relationship("User",         back_populates="quizzes")
+    document  = relationship("ChatDocument", back_populates="quizzes")
+    questions = relationship("QuizQuestion", back_populates="quiz",
+                             cascade="all, delete-orphan")
+
+
+class QuizQuestion(Base):
+    """A single QCM question within a quiz."""
+    __tablename__ = "quiz_questions"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    quiz_id           = Column(Integer, ForeignKey("quizzes.id", ondelete="CASCADE"),
+                               nullable=False, index=True)
+    question_text     = Column(String(2000), nullable=False)
+    options           = Column(JSON, nullable=False)         # ["Option A", "Option B", "Option C", "Option D"]
+    correct_index     = Column(Integer, nullable=False)      # 0-based index of correct answer
+    explanation       = Column(String(2000), nullable=True)  # AI-generated explanation
+    user_answer_index = Column(Integer, nullable=True)       # user's selected answer
+
+    # relationships
+    quiz = relationship("Quiz", back_populates="questions")
+
+
+# ══════════════════════════════════════════════
+# FLASHCARDS (with SM-2 Spaced Repetition)
+# ══════════════════════════════════════════════
+
+class Flashcard(Base):
+    """A flashcard with SM-2 spaced repetition fields."""
+    __tablename__ = "flashcards"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    document_id = Column(Integer, ForeignKey("chat_documents.id", ondelete="CASCADE"),
+                         nullable=False, index=True)
+    front       = Column(String(2000), nullable=False)       # recto (question / term)
+    back        = Column(String(2000), nullable=False)       # verso (answer / definition)
+
+    # SM-2 fields
+    ease_factor = Column(Float, nullable=False, default=2.5)
+    interval    = Column(Integer, nullable=False, default=1)  # days until next review
+    repetitions = Column(Integer, nullable=False, default=0)
+    next_review = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at  = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # relationships
+    user     = relationship("User",         back_populates="flashcards")
+    document = relationship("ChatDocument", back_populates="flashcards")
 

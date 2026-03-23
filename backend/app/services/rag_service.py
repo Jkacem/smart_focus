@@ -10,6 +10,9 @@ Pipeline:
 """
 
 import os
+import re
+import json
+import random
 import uuid
 import fitz  # PyMuPDF
 from pathlib import Path
@@ -217,6 +220,180 @@ def query_general(question: str) -> Dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# QUIZ GENERATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+_QUIZ_PROMPT = PromptTemplate(
+    input_variables=["context", "num_questions"],
+    template="""Tu es un enseignant expert. À partir du contenu suivant, génère exactement {num_questions} questions à choix multiples (QCM).
+
+Pour chaque question, fournis :
+- La question
+- 4 options de réponse (A, B, C, D)
+- L'index de la bonne réponse (0 = A, 1 = B, 2 = C, 3 = D)
+- Une explication courte de pourquoi c'est la bonne réponse
+
+Réponds UNIQUEMENT en JSON valide, sans markdown, sans code fences :
+[
+  {{
+    "question": "...",
+    "options": ["A...", "B...", "C...", "D..."],
+    "correct_index": 0,
+    "explanation": "..."
+  }}
+]
+
+CONTENU :
+{context}
+""",
+)
+
+
+def generate_quiz(collection_name: str, num_questions: int = 10) -> List[Dict]:
+    """
+    Generate a quiz from a document's chunks using Gemini.
+
+    Flow (from design doc Section 4):
+      1. Read chunks from ChromaDB
+      2. Sample diverse chunks
+      3. Build prompt → Gemini generates QCM JSON
+      4. Parse & validate JSON
+
+    Returns:
+        List of dicts with keys: question, options, correct_index, explanation
+    """
+    embeddings = _get_embeddings()
+    vectorstore = Chroma(
+        collection_name=collection_name,
+        embedding_function=embeddings,
+        persist_directory=_chroma_path(),
+    )
+
+    # Retrieve a broad set of chunks for diversity
+    all_chunks = vectorstore.similarity_search("résumé du contenu principal", k=30)
+    if not all_chunks:
+        raise ValueError("No chunks found for this document.")
+
+    # Sample for thematic diversity
+    sample_size = min(len(all_chunks), max(num_questions, 15))
+    sampled = random.sample(all_chunks, sample_size)
+
+    context = "\n\n---\n\n".join(c.page_content for c in sampled)
+
+    # Generate with Gemini
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    llm = genai.GenerativeModel('gemini-2.5-flash')
+    prompt_text = _QUIZ_PROMPT.format(context=context, num_questions=num_questions)
+    response = llm.generate_content(prompt_text)
+
+    # Parse JSON response using regex to extract array
+    raw_text = response.text.strip()
+    match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
+    if match:
+        raw_text = match.group(0)
+
+    try:
+        questions = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Gemini returned invalid JSON (quiz): {e}\nRaw output: {raw_text}")
+
+
+    # Validate structure
+    validated = []
+    for q in questions:
+        if "question" in q and "options" in q and "correct_index" in q:
+            if len(q["options"]) == 4 and 0 <= q["correct_index"] <= 3:
+                validated.append(q)
+
+    if not validated:
+        raise ValueError("Failed to generate valid quiz questions from the document.")
+
+    return validated[:num_questions]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FLASHCARD GENERATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+_FLASHCARD_PROMPT = PromptTemplate(
+    input_variables=["context", "num_cards"],
+    template="""Tu es un enseignant expert. À partir du contenu suivant, génère exactement {num_cards} flashcards éducatives.
+
+Chaque flashcard doit contenir :
+- "front" : une question courte, un terme ou un concept clé
+- "back" : la réponse, la définition ou l'explication
+
+Réponds UNIQUEMENT en JSON valide, sans markdown, sans code fences :
+[
+  {{
+    "front": "Qu'est-ce que la mitose ?",
+    "back": "La mitose est un processus de division cellulaire qui produit deux cellules filles identiques."
+  }}
+]
+
+CONTENU :
+{context}
+""",
+)
+
+
+def generate_flashcards(collection_name: str, num_cards: int = 15) -> List[Dict]:
+    """
+    Generate flashcards from a document's chunks using Gemini.
+
+    Flow (from design doc Section 5 — GENERATE_FC):
+      1. Read chunks from ChromaDB
+      2. Build prompt → Gemini generates recto/verso JSON
+      3. Parse & validate
+
+    Returns:
+        List of dicts with keys: front, back
+    """
+    embeddings = _get_embeddings()
+    vectorstore = Chroma(
+        collection_name=collection_name,
+        embedding_function=embeddings,
+        persist_directory=_chroma_path(),
+    )
+
+    all_chunks = vectorstore.similarity_search("concepts et définitions importants", k=30)
+    if not all_chunks:
+        raise ValueError("No chunks found for this document.")
+
+    sample_size = min(len(all_chunks), max(num_cards, 15))
+    sampled = random.sample(all_chunks, sample_size)
+
+    context = "\n\n---\n\n".join(c.page_content for c in sampled)
+
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    llm = genai.GenerativeModel('gemini-2.5-flash')
+    prompt_text = _FLASHCARD_PROMPT.format(context=context, num_cards=num_cards)
+    response = llm.generate_content(prompt_text)
+
+    raw_text = response.text.strip()
+    match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
+    if match:
+        raw_text = match.group(0)
+
+    try:
+        cards = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Gemini returned invalid JSON (flashcards): {e}\nRaw output: {raw_text}")
+
+
+    # Validate structure
+    validated = []
+    for card in cards:
+        if "front" in card and "back" in card:
+            validated.append(card)
+
+    if not validated:
+        raise ValueError("Failed to generate valid flashcards from the document.")
+
+    return validated[:num_cards]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # CLEANUP
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -228,3 +405,4 @@ def delete_collection(collection_name: str) -> None:
         client.delete_collection(name=collection_name)
     except Exception:
         pass  # Collection may not exist; that's fine
+

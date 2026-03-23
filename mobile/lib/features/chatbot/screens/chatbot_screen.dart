@@ -6,6 +6,7 @@ import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/document_section.dart';
 import '../providers/chat_provider.dart';
+import '../providers/document_provider.dart';
 
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({Key? key}) : super(key: key);
@@ -140,7 +141,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     error: (err, st) => Center(child: Text("Erreur: $err", style: const TextStyle(color: Colors.red))),
                   ),
                 ),
-                _buildQuickActions(),
+                _buildQuickActions(context),
                 _buildMessageInput(),
                 const SizedBox(height: 10), // Nav Bar padding
               ],
@@ -155,18 +156,51 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Widget _buildQuickActions() {
+  Widget _buildQuickActions(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          _QuickActionBtn(title: 'Quiz'),
+          _QuickActionBtn(
+            title: 'Quiz',
+            onTap: () => _handleQuickAction(context, 'quiz'),
+          ),
           const SizedBox(width: 8),
-          _QuickActionBtn(title: 'Flashcards'),
+          _QuickActionBtn(
+            title: 'Flashcards',
+            onTap: () => _handleQuickAction(context, 'flashcards'),
+          ),
         ],
       ),
     );
+  }
+
+  void _handleQuickAction(BuildContext context, String type) {
+    final selectedDocs = ref.read(selectedDocumentsProvider);
+    if (selectedDocs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez sélectionner un document d\'abord.')),
+      );
+      return;
+    }
+    if (selectedDocs.length > 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez sélectionner un seul document.')),
+      );
+      return;
+    }
+
+    final docId = selectedDocs.first;
+    // We should ideally find the document title. We can just pass 'Document'.
+    // or look it up if we have access to it, but 'Document' works as fallback.
+    
+    if (type == 'quiz') {
+      context.push('/quiz/generate/$docId?title=Document');
+    } else {
+      // For flashcards, check if a deck already exists by going to deck screen
+      context.push('/flashcards/deck/$docId');
+    }
   }
 
   Widget _buildMessageInput() {
@@ -206,16 +240,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
 class _QuickActionBtn extends StatelessWidget {
   final String title;
-  const _QuickActionBtn({required this.title});
+  final VoidCallback onTap;
+  
+  const _QuickActionBtn({required this.title, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          // Action for quick button
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

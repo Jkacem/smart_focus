@@ -6,6 +6,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final IconData trailingIcon;
   final VoidCallback? onTrailingPressed;
   final Widget? trailingWidget;
+  final IconData? leadingIcon;
+  final VoidCallback? onLeadingPressed;
 
   const CustomAppBar({
     Key? key,
@@ -13,6 +15,8 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.trailingIcon = Icons.add_a_photo,
     this.onTrailingPressed,
     this.trailingWidget,
+    this.leadingIcon,
+    this.onLeadingPressed,
   }) : super(key: key);
 
   @override
@@ -36,25 +40,42 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   width: 1.5,
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.center,
+              child: Stack(
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                  // Center Title
+                  Align(
+                    alignment: Alignment.center,
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  trailingWidget ??
-                      IconButton(
-                        icon: Icon(trailingIcon, color: Colors.white),
-                        onPressed: onTrailingPressed,
+                  // Left/Leading Icon
+                  if (leadingIcon != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton(
+                        icon: Icon(leadingIcon, color: Colors.white),
+                        onPressed: onLeadingPressed,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
+                    ),
+                  // Right/Trailing Icon
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: trailingWidget ??
+                        IconButton(
+                          icon: Icon(trailingIcon, color: Colors.white),
+                          onPressed: onTrailingPressed,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                  ),
                 ],
               ),
             ),
@@ -63,6 +84,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
   }
+
 
   @override
   Size get preferredSize => const Size.fromHeight(80.0);

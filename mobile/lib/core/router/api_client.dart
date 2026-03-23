@@ -11,7 +11,7 @@ class ApiClient {
         baseUrl: _baseUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 120), // RAG generation can take > 30s
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        contentType: Headers.jsonContentType,
       ),
     );
 

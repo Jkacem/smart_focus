@@ -14,6 +14,15 @@ import 'package:smart_focus/features/stats/screens/statistics_screen.dart';
 import 'package:smart_focus/features/settings/screens/settings_screen.dart';
 import 'package:smart_focus/features/dashboard/screens/session_active_screen.dart';
 
+// Quiz & Flashcards
+import 'package:smart_focus/features/quiz/models/quiz_models.dart';
+import 'package:smart_focus/features/quiz/screens/quiz_generate_screen.dart';
+import 'package:smart_focus/features/quiz/screens/quiz_play_screen.dart';
+import 'package:smart_focus/features/quiz/screens/quiz_result_screen.dart';
+import 'package:smart_focus/features/flashcards/screens/flashcard_generate_screen.dart';
+import 'package:smart_focus/features/flashcards/screens/flashcard_deck_screen.dart';
+import 'package:smart_focus/features/flashcards/screens/flashcard_review_screen.dart';
+
 final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
@@ -58,6 +67,56 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/session',
         builder: (context, state) => const SessionActiveScreen(),
+      ),
+
+      // ===== QUIZ ROUTES =====
+      GoRoute(
+        path: '/quiz/generate/:docId',
+        builder: (context, state) {
+          final docId = int.parse(state.pathParameters['docId']!);
+          final title = state.uri.queryParameters['title'] ?? 'Document';
+          return QuizGenerateScreen(documentId: docId, documentTitle: title);
+        },
+      ),
+      GoRoute(
+        path: '/quiz/play/:quizId',
+        builder: (context, state) {
+          final quizId = int.parse(state.pathParameters['quizId']!);
+          return QuizPlayScreen(quizId: quizId);
+        },
+      ),
+      GoRoute(
+        path: '/quiz/result/:quizId',
+        builder: (context, state) {
+          final quizId = int.parse(state.pathParameters['quizId']!);
+          final result = state.extra as QuizResultModel;
+          return QuizResultScreen(quizId: quizId, result: result);
+        },
+      ),
+
+      // ===== FLASHCARD ROUTES =====
+      GoRoute(
+        path: '/flashcards/generate/:docId',
+        builder: (context, state) {
+          final docId = int.parse(state.pathParameters['docId']!);
+          final title = state.uri.queryParameters['title'] ?? 'Document';
+          return FlashcardGenerateScreen(documentId: docId, documentTitle: title);
+        },
+      ),
+      GoRoute(
+        path: '/flashcards/deck/:docId',
+        builder: (context, state) {
+          final docId = int.parse(state.pathParameters['docId']!);
+          return FlashcardDeckScreen(documentId: docId);
+        },
+      ),
+      GoRoute(
+        path: '/flashcards/review',
+        builder: (context, state) {
+          final docIdStr = state.uri.queryParameters['documentId'];
+          final docId = docIdStr != null ? int.tryParse(docIdStr) : null;
+          return FlashcardReviewScreen(documentId: docId);
+        },
       ),
     ],
   );

@@ -49,7 +49,7 @@ def health_check():
 
 
 # ── Inclure les routeurs ──
-from app.routers import auth, users, chatbot
+from app.routers import auth, users, chatbot, quiz, flashcard
 import os
 
 # Create storage directories on startup
@@ -59,3 +59,5 @@ os.makedirs(os.getenv("CHROMA_DB_PATH", "chroma_db"), exist_ok=True)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(chatbot.router)
+app.include_router(quiz.router)
+app.include_router(flashcard.router)
