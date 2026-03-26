@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 import 'package:smart_focus/features/auth/providers/auth_provider.dart';
+import 'package:smart_focus/features/chatbot/providers/chat_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -356,6 +357,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       height: 56,
       child: TextButton.icon(
         onPressed: () async {
+          // Clear cached chat history before logging out
+          ref.invalidate(chatProvider);
           await ref.read(authProvider.notifier).logout();
           if (mounted) context.go('/');
         },

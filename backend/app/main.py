@@ -49,7 +49,7 @@ def health_check():
 
 
 # ── Inclure les routeurs ──
-from app.routers import auth, users, chatbot, quiz, flashcard
+from app.routers import auth, users, chatbot, quiz, flashcard, sleep
 import os
 
 # Create storage directories on startup
@@ -61,3 +61,4 @@ app.include_router(users.router)
 app.include_router(chatbot.router)
 app.include_router(quiz.router)
 app.include_router(flashcard.router)
+app.include_router(sleep.router)

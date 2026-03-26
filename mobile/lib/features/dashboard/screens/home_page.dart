@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smart_focus/features/dashboard/screens/session_active_screen.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 
 // feature-specific widgets
 
 import 'package:smart_focus/shared/widgets/index.dart';
-import 'package:smart_focus/features/planning/screens/planning_screen.dart';
-import 'package:smart_focus/features/chatbot/screens/chatbot_screen.dart';
-import 'package:smart_focus/features/stats/screens/statistics_screen.dart';
-import 'package:smart_focus/features/settings/screens/settings_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);

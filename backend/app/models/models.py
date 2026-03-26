@@ -43,6 +43,10 @@ class User(Base):
                                    cascade="all, delete-orphan")
     flashcards      = relationship("Flashcard",    back_populates="user",
                                    cascade="all, delete-orphan")
+    sleep_records   = relationship("SleepRecord",   back_populates="user",
+                                   cascade="all, delete-orphan")
+    smart_alarm     = relationship("SmartAlarm",    back_populates="user",
+                                   uselist=False, cascade="all, delete-orphan")
 
 
 class UserProfile(Base):
@@ -176,3 +180,41 @@ class Flashcard(Base):
     user     = relationship("User",         back_populates="flashcards")
     document = relationship("ChatDocument", back_populates="flashcards")
 
+
+# ══════════════════════════════════════════════
+# SLEEP
+# ══════════════════════════════════════════════
+
+class SleepRecord(Base):
+    """Stores one night of sleep data per user."""
+    __tablename__ = "sleep_records"
+
+    id                = Column(Integer, primary_key=True, index=True)
+    user_id           = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
+                               nullable=False, index=True)
+    sleep_start       = Column(DateTime, nullable=False)
+    sleep_end         = Column(DateTime, nullable=True)
+    total_hours       = Column(Float, nullable=True)
+    deep_sleep_hours  = Column(Float, nullable=True)
+    light_sleep_hours = Column(Float, nullable=True)
+    sleep_score       = Column(Integer, nullable=True)   # 0-100
+    raw_sensor_data   = Column(JSON, nullable=True)
+    created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="sleep_records")
+
+
+class SmartAlarm(Base):
+    """Per-user smart alarm configuration."""
+    __tablename__ = "smart_alarms"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    user_id         = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"),
+                             nullable=False, unique=True)
+    alarm_time      = Column(String(5), nullable=False)           # "HH:MM"
+    is_active       = Column(Boolean, nullable=False, default=True)
+    wake_mode       = Column(String(30), nullable=False, default="gradual")  # gradual|normal|silent
+    light_intensity = Column(Integer, nullable=False, default=50)             # 0-100
+    sound_enabled   = Column(Boolean, nullable=False, default=True)
+
+    user = relationship("User", back_populates="smart_alarm")

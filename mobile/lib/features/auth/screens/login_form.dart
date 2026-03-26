@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/features/auth/screens/sign_form.dart';
+import 'package:smart_focus/features/chatbot/providers/chat_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import '../providers/auth_provider.dart';
 
@@ -50,6 +51,8 @@ class _LoginFormScreenState extends ConsumerState<LoginFormScreen> {
     if (!mounted) return;
     final state = ref.read(authProvider);
     if (state.status == AuthStatus.success) {
+      // Invalidate chat history so the new user's history is loaded fresh
+      ref.invalidate(chatProvider);
       context.go('/dashboard');
     } else if (state.status == AuthStatus.error) {
       ScaffoldMessenger.of(context).showSnackBar(

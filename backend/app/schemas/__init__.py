@@ -3,3 +3,8 @@ from .user import (
     UserProfileCreate, UserProfileRead, UserProfileUpdate,
     LoginRequest, TokenResponse, RefreshRequest,
 )
+from .sleep import (
+    SleepLogCreate, SleepLogResponse,
+    SleepStatsResponse,
+    AlarmConfigUpdate, AlarmConfigResponse,
+)
