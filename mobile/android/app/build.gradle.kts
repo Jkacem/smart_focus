@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.smartfocus.smart_focus"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

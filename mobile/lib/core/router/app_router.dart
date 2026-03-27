@@ -23,8 +23,17 @@ import 'package:smart_focus/features/flashcards/screens/flashcard_generate_scree
 import 'package:smart_focus/features/flashcards/screens/flashcard_deck_screen.dart';
 import 'package:smart_focus/features/flashcards/screens/flashcard_review_screen.dart';
 
+// Sleep
+import 'package:smart_focus/features/sleep/screens/sleep_dashboard_screen.dart';
+import 'package:smart_focus/features/sleep/screens/alarm_settings_screen.dart';
+import 'package:smart_focus/features/sleep/screens/alarm_ring_screen.dart';
+import 'package:alarm/alarm.dart';
+
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     debugLogDiagnostics: true,
     routes: [
@@ -116,6 +125,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final docIdStr = state.uri.queryParameters['documentId'];
           final docId = docIdStr != null ? int.tryParse(docIdStr) : null;
           return FlashcardReviewScreen(documentId: docId);
+        },
+      ),
+
+      // ===== SLEEP ROUTES =====
+      GoRoute(
+        path: '/sleep',
+        builder: (context, state) => const SleepDashboardScreen(),
+      ),
+      GoRoute(
+        path: '/sleep/alarm',
+        builder: (context, state) => const AlarmSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/alarm-ring',
+        builder: (context, state) {
+          final alarmSettings = state.extra as AlarmSettings;
+          return AlarmRingScreen(alarmSettings: alarmSettings);
         },
       ),
     ],

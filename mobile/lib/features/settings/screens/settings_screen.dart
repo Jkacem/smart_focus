@@ -14,7 +14,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  int _selectedIndex = 4; // Index for settings in BottomNav
+  int _selectedIndex = 5; // Index for settings in BottomNav
 
   double _focusGoal = 90;
   bool _focusAlerts = true;
@@ -30,6 +30,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context.go('/chatbot');
     } else if (index == 3) {
       context.go('/statistics');
+    } else if (index == 4) {
+      context.go('/sleep');
+    } else if (index == 5) {
+      context.go('/settings');
     } else {
       setState(() {
         _selectedIndex = index;

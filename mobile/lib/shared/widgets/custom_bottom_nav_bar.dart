@@ -18,6 +18,7 @@ class CustomBottomNavBar extends StatelessWidget {
       Icons.calendar_month_rounded,
       Icons.chat_bubble_rounded,
       Icons.bar_chart_rounded,
+      Icons.nightlight_round,
       Icons.settings_rounded,
     ];
 

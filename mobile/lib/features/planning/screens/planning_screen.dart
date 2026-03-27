@@ -18,11 +18,15 @@ class _PlanningScreenState extends State<PlanningScreen> {
   void _onItemTapped(int index) {
     if (index == 0) {
       context.go('/dashboard');
+    } else if (index == 1) {
+      context.go('/planning');
     } else if (index == 2) {
       context.go('/chatbot');
     } else if (index == 3) {
       context.go('/statistics');
     } else if (index == 4) {
+      context.go('/sleep');
+    } else if (index == 5) {
       context.go('/settings');
     } else {
       setState(() {
