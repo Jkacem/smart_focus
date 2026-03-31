@@ -3,8 +3,8 @@
 CRUD helpers for SQLAlchemy models.
 """
 
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, date
+from typing import Optional, List
 
 from sqlalchemy.orm import Session
 
@@ -215,3 +215,105 @@ def upsert_alarm_config(
     db.commit()
     db.refresh(alarm)
     return alarm
+
+
+# ══════════════════════════════════════════════
+# PLANNING SESSIONS
+# ══════════════════════════════════════════════
+
+def get_study_sessions_by_date(
+    db: Session,
+    user_id: int,
+    day: date,
+) -> List[models.StudySession]:
+    """Return all sessions for a given user and day."""
+    return (
+        db.query(models.StudySession)
+        .filter(models.StudySession.user_id == user_id, models.StudySession.date == day)
+        .order_by(models.StudySession.start.asc())
+        .all()
+    )
+
+
+def delete_study_sessions_by_date(db: Session, user_id: int, day: date, only_ai: bool = False) -> int:
+    """Delete all (or only AI) sessions for a user/day. Returns the deleted count."""
+    sessions = get_study_sessions_by_date(db, user_id, day)
+    deleted = 0
+    for s in sessions:
+        if only_ai and not s.is_ai_generated:
+            continue
+        db.delete(s)
+        deleted += 1
+    if deleted > 0:
+        db.commit()
+    return deleted
+
+
+def create_study_session(
+    db: Session,
+    user_id: int,
+    data: "schemas.StudySessionCreate",
+    *,
+    is_ai_generated: bool = False,
+) -> models.StudySession:
+    """Create a single study session."""
+    if data.end <= data.start:
+        raise ValueError("end must be after start")
+    session_day = data.start.date()
+    if data.end.date() != session_day:
+        raise ValueError("end must be on the same day as start")
+
+    session = models.StudySession(
+        user_id=user_id,
+        date=session_day,
+        start=data.start,
+        end=data.end,
+        subject=data.subject,
+        priority=data.priority,
+        status="pending",
+        notes=None,
+        is_ai_generated=is_ai_generated,
+        completed_at=None,
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def update_study_session(
+    db: Session,
+    session_obj: models.StudySession,
+    updates: "schemas.StudySessionUpdate",
+) -> models.StudySession:
+    """Apply partial updates (status/notes)."""
+    payload = updates.model_dump(exclude_unset=True)
+    if "status" in payload:
+        new_status = payload["status"]
+        session_obj.status = new_status
+        if new_status == "completed":
+            session_obj.completed_at = datetime.utcnow()
+        else:
+            session_obj.completed_at = None
+
+    if "notes" in payload:
+        session_obj.notes = payload["notes"]
+
+    db.commit()
+    db.refresh(session_obj)
+    return session_obj
+
+
+def complete_study_session(db: Session, session_obj: models.StudySession) -> models.StudySession:
+    """Mark a session as completed."""
+    session_obj.status = "completed"
+    session_obj.completed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(session_obj)
+    return session_obj
+
+
+def delete_study_session(db: Session, session_obj: models.StudySession) -> None:
+    """Delete a single study session."""
+    db.delete(session_obj)
+    db.commit()

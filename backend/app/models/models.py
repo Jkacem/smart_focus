@@ -1,8 +1,8 @@
 # backend/models/models.py
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 from sqlalchemy import (
-    Column, Integer, String, DateTime, Boolean,
+    Column, Integer, String, DateTime, Date, Boolean,
     ForeignKey, JSON, Float,
 )
 from sqlalchemy.orm import relationship, declarative_base
@@ -47,6 +47,8 @@ class User(Base):
                                    cascade="all, delete-orphan")
     smart_alarm     = relationship("SmartAlarm",    back_populates="user",
                                    uselist=False, cascade="all, delete-orphan")
+    study_sessions = relationship("StudySession", back_populates="user",
+                                   cascade="all, delete-orphan")
 
 
 class UserProfile(Base):
@@ -218,3 +220,36 @@ class SmartAlarm(Base):
     sound_enabled   = Column(Boolean, nullable=False, default=True)
 
     user = relationship("User", back_populates="smart_alarm")
+
+
+# ══════════════════════════════════════════════
+# PLANNING SESSIONS
+# ══════════════════════════════════════════════
+
+class StudySession(Base):
+    """A single timeboxed study/work session inside a daily planning."""
+    __tablename__ = "study_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Used for fast filtering: GET /{date}
+    date = Column(Date, nullable=False, index=True)
+
+    start = Column(DateTime, nullable=False)
+    end = Column(DateTime, nullable=False)
+    subject = Column(String(255), nullable=False)
+    priority = Column(String(20), nullable=False, default="medium")
+    status = Column(String(20), nullable=False, default="pending")
+    notes = Column(String(2000), nullable=True)
+    is_ai_generated = Column(Boolean, nullable=False, default=False)
+    completed_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="study_sessions")

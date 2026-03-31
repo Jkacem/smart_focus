@@ -2,7 +2,7 @@
 Chatbot Router — FastAPI endpoints for the RAG chatbot.
 
 Endpoints:
-    POST   /chatbot/upload            Upload a PDF and ingest it into ChromaDB
+    POST   /chatbot/upload            Upload a PDF or CSV and ingest it
     POST   /chatbot/chat              Ask a question about selected documents
     GET    /chatbot/documents         List documents uploaded by current user
     DELETE /chatbot/documents/{id}    Remove a document (disk + DB + Chroma)
@@ -25,6 +25,7 @@ from app.schemas.chatbot import (
     SourceCitation,
 )
 from app.services import document_service, rag_service
+from app.services.schedule_parser import is_csv_schedule
 
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
@@ -37,37 +38,53 @@ router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
     "/upload",
     response_model=DocumentUploadResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload a PDF document for RAG",
+    summary="Upload a PDF or CSV document",
 )
 async def upload_document(
-    file: UploadFile = File(..., description="PDF file to upload"),
+    file: UploadFile = File(..., description="PDF or CSV file to upload"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a PDF document. It will be chunked, embedded, and stored in ChromaDB."""
+    """Upload a PDF document (for RAG) or a CSV schedule template (for planning)."""
+
+    filename_lower = file.filename.lower()
+    is_pdf = filename_lower.endswith(".pdf")
+    is_csv = filename_lower.endswith(".csv")
 
     # Validate file type
-    if not file.filename.lower().endswith(".pdf"):
+    if not is_pdf and not is_csv:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are accepted.",
+            detail="Only PDF and CSV files are accepted.",
         )
 
     # 1. Save file to disk
     file_path, collection_name = document_service.save_upload(file, current_user.id)
 
-    # 2. Ingest into ChromaDB (chunking + embedding)
-    try:
-        page_count = rag_service.ingest_pdf(file_path, collection_name)
-    except ValueError as e:
-        document_service.delete_file(file_path)
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-    except Exception as e:
-        document_service.delete_file(file_path)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process PDF: {str(e)}",
-        )
+    page_count = None
+    if is_pdf:
+        # 2a. PDF → Ingest into ChromaDB (chunking + embedding)
+        try:
+            page_count = rag_service.ingest_pdf(file_path, collection_name)
+        except ValueError as e:
+            document_service.delete_file(file_path)
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        except Exception as e:
+            document_service.delete_file(file_path)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to process PDF: {str(e)}",
+            )
+        msg = f"✅ '{file.filename}' ingested successfully ({page_count} pages)."
+    else:
+        # 2b. CSV → Validate it's a valid schedule template, no ChromaDB ingestion
+        if not is_csv_schedule(file_path):
+            document_service.delete_file(file_path)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="CSV must have columns: week, day, start, end, subject",
+            )
+        msg = f"✅ '{file.filename}' uploaded as schedule template."
 
     # 3. Persist metadata in PostgreSQL
     doc = ChatDocument(
@@ -82,7 +99,7 @@ async def upload_document(
     db.refresh(doc)
 
     return DocumentUploadResponse(
-        message=f"✅ '{file.filename}' ingested successfully ({page_count} pages).",
+        message=msg,
         document=DocumentInfo.model_validate(doc),
     )
 
