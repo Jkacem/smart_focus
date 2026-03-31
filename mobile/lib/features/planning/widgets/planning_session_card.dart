@@ -2,31 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 
 class PlanningSessionCard extends StatelessWidget {
+  final int sessionId;
   final String time;
   final String title;
   final String duration;
   final double progress;
   final String priorityLabel;
   final String priorityIcon;
-  final VoidCallback onDismissed;
+  final String statusLabel;
+  final bool isCompleted;
+  final Future<bool> Function() onDeleteRequested;
+  final VoidCallback? onComplete;
 
   const PlanningSessionCard({
     Key? key,
+    required this.sessionId,
     required this.time,
     required this.title,
     required this.duration,
     required this.progress,
     required this.priorityLabel,
     required this.priorityIcon,
-    required this.onDismissed,
+    required this.statusLabel,
+    required this.isCompleted,
+    required this.onDeleteRequested,
+    this.onComplete,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key: ValueKey(time + title),
+      key: ValueKey(sessionId),
       direction: DismissDirection.endToStart,
-      onDismissed: (direction) => onDismissed(),
+      confirmDismiss: (direction) => onDeleteRequested(),
       background: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -45,34 +53,54 @@ class PlanningSessionCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Time and Title
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          time,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                time,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                        IconButton(
+                          onPressed: onComplete,
+                          tooltip: isCompleted
+                              ? 'Marquer comme non terminee'
+                              : 'Marquer comme terminee',
+                          icon: Icon(
+                            isCompleted
+                                ? Icons.restart_alt_rounded
+                                : Icons.check_circle_outline,
+                            color: isCompleted
+                                ? Colors.greenAccent
+                                : Colors.white70,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    // Progress Bar
                     Row(
                       children: [
                         Expanded(
@@ -99,8 +127,9 @@ class PlanningSessionCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    // Priority
-                    Row(
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
                       children: [
                         Text(
                           '[$priorityLabel] $priorityIcon',
@@ -109,8 +138,53 @@ class PlanningSessionCard extends StatelessWidget {
                             fontSize: 14,
                           ),
                         ),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
                     ),
+                    if (!isCompleted) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB74D).withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFFFFB74D).withOpacity(0.55),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_outlined,
+                              color: Color(0xFFFFD180),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Session non terminee. Pense a la valider une fois finie.',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.92),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

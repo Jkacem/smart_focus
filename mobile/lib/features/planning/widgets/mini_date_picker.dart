@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 
 class MiniDatePicker extends StatelessWidget {
-  const MiniDatePicker({Key? key}) : super(key: key);
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onDateSelected;
+  final VoidCallback onPreviousWeek;
+  final VoidCallback onNextWeek;
+
+  const MiniDatePicker({
+    Key? key,
+    required this.selectedDate,
+    required this.onDateSelected,
+    required this.onPreviousWeek,
+    required this.onNextWeek,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // Dummy dates for demonstration
-    final List<int> days = [23, 24, 25, 26, 27, 28, 1];
-    final List<String> letters = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-    final int todayIndex = 6; // Index for '01'
+    final weekDays = _buildWeekDays(selectedDate);
+    final today = DateTime.now();
+    final monthLabel = _monthLabel(selectedDate);
 
     return Column(
       children: [
-        // Month Header
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -22,11 +31,11 @@ class MiniDatePicker extends StatelessWidget {
                 color: Colors.white70,
                 size: 20,
               ),
-              onPressed: () {},
+              onPressed: onPreviousWeek,
             ),
-            const Text(
-              'Mars 2026',
-              style: TextStyle(
+            Text(
+              monthLabel,
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -38,52 +47,100 @@ class MiniDatePicker extends StatelessWidget {
                 color: Colors.white70,
                 size: 20,
               ),
-              onPressed: () {},
+              onPressed: onNextWeek,
             ),
           ],
         ),
         const SizedBox(height: 10),
-        // Days Row
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(7, (index) {
-            final isToday = index == todayIndex;
-            return Column(
-              children: [
-                Text(
-                  letters[index],
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: isToday ? Colors.white.withOpacity(0.2) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                    border: isToday
-                        ? Border.all(color: Colors.white54, width: 1)
-                        : null,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    days[index].toString().padLeft(2, '0'),
+          children: weekDays.map((day) {
+            final isSelected = _isSameDay(day, selectedDate);
+            final isToday = _isSameDay(day, today);
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => onDateSelected(day),
+              child: Column(
+                children: [
+                  Text(
+                    _dayLabel(day),
                     style: TextStyle(
-                      color: isToday ? Colors.white : Colors.white70,
-                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 16,
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? Colors.white.withOpacity(0.24)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.white70
+                            : (isToday ? Colors.white38 : Colors.transparent),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      day.day.toString().padLeft(2, '0'),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: isSelected || isToday
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             );
-          }),
+          }).toList(),
         ),
       ],
     );
+  }
+
+  List<DateTime> _buildWeekDays(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+    final startOfWeek = normalized.subtract(Duration(days: normalized.weekday - 1));
+    return List.generate(7, (index) => startOfWeek.add(Duration(days: index)));
+  }
+
+  String _monthLabel(DateTime date) {
+    const months = [
+      'Janvier',
+      'Fevrier',
+      'Mars',
+      'Avril',
+      'Mai',
+      'Juin',
+      'Juillet',
+      'Aout',
+      'Septembre',
+      'Octobre',
+      'Novembre',
+      'Decembre',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  String _dayLabel(DateTime date) {
+    const labels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    return labels[date.weekday - 1];
+  }
+
+  bool _isSameDay(DateTime left, DateTime right) {
+    return left.year == right.year &&
+        left.month == right.month &&
+        left.day == right.day;
   }
 }

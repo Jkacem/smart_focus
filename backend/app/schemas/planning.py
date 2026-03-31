@@ -61,3 +61,9 @@ class PlanningDayOut(BaseModel):
     planning: PlanningOut
     sessions: list[StudySessionOut]
 
+
+class PlanningWeekOut(BaseModel):
+    week_start: date
+    week_end: date
+    days: list[PlanningDayOut]
+

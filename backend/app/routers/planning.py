@@ -1,15 +1,15 @@
 """
-Planning Router — intelligent planning endpoints.
+Planning Router - intelligent planning endpoints.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response, status
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
 from app.deps import get_current_user, get_db
-from app.models.models import StudySession, User, ChatDocument
+from app.models.models import ChatDocument, StudySession, User
 from app.services.planning_service import generate_daily_schedule
 from app.services.schedule_parser import is_csv_schedule, parse_csv_schedule
 
@@ -22,6 +22,94 @@ def _to_day_response(day: date, sessions: list[StudySession]) -> schemas.Plannin
         planning=schemas.PlanningOut(date=day),
         sessions=sessions_out,
     )
+
+
+def _week_days(anchor_day: date) -> list[date]:
+    start_of_week = anchor_day - timedelta(days=anchor_day.weekday())
+    return [start_of_week + timedelta(days=offset) for offset in range(7)]
+
+
+def _load_planning_document(
+    db: Session,
+    current_user: User,
+    document_id: int | None,
+) -> tuple[str | None, str | None]:
+    if document_id is None:
+        return None, None
+
+    doc = (
+        db.query(ChatDocument)
+        .filter(ChatDocument.id == document_id, ChatDocument.user_id == current_user.id)
+        .first()
+    )
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    return doc.chroma_collection, doc.file_path
+
+
+def _generate_sessions_for_day(
+    target_day: date,
+    *,
+    db: Session,
+    current_user: User,
+    preferences: schemas.PlanningPreferences | None,
+    collection_name: str | None,
+    doc_file_path: str | None,
+    week_type: str | None,
+    allow_empty_csv: bool = False,
+) -> list[dict]:
+    crud.delete_study_sessions_by_date(db, current_user.id, target_day, only_ai=True)
+    existing_sessions = crud.get_study_sessions_by_date(db, current_user.id, target_day)
+
+    if doc_file_path and is_csv_schedule(doc_file_path):
+        generated_sessions = parse_csv_schedule(
+            file_path=doc_file_path,
+            target_date=target_day,
+            week_type=week_type,
+        )
+        if not generated_sessions and not allow_empty_csv:
+            from app.services.schedule_parser import _DAY_TO_WEEKDAY
+
+            day_name = {v: k for k, v in _DAY_TO_WEEKDAY.items()}.get(target_day.weekday(), "?")
+            iso_week = target_day.isocalendar()[1]
+            auto_week = "A" if iso_week % 2 == 1 else "B"
+            wt = week_type or auto_week
+            raise ValueError(
+                f"Aucun cours trouve pour {day_name.capitalize()} en semaine {wt}. "
+                f"Verifiez votre fichier CSV."
+            )
+        return generated_sessions
+
+    return generate_daily_schedule(
+        day=target_day,
+        existing_sessions=existing_sessions,
+        profile=current_user.profile,
+        preferences=preferences,
+        collection_name=collection_name,
+    )
+
+
+def _create_ai_sessions_for_day(
+    target_day: date,
+    generated_sessions: list[dict],
+    *,
+    db: Session,
+    current_user: User,
+) -> schemas.PlanningDayOut:
+    created: list[StudySession] = []
+    for item in generated_sessions:
+        payload = schemas.StudySessionCreate(
+            subject=item["subject"],
+            start=item["start"],
+            end=item["end"],
+            priority=item.get("priority", "medium"),
+        )
+        created.append(
+            crud.create_study_session(db, current_user.id, payload, is_ai_generated=True)
+        )
+
+    return _to_day_response(target_day, created)
 
 
 @router.get("/today", response_model=schemas.PlanningDayOut)
@@ -40,74 +128,88 @@ def generate_planning(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Only remove AI-generated sessions, keeping manual ones.
-    crud.delete_study_sessions_by_date(db, current_user.id, body.date, only_ai=True)
-
-    # Fetch remaining manual sessions for this day to serve as constraints
-    existing_sessions = crud.get_study_sessions_by_date(db, current_user.id, body.date)
-    profile = current_user.profile
-    collection_name = None
-    doc_file_path = None
-
-    if body.document_id is not None:
-        doc = (
-            db.query(ChatDocument)
-            .filter(ChatDocument.id == body.document_id, ChatDocument.user_id == current_user.id)
-            .first()
-        )
-        if not doc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
-        collection_name = doc.chroma_collection
-        doc_file_path = doc.file_path
+    collection_name, doc_file_path = _load_planning_document(
+        db,
+        current_user,
+        body.document_id,
+    )
 
     try:
-        # If the document is a CSV schedule template, use deterministic parsing
-        if doc_file_path and is_csv_schedule(doc_file_path):
-            generated_sessions = parse_csv_schedule(
-                file_path=doc_file_path,
-                target_date=body.date,
-                week_type=body.week_type,
-            )
-            if not generated_sessions:
-                from app.services.schedule_parser import _FRENCH_DAYS, _DAY_TO_WEEKDAY
-                day_name = {v: k for k, v in _DAY_TO_WEEKDAY.items()}.get(body.date.weekday(), "?")
-                iso_week = body.date.isocalendar()[1]
-                auto_week = "A" if iso_week % 2 == 1 else "B"
-                wt = body.week_type or auto_week
-                raise ValueError(
-                    f"Aucun cours trouvé pour {day_name.capitalize()} en semaine {wt}. "
-                    f"Vérifiez votre fichier CSV."
-                )
-        else:
-            # Use LLM-based planning (existing Gemini approach)
-            generated_sessions = generate_daily_schedule(
-                day=body.date,
-                existing_sessions=existing_sessions,
-                profile=profile,
+        generated_sessions = _generate_sessions_for_day(
+            body.date,
+            db=db,
+            current_user=current_user,
+            preferences=body.preferences,
+            collection_name=collection_name,
+            doc_file_path=doc_file_path,
+            week_type=body.week_type,
+        )
+        return _create_ai_sessions_for_day(
+            body.date,
+            generated_sessions,
+            db=db,
+            current_user=current_user,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except (KeyError, TypeError) as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Planning generation failed: {e}",
+        )
+
+
+@router.post("/generate/week", response_model=schemas.PlanningWeekOut, status_code=status.HTTP_201_CREATED)
+def generate_week_planning(
+    body: schemas.PlanningGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    collection_name, doc_file_path = _load_planning_document(
+        db,
+        current_user,
+        body.document_id,
+    )
+    target_days = _week_days(body.date)
+    days_out: list[schemas.PlanningDayOut] = []
+
+    try:
+        for target_day in target_days:
+            generated_sessions = _generate_sessions_for_day(
+                target_day,
+                db=db,
+                current_user=current_user,
                 preferences=body.preferences,
                 collection_name=collection_name,
+                doc_file_path=doc_file_path,
+                week_type=body.week_type,
+                allow_empty_csv=True,
+            )
+            days_out.append(
+                _create_ai_sessions_for_day(
+                    target_day,
+                    generated_sessions,
+                    db=db,
+                    current_user=current_user,
+                )
             )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except (KeyError, TypeError) as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Planning generation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Weekly planning generation failed: {e}",
+        )
 
-    created = []
-    for item in generated_sessions:
-        try:
-            payload = schemas.StudySessionCreate(
-                subject=item["subject"],
-                start=item["start"],
-                end=item["end"],
-                priority=item.get("priority", "medium"),
-            )
-            created.append(
-                crud.create_study_session(db, current_user.id, payload, is_ai_generated=True)
-            )
-        except (ValueError, KeyError) as e:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
-
-    return _to_day_response(body.date, created)
+    return schemas.PlanningWeekOut(
+        week_start=target_days[0],
+        week_end=target_days[-1],
+        days=days_out,
+    )
 
 
 @router.get("/{day}", response_model=schemas.PlanningDayOut)
@@ -186,4 +288,3 @@ def complete_session(
 
     session_obj = crud.complete_study_session(db, session_obj)
     return session_obj
-
