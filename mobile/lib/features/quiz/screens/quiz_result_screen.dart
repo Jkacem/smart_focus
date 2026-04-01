@@ -1,19 +1,66 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
-import '../models/quiz_models.dart';
 
-class QuizResultScreen extends StatelessWidget {
+import '../models/quiz_models.dart';
+import '../providers/quiz_provider.dart';
+
+class QuizResultScreen extends ConsumerStatefulWidget {
   final int quizId;
   final QuizResultModel result;
 
-  const QuizResultScreen({Key? key, required this.quizId, required this.result})
-    : super(key: key);
+  const QuizResultScreen({
+    Key? key,
+    required this.quizId,
+    required this.result,
+  }) : super(key: key);
+
+  @override
+  ConsumerState<QuizResultScreen> createState() => _QuizResultScreenState();
+}
+
+class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
+  bool _isRetrying = false;
+
+  Future<void> _retryQuiz() async {
+    if (_isRetrying) return;
+
+    setState(() => _isRetrying = true);
+
+    try {
+      final service = ref.read(quizServiceProvider);
+      final originalQuiz = await service.getQuiz(widget.quizId);
+      final retriedQuiz = await service.generateQuiz(
+        originalQuiz.documentId,
+        numQuestions: originalQuiz.numQuestions,
+      );
+
+      ref.invalidate(quizzesProvider);
+
+      if (!mounted) return;
+      context.pushReplacement('/quiz/play/${retriedQuiz.id}');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to retry quiz: $e'),
+          backgroundColor: Colors.redAccent.withOpacity(0.9),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRetrying = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final result = widget.result;
     final isPassed = result.percentage >= 50.0;
     final scoreColor = isPassed
         ? const Color(0xFF4ade80)
@@ -45,7 +92,6 @@ class QuizResultScreen extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
-                // Score banner
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: FrostedGlassCard(
@@ -77,7 +123,7 @@ class QuizResultScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isPassed ? 'Well done! 🎉' : 'Keep going! 💪',
+                                isPassed ? 'Well done!' : 'Keep going!',
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.6),
                                   fontSize: 13,
@@ -106,9 +152,7 @@ class QuizResultScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -138,7 +182,6 @@ class QuizResultScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Question header
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -169,7 +212,6 @@ class QuizResultScreen extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-
                                 const SizedBox(height: 12),
                                 const Divider(
                                   color: Colors.white12,
@@ -177,22 +219,19 @@ class QuizResultScreen extends StatelessWidget {
                                   height: 1,
                                 ),
                                 const SizedBox(height: 12),
-
-                                // Your answer
                                 _AnswerRow(
                                   label: 'Your answer',
                                   text:
                                       (q.userAnswerIndex != null &&
                                           q.userAnswerIndex! >= 0 &&
-                                          q.userAnswerIndex! < q.options.length)
+                                          q.userAnswerIndex! <
+                                              q.options.length)
                                       ? q.options[q.userAnswerIndex!]
                                       : 'No answer',
                                   color: isCorrect
                                       ? const Color(0xFF4ade80)
                                       : const Color(0xFFf87171),
                                 ),
-
-                                // Correct answer (only if wrong)
                                 if (!isCorrect && q.correctIndex != null) ...[
                                   const SizedBox(height: 6),
                                   _AnswerRow(
@@ -201,8 +240,6 @@ class QuizResultScreen extends StatelessWidget {
                                     color: const Color(0xFF4ade80),
                                   ),
                                 ],
-
-                                // Explanation
                                 if (q.explanation != null &&
                                     q.explanation!.isNotEmpty) ...[
                                   const SizedBox(height: 10),
@@ -252,6 +289,27 @@ class QuizResultScreen extends StatelessWidget {
                       );
                     },
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: _isRetrying
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF97cad8),
+                          ),
+                        )
+                      : CustomButton(
+                          text: 'Retry Quiz',
+                          onPressed: _retryQuiz,
+                          width: double.infinity,
+                          height: 54,
+                          backgroundColor: const Color(0xFF97cad8),
+                          borderColor: const Color(0xFF97cad8),
+                          textColor: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          borderRadius: 14,
+                        ),
                 ),
               ],
             ),

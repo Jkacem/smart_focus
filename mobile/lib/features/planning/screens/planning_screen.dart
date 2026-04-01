@@ -542,30 +542,40 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String?>(
                       value: weekType,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Type de semaine',
                         border: OutlineInputBorder(),
                       ),
                       items: const [
-                        DropdownMenuItem<String?>(value: null, child: Text('Auto')),
-                        DropdownMenuItem(value: 'A', child: Text('Semaine A')),
-                        DropdownMenuItem(value: 'B', child: Text('Semaine B')),
-                        ],
-                        onChanged: (value) => setDialogState(() => weekType = value),
-                      ),
-                      const SizedBox(height: 16),
-                      SwitchListTile(
-                        value: generateWholeWeek,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Generer toute la semaine'),
-                        subtitle: const Text('Lundi a dimanche de la semaine affichee'),
-                        onChanged: (value) {
-                          setDialogState(() => generateWholeWeek = value);
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      docsState.when(
-                        data: (docs) {
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Auto'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'A',
+                          child: Text('Semaine A'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'B',
+                          child: Text('Semaine B'),
+                        ),
+                      ],
+                      onChanged: (value) => setDialogState(() => weekType = value),
+                    ),
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      value: generateWholeWeek,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Generer toute la semaine'),
+                      subtitle: const Text('Lundi a dimanche de la semaine affichee'),
+                      onChanged: (value) {
+                        setDialogState(() => generateWholeWeek = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    docsState.when(
+                      data: (docs) {
                         final items = <DropdownMenuItem<int?>>[
                           const DropdownMenuItem<int?>(
                             value: null,
@@ -584,11 +594,26 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
 
                         return DropdownButtonFormField<int?>(
                           value: selectedDocumentId,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Document source',
                             border: OutlineInputBorder(),
                           ),
                           items: items,
+                          selectedItemBuilder: (context) => [
+                            const Text(
+                              'Sans document',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            ...docs.map(
+                              (doc) => Text(
+                                doc.filename,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                           onChanged: (value) {
                             setDialogState(() => selectedDocumentId = value);
                           },

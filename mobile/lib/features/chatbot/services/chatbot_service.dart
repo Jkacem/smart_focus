@@ -5,7 +5,7 @@ import '../models/chatbot_models.dart';
 class ChatbotService {
   final Dio _dio = ApiClient.createDio();
 
-  /// Upload a PDF document
+  /// Upload a PDF or CSV document
   Future<Map<String, dynamic>> uploadDocument(String filePath, String fileName) async {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath, filename: fileName),

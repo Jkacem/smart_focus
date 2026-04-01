@@ -7,6 +7,8 @@ import '../widgets/chat_bubble.dart';
 import '../widgets/document_section.dart';
 import '../providers/chat_provider.dart';
 import '../providers/document_provider.dart';
+import '../../quiz/models/quiz_models.dart';
+import '../../quiz/providers/quiz_provider.dart';
 
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({Key? key}) : super(key: key);
@@ -168,19 +170,23 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         children: [
           _QuickActionBtn(
             title: 'Quiz',
-            onTap: () => _handleQuickAction(context, 'quiz'),
+            onTap: () {
+              _handleQuickAction(context, 'quiz');
+            },
           ),
           const SizedBox(width: 8),
           _QuickActionBtn(
             title: 'Flashcards',
-            onTap: () => _handleQuickAction(context, 'flashcards'),
+            onTap: () {
+              _handleQuickAction(context, 'flashcards');
+            },
           ),
         ],
       ),
     );
   }
 
-  void _handleQuickAction(BuildContext context, String type) {
+  Future<void> _handleQuickAction(BuildContext context, String type) async {
     final selectedDocs = ref.read(selectedDocumentsProvider);
     if (selectedDocs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -198,8 +204,28 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     final docId = selectedDocs.first;
     // We should ideally find the document title. We can just pass 'Document'.
     // or look it up if we have access to it, but 'Document' works as fallback.
-    
+
     if (type == 'quiz') {
+      try {
+        final quizzes = await ref.read(quizServiceProvider).getQuizzes();
+        QuizModel? latestQuiz;
+        for (final quiz in quizzes) {
+          if (quiz.documentId == docId) {
+            latestQuiz = quiz;
+            break;
+          }
+        }
+
+        if (!mounted) return;
+
+        if (latestQuiz != null) {
+          context.push('/quiz/play/${latestQuiz.id}');
+          return;
+        }
+      } catch (_) {
+        if (!mounted) return;
+      }
+
       context.push('/quiz/generate/$docId?title=Document');
     } else {
       // For flashcards, check if a deck already exists by going to deck screen

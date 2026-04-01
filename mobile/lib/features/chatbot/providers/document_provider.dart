@@ -34,7 +34,7 @@ class DocumentNotifier extends StateNotifier<AsyncValue<List<DocumentInfo>>> {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        allowedExtensions: ['pdf', 'csv'],
       );
 
       if (result != null && result.files.single.path != null) {

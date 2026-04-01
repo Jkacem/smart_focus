@@ -19,6 +19,7 @@ class QuizPlayScreen extends ConsumerStatefulWidget {
 class _QuizPlayScreenState extends ConsumerState<QuizPlayScreen> {
   int _currentIndex = 0;
   List<int?> _answers = [];
+  bool _redirectedToResults = false;
 
   void _submitQuiz(QuizModel quiz) async {
     final finalAnswers = List.generate(
@@ -87,6 +88,23 @@ class _QuizPlayScreenState extends ConsumerState<QuizPlayScreen> {
                 ),
               ),
               data: (quiz) {
+                if (quiz.completedAt != null) {
+                  if (!_redirectedToResults) {
+                    _redirectedToResults = true;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      context.pushReplacement(
+                        '/quiz/result/${quiz.id}',
+                        extra: QuizResultModel.fromQuiz(quiz),
+                      );
+                    });
+                  }
+
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF97cad8)),
+                  );
+                }
+
                 if (_answers.isEmpty && quiz.questions.isNotEmpty) {
                   _answers = List<int?>.filled(quiz.questions.length, null);
                 }

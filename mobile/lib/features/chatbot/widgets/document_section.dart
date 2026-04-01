@@ -173,7 +173,7 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
             ),
             const SizedBox(width: 8),
             Text(
-              'Uploader un cours',
+              'Uploader PDF ou CSV',
               style: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.9),
                 fontSize: 14,

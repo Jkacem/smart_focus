@@ -83,6 +83,25 @@ class QuizResultModel {
     required this.questions,
   });
 
+  factory QuizResultModel.fromQuiz(QuizModel quiz) {
+    final total = quiz.questions.length;
+    final score =
+        quiz.score ??
+        quiz.questions.where((question) {
+          return question.correctIndex != null &&
+              question.userAnswerIndex != null &&
+              question.correctIndex == question.userAnswerIndex;
+        }).length;
+
+    return QuizResultModel(
+      quizId: quiz.id,
+      score: score,
+      total: total,
+      percentage: total == 0 ? 0 : (score / total) * 100,
+      questions: quiz.questions,
+    );
+  }
+
   factory QuizResultModel.fromJson(Map<String, dynamic> json) {
     var list = json['questions'] as List? ?? [];
     List<QuizQuestionModel> questionsList =
