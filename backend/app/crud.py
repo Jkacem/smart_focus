@@ -91,6 +91,25 @@ def _compute_score(total_hours: Optional[float], deep_hours: Optional[float]) ->
     return round(min(score, 100))
 
 
+def get_latest_sleep_record(
+    db: Session,
+    user_id: int,
+    target_date: date,
+) -> Optional[models.SleepRecord]:
+    """Return the most recent sleep record on or before target_date for a user."""
+    from datetime import datetime as _dt, time as _time
+    end_of_day = _dt.combine(target_date, _time(23, 59, 59))
+    return (
+        db.query(models.SleepRecord)
+        .filter(
+            models.SleepRecord.user_id == user_id,
+            models.SleepRecord.sleep_start <= end_of_day,
+        )
+        .order_by(models.SleepRecord.sleep_start.desc())
+        .first()
+    )
+
+
 def create_sleep_record(
     db: Session,
     user_id: int,
