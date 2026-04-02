@@ -43,8 +43,20 @@ def _load_planning_document(
     current_user: User,
     document_id: int | None,
 ) -> tuple[str | None, str | None]:
-    if document_id is None:
+    doc = _get_owned_document(db, current_user, document_id)
+    if doc is None:
         return None, None
+
+    return doc.chroma_collection, doc.file_path
+
+
+def _get_owned_document(
+    db: Session,
+    current_user: User,
+    document_id: int | None,
+) -> ChatDocument | None:
+    if document_id is None:
+        return None
 
     doc = (
         db.query(ChatDocument)
@@ -54,7 +66,18 @@ def _load_planning_document(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
-    return doc.chroma_collection, doc.file_path
+    return doc
+
+
+def _get_owned_session(db: Session, current_user: User, session_id: int) -> StudySession:
+    session_obj = (
+        db.query(StudySession)
+        .filter(StudySession.id == session_id, StudySession.user_id == current_user.id)
+        .first()
+    )
+    if not session_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+    return session_obj
 
 
 # ── Sleep-based revision calibration ──────────────────────────────────────────
@@ -385,6 +408,7 @@ def create_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    _get_owned_document(db, current_user, body.document_id)
     try:
         session_obj = crud.create_study_session(db, current_user.id, body, is_ai_generated=False)
     except ValueError as e:
@@ -399,13 +423,8 @@ def patch_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    session_obj = (
-        db.query(StudySession)
-        .filter(StudySession.id == id, StudySession.user_id == current_user.id)
-        .first()
-    )
-    if not session_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
+    session_obj = _get_owned_session(db, current_user, id)
+    _get_owned_document(db, current_user, body.document_id)
 
     session_obj = crud.update_study_session(db, session_obj, body)
     return session_obj
@@ -417,14 +436,7 @@ def delete_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    session_obj = (
-        db.query(StudySession)
-        .filter(StudySession.id == id, StudySession.user_id == current_user.id)
-        .first()
-    )
-    if not session_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
-
+    session_obj = _get_owned_session(db, current_user, id)
     crud.delete_study_session(db, session_obj)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -435,13 +447,6 @@ def complete_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    session_obj = (
-        db.query(StudySession)
-        .filter(StudySession.id == id, StudySession.user_id == current_user.id)
-        .first()
-    )
-    if not session_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
-
+    session_obj = _get_owned_session(db, current_user, id)
     session_obj = crud.complete_study_session(db, session_obj)
     return session_obj

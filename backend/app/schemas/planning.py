@@ -27,11 +27,13 @@ class StudySessionCreate(BaseModel):
     start: datetime
     end: datetime
     priority: StudySessionPriority = "medium"
+    document_id: Optional[int] = None
 
 
 class StudySessionUpdate(BaseModel):
     status: Optional[StudySessionStatus] = None
     notes: Optional[str] = Field(default=None, max_length=2000)
+    document_id: Optional[int] = None
 
 
 class PlanningOut(BaseModel):
@@ -50,6 +52,8 @@ class StudySessionOut(BaseModel):
     notes: Optional[str]
     is_ai_generated: bool
     completed_at: Optional[datetime]
+    document_id: Optional[int] = None
+    document_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

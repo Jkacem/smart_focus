@@ -18,3 +18,18 @@ from .planning import (
     PlanningDayOut,
     PlanningWeekOut,
 )
+from .quiz import (
+    QuizGenerateRequest,
+    SessionQuizGenerateRequest,
+    QuizAnswerRequest,
+    QuizQuestionOut,
+    QuizOut,
+    QuizResultOut,
+)
+from .flashcard import (
+    FlashcardGenerateRequest,
+    SessionFlashcardGenerateRequest,
+    FlashcardReviewRequest,
+    FlashcardOut,
+    FlashcardDeckOut,
+)

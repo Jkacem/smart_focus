@@ -17,6 +17,19 @@ class QuizService {
     return QuizModel.fromJson(response.data);
   }
 
+  Future<QuizModel> generateQuizFromSession(
+    int sessionId, {
+    int numQuestions = 10,
+  }) async {
+    final response = await _dio.post(
+      '/quiz/generate-from-session/$sessionId',
+      data: {
+        'num_questions': numQuestions,
+      },
+    );
+    return QuizModel.fromJson(response.data);
+  }
+
   /// List all quizzes for the current user
   Future<List<QuizModel>> getQuizzes() async {
     final response = await _dio.get('/quiz/list');

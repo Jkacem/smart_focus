@@ -93,6 +93,7 @@ class ChatDocument(Base):
                               cascade="all, delete-orphan")
     flashcards = relationship("Flashcard",   back_populates="document",
                               cascade="all, delete-orphan")
+    study_sessions = relationship("StudySession", back_populates="document")
 
 
 class ChatMessage(Base):
@@ -249,7 +250,21 @@ class StudySession(Base):
     is_ai_generated = Column(Boolean, nullable=False, default=False)
     completed_at = Column(DateTime, nullable=True)
 
+    # Optional link to an uploaded document (what was studied during this session)
+    document_id = Column(
+        Integer,
+        ForeignKey("chat_documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="study_sessions")
+    document = relationship("ChatDocument", back_populates="study_sessions")
+
+    @property
+    def document_name(self) -> str | None:
+        return self.document.filename if self.document else None
+

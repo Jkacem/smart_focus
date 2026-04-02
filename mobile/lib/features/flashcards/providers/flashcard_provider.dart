@@ -47,6 +47,24 @@ class FlashcardGeneratorNotifier
       rethrow;
     }
   }
+
+  Future<FlashcardDeckModel?> generateFlashcardsFromSession(
+    int sessionId,
+    int numCards,
+  ) async {
+    state = const AsyncValue.loading();
+    try {
+      final deck = await _service.generateFlashcardsFromSession(
+        sessionId,
+        numCards: numCards,
+      );
+      state = AsyncValue.data(deck);
+      return deck;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
 }
 
 final flashcardGeneratorProvider =

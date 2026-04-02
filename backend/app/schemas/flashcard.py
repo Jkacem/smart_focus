@@ -1,35 +1,50 @@
 """
-Pydantic schemas for the Flashcard feature (with SM-2 spaced repetition).
+Pydantic schemas for flashcard generation and review.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime
+from typing import List
 
+from pydantic import BaseModel, Field
 
-# ══════════════════════════════════════════════
-# REQUEST SCHEMAS
-# ══════════════════════════════════════════════
 
 class FlashcardGenerateRequest(BaseModel):
     """Request body for POST /flashcards/generate."""
+
     document_id: int
-    num_cards: int = Field(default=15, ge=5, le=50,
-                           description="Number of flashcards to generate (5–50)")
+    num_cards: int = Field(
+        default=15,
+        ge=5,
+        le=50,
+        description="Number of flashcards to generate (5-50)",
+    )
+
+
+class SessionFlashcardGenerateRequest(BaseModel):
+    """Request body for POST /flashcards/generate-from-session/{session_id}."""
+
+    num_cards: int = Field(
+        default=15,
+        ge=5,
+        le=50,
+        description="Number of flashcards to generate (5-50)",
+    )
 
 
 class FlashcardReviewRequest(BaseModel):
     """Request body for POST /flashcards/{card_id}/review."""
-    quality: int = Field(..., ge=0, le=5,
-                         description="SM-2 quality rating: 0=Blackout, 3=Correct, 5=Perfect")
 
+    quality: int = Field(
+        ...,
+        ge=0,
+        le=5,
+        description="SM-2 quality rating where 0 is blackout and 5 is perfect recall",
+    )
 
-# ══════════════════════════════════════════════
-# RESPONSE SCHEMAS
-# ══════════════════════════════════════════════
 
 class FlashcardOut(BaseModel):
     """A single flashcard returned to the client."""
+
     id: int
     front: str
     back: str
@@ -43,7 +58,8 @@ class FlashcardOut(BaseModel):
 
 
 class FlashcardDeckOut(BaseModel):
-    """A deck of flashcards for a specific document."""
+    """A deck of flashcards for one document."""
+
     document_id: int
     document_name: str
     total_cards: int

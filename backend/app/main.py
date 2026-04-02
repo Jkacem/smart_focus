@@ -18,8 +18,9 @@ app = FastAPI(
 
 # ── Créer les tables au démarrage (pour le dev sans migrations pour le moment) ──
 from app.models import Base
-from app.database import engine
+from app.database import engine, ensure_schema_compatibility
 Base.metadata.create_all(bind=engine)
+ensure_schema_compatibility()
 
 # ── Middleware CORS (pour que Flutter puisse communiquer) ──
 app.add_middleware(

@@ -1,20 +1,25 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
+
 import '../providers/quiz_provider.dart';
 
 class QuizGenerateScreen extends ConsumerStatefulWidget {
-  final int documentId;
+  final int? documentId;
+  final int? sessionId;
   final String documentTitle;
 
   const QuizGenerateScreen({
     Key? key,
-    required this.documentId,
+    this.documentId,
+    this.sessionId,
     required this.documentTitle,
-  }) : super(key: key);
+  }) : assert(documentId != null || sessionId != null),
+       super(key: key);
 
   @override
   ConsumerState<QuizGenerateScreen> createState() => _QuizGenerateScreenState();
@@ -23,11 +28,14 @@ class QuizGenerateScreen extends ConsumerStatefulWidget {
 class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
   int _numQuestions = 10;
 
+  bool get _fromSession => widget.sessionId != null;
+
   void _generateQuiz() async {
     try {
-      final newQuiz = await ref
-          .read(quizGeneratorProvider.notifier)
-          .generateQuiz(widget.documentId, _numQuestions);
+      final notifier = ref.read(quizGeneratorProvider.notifier);
+      final newQuiz = _fromSession
+          ? await notifier.generateQuizFromSession(widget.sessionId!, _numQuestions)
+          : await notifier.generateQuiz(widget.documentId!, _numQuestions);
 
       if (newQuiz != null && mounted) {
         ref.invalidate(quizzesProvider);
@@ -58,7 +66,6 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
       ),
       body: Stack(
         children: [
-          // Gradient background matching the app
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -80,8 +87,6 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 16),
-
-                  // Header card
                   FrostedGlassCard(
                     padding: const EdgeInsets.all(24),
                     child: Column(
@@ -114,9 +119,18 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
+                          _fromSession ? 'Source: completed session' : 'Source: document',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
                           widget.documentTitle,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withOpacity(0.7),
                             fontSize: 14,
                           ),
                           textAlign: TextAlign.center,
@@ -126,10 +140,7 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Counter card
                   FrostedGlassCard(
                     padding: const EdgeInsets.symmetric(
                       vertical: 28,
@@ -184,19 +195,14 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
                       ],
                     ),
                   ),
-
                   const Spacer(),
-
-                  // Generate button
                   if (generateState.isLoading)
                     const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF97cad8),
-                      ),
+                      child: CircularProgressIndicator(color: Color(0xFF97cad8)),
                     )
                   else
                     CustomButton(
-                      text: '✨  Generate Quiz',
+                      text: _fromSession ? 'Generate Session Quiz' : 'Generate Quiz',
                       onPressed: _generateQuiz,
                       width: double.infinity,
                       height: 56,
@@ -207,7 +213,6 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
                       fontWeight: FontWeight.w600,
                       borderRadius: 16,
                     ),
-
                   const SizedBox(height: 20),
                 ],
               ),

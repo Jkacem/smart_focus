@@ -1,38 +1,52 @@
 """
-Pydantic schemas for the Quiz feature.
+Pydantic schemas for quiz generation and submission.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Optional
 
+from pydantic import BaseModel, Field
 
-# ══════════════════════════════════════════════
-# REQUEST SCHEMAS
-# ══════════════════════════════════════════════
 
 class QuizGenerateRequest(BaseModel):
     """Request body for POST /quiz/generate."""
+
     document_id: int
-    num_questions: int = Field(default=10, ge=3, le=30,
-                               description="Number of QCM questions to generate (3–30)")
+    num_questions: int = Field(
+        default=10,
+        ge=3,
+        le=30,
+        description="Number of MCQ questions to generate (3-30)",
+    )
+
+
+class SessionQuizGenerateRequest(BaseModel):
+    """Request body for POST /quiz/generate-from-session/{session_id}."""
+
+    num_questions: int = Field(
+        default=10,
+        ge=3,
+        le=30,
+        description="Number of MCQ questions to generate (3-30)",
+    )
 
 
 class QuizAnswerRequest(BaseModel):
     """Request body for POST /quiz/{quiz_id}/submit."""
-    answers: List[int] = Field(..., description="List of user-selected option indices (0–3), same order as questions")
 
+    answers: List[int] = Field(
+        ...,
+        description="User-selected option indices in the same order as the quiz questions",
+    )
 
-# ══════════════════════════════════════════════
-# RESPONSE SCHEMAS
-# ══════════════════════════════════════════════
 
 class QuizQuestionOut(BaseModel):
-    """A single QCM question returned to the client."""
+    """A single quiz question returned to the client."""
+
     id: int
     question_text: str
     options: List[str]
-    correct_index: Optional[int] = None       # hidden during quiz, shown after submit
+    correct_index: Optional[int] = None
     explanation: Optional[str] = None
     user_answer_index: Optional[int] = None
 
@@ -41,7 +55,8 @@ class QuizQuestionOut(BaseModel):
 
 
 class QuizOut(BaseModel):
-    """Full quiz with questions."""
+    """A quiz with its questions."""
+
     id: int
     document_id: int
     title: str
@@ -57,6 +72,7 @@ class QuizOut(BaseModel):
 
 class QuizResultOut(BaseModel):
     """Returned after submitting quiz answers."""
+
     quiz_id: int
     score: int
     total: int

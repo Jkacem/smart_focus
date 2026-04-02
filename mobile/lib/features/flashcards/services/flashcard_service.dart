@@ -17,6 +17,19 @@ class FlashcardService {
     return FlashcardDeckModel.fromJson(response.data);
   }
 
+  Future<FlashcardDeckModel> generateFlashcardsFromSession(
+    int sessionId, {
+    int numCards = 15,
+  }) async {
+    final response = await _dio.post(
+      '/flashcards/generate-from-session/$sessionId',
+      data: {
+        'num_cards': numCards,
+      },
+    );
+    return FlashcardDeckModel.fromJson(response.data);
+  }
+
   /// Get the full deck of flashcards for a specific document
   Future<FlashcardDeckModel> getDeck(int documentId) async {
     final response = await _dio.get('/flashcards/deck/$documentId');

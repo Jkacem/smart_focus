@@ -88,6 +88,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/quiz/generate/session/:sessionId',
+        builder: (context, state) {
+          final sessionId = int.parse(state.pathParameters['sessionId']!);
+          final title = state.uri.queryParameters['title'] ?? 'Session';
+          return QuizGenerateScreen(sessionId: sessionId, documentTitle: title);
+        },
+      ),
+      GoRoute(
         path: '/quiz/play/:quizId',
         builder: (context, state) {
           final quizId = int.parse(state.pathParameters['quizId']!);
@@ -110,6 +118,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final docId = int.parse(state.pathParameters['docId']!);
           final title = state.uri.queryParameters['title'] ?? 'Document';
           return FlashcardGenerateScreen(documentId: docId, documentTitle: title);
+        },
+      ),
+      GoRoute(
+        path: '/flashcards/generate/session/:sessionId',
+        builder: (context, state) {
+          final sessionId = int.parse(state.pathParameters['sessionId']!);
+          final title = state.uri.queryParameters['title'] ?? 'Session';
+          return FlashcardGenerateScreen(
+            sessionId: sessionId,
+            documentTitle: title,
+          );
         },
       ),
       GoRoute(

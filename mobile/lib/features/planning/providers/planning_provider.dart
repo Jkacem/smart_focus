@@ -87,6 +87,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     required DateTime start,
     required DateTime end,
     required String priority,
+    int? documentId,
   }) async {
     state = state.copyWith(isMutating: true, clearError: true);
 
@@ -96,6 +97,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
         start: start,
         end: end,
         priority: priority,
+        documentId: documentId,
       );
 
       state = state.copyWith(
@@ -140,6 +142,29 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
 
     try {
       final updated = await _service.updateSessionStatus(sessionId, status);
+      final sessions = state.sessions
+          .map((session) => session.id == sessionId ? updated : session)
+          .toList();
+
+      state = state.copyWith(
+        sessions: _sortSessions(sessions),
+        isMutating: false,
+        clearError: true,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isMutating: false,
+        errorMessage: _extractError(e),
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> updateSessionDocument(int sessionId, int? documentId) async {
+    state = state.copyWith(isMutating: true, clearError: true);
+
+    try {
+      final updated = await _service.updateSessionDocument(sessionId, documentId);
       final sessions = state.sessions
           .map((session) => session.id == sessionId ? updated : session)
           .toList();

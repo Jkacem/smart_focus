@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:smart_focus/features/chatbot/models/chatbot_models.dart';
 import 'package:smart_focus/features/chatbot/providers/document_provider.dart';
+import 'package:smart_focus/features/planning/models/planning_models.dart';
 import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/features/planning/widgets/mini_date_picker.dart';
 import 'package:smart_focus/features/planning/widgets/planning_session_card.dart';
@@ -263,6 +264,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                             priorityIcon: session.priorityIcon,
                             statusLabel: session.statusLabel,
                             isCompleted: session.isCompleted,
+                            linkedDocumentName: session.documentName,
                             onDeleteRequested: () async {
                               try {
                                 await planningNotifier.deleteSession(session.id);
@@ -308,6 +310,26 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                                       _showSnackBar(context, e.toString(), isError: true);
                                     }
                                   },
+                            onManageDocument: () => _showSessionDocumentDialog(
+                              context,
+                              session,
+                              planningNotifier,
+                            ),
+                            onGenerateQuiz: session.isCompleted && session.hasLinkedDocument
+                                ? () {
+                                    context.push(
+                                      '/quiz/generate/session/${session.id}?title=${Uri.encodeComponent(session.subject)}',
+                                    );
+                                  }
+                                : null,
+                            onGenerateFlashcards:
+                                session.isCompleted && session.hasLinkedDocument
+                                    ? () {
+                                        context.push(
+                                          '/flashcards/generate/session/${session.id}?title=${Uri.encodeComponent(session.subject)}',
+                                        );
+                                      }
+                                    : null,
                           );
                         }
 
@@ -374,6 +396,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0);
     TimeOfDay endTime = const TimeOfDay(hour: 10, minute: 0);
     String priority = 'medium';
+    int? selectedDocumentId;
 
     await showDialog<void>(
       context: context,
@@ -445,6 +468,23 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                         }
                       },
                     ),
+                    const SizedBox(height: 16),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final liveDocsState = ref.watch(documentProvider);
+                        return _DocumentPickerSection(
+                          docsState: liveDocsState,
+                          selectedDocumentId: selectedDocumentId,
+                          label: 'Document etudie',
+                          onChanged: (value) {
+                            setDialogState(() => selectedDocumentId = value);
+                          },
+                          onUpload: () async {
+                            await ref.read(documentProvider.notifier).uploadDocument();
+                          },
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -491,6 +531,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                         start: start,
                         end: end,
                         priority: priority,
+                        documentId: selectedDocumentId,
                       );
                       if (!context.mounted) return;
                       Navigator.of(dialogContext).pop();
@@ -501,6 +542,71 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                     }
                   },
                   child: const Text('Ajouter'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showSessionDocumentDialog(
+    BuildContext context,
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) async {
+    int? selectedDocumentId = session.documentId;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text('Document pour ${session.subject}'),
+              content: Consumer(
+                builder: (context, ref, _) {
+                  final docsState = ref.watch(documentProvider);
+                  return _DocumentPickerSection(
+                    docsState: docsState,
+                    selectedDocumentId: selectedDocumentId,
+                    label: 'Document lie',
+                    onChanged: (value) {
+                      setDialogState(() => selectedDocumentId = value);
+                    },
+                    onUpload: () async {
+                      await ref.read(documentProvider.notifier).uploadDocument();
+                    },
+                  );
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    try {
+                      await planningNotifier.updateSessionDocument(
+                        session.id,
+                        selectedDocumentId,
+                      );
+                      if (!context.mounted) return;
+                      Navigator.of(dialogContext).pop();
+                      _showSnackBar(
+                        context,
+                        selectedDocumentId == null
+                            ? 'Document retire de la session.'
+                            : 'Document lie a la session.',
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      _showSnackBar(context, e.toString(), isError: true);
+                    }
+                  },
+                  child: const Text('Enregistrer'),
                 ),
               ],
             );
@@ -782,6 +888,78 @@ class _PlanningFeedbackCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DocumentPickerSection extends StatelessWidget {
+  final AsyncValue<List<DocumentInfo>> docsState;
+  final int? selectedDocumentId;
+  final String label;
+  final ValueChanged<int?> onChanged;
+  final Future<void> Function() onUpload;
+
+  const _DocumentPickerSection({
+    required this.docsState,
+    required this.selectedDocumentId,
+    required this.label,
+    required this.onChanged,
+    required this.onUpload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        docsState.when(
+          data: (docs) {
+            final items = <DropdownMenuItem<int?>>[
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Sans document'),
+              ),
+              ...docs.map(
+                (doc) => DropdownMenuItem<int?>(
+                  value: doc.id,
+                  child: Text(
+                    doc.filename,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ];
+
+            return DropdownButtonFormField<int?>(
+              value: selectedDocumentId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: label,
+                border: const OutlineInputBorder(),
+              ),
+              items: items,
+              onChanged: onChanged,
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: CircularProgressIndicator(),
+          ),
+          error: (error, stackTrace) => Text(
+            'Documents indisponibles: $error',
+            style: const TextStyle(color: Colors.redAccent),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: onUpload,
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Uploader un document'),
+          ),
+        ),
+      ],
     );
   }
 }

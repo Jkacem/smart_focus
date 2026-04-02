@@ -60,6 +60,7 @@ class PlanningService {
     required DateTime start,
     required DateTime end,
     required String priority,
+    int? documentId,
   }) async {
     final response = await _dio.post(
       '/api/v1/planning/sessions',
@@ -68,6 +69,7 @@ class PlanningService {
         'start': start.toIso8601String(),
         'end': end.toIso8601String(),
         'priority': priority,
+        if (documentId != null) 'document_id': documentId,
       },
       options: Options(contentType: Headers.jsonContentType),
     );
@@ -88,6 +90,20 @@ class PlanningService {
       '/api/v1/planning/sessions/$sessionId',
       data: {
         'status': status,
+      },
+      options: Options(contentType: Headers.jsonContentType),
+    );
+    return PlanningSessionModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<PlanningSessionModel> updateSessionDocument(
+    int sessionId,
+    int? documentId,
+  ) async {
+    final response = await _dio.patch(
+      '/api/v1/planning/sessions/$sessionId',
+      data: {
+        'document_id': documentId,
       },
       options: Options(contentType: Headers.jsonContentType),
     );

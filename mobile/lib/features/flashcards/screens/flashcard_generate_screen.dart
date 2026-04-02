@@ -1,39 +1,46 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
+
 import '../providers/flashcard_provider.dart';
 
 class FlashcardGenerateScreen extends ConsumerStatefulWidget {
-  final int documentId;
+  final int? documentId;
+  final int? sessionId;
   final String documentTitle;
 
   const FlashcardGenerateScreen({
     Key? key,
-    required this.documentId,
+    this.documentId,
+    this.sessionId,
     required this.documentTitle,
-  }) : super(key: key);
+  }) : assert(documentId != null || sessionId != null),
+       super(key: key);
 
   @override
   ConsumerState<FlashcardGenerateScreen> createState() =>
       _FlashcardGenerateScreenState();
 }
 
-class _FlashcardGenerateScreenState
-    extends ConsumerState<FlashcardGenerateScreen> {
+class _FlashcardGenerateScreenState extends ConsumerState<FlashcardGenerateScreen> {
   int _numCards = 10;
+
+  bool get _fromSession => widget.sessionId != null;
 
   void _generateCards() async {
     try {
-      final deck = await ref
-          .read(flashcardGeneratorProvider.notifier)
-          .generateFlashcards(widget.documentId, _numCards);
+      final notifier = ref.read(flashcardGeneratorProvider.notifier);
+      final deck = _fromSession
+          ? await notifier.generateFlashcardsFromSession(widget.sessionId!, _numCards)
+          : await notifier.generateFlashcards(widget.documentId!, _numCards);
 
       if (deck != null && mounted) {
-        ref.invalidate(flashcardDeckProvider(widget.documentId));
-        context.pushReplacement('/flashcards/deck/${widget.documentId}');
+        ref.invalidate(flashcardDeckProvider(deck.documentId));
+        context.pushReplacement('/flashcards/deck/${deck.documentId}');
       }
     } catch (e) {
       if (mounted) {
@@ -81,8 +88,6 @@ class _FlashcardGenerateScreenState
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 16),
-
-                  // Header
                   FrostedGlassCard(
                     padding: const EdgeInsets.all(24),
                     child: Column(
@@ -115,9 +120,18 @@ class _FlashcardGenerateScreenState
                         ),
                         const SizedBox(height: 8),
                         Text(
+                          _fromSession ? 'Source: completed session' : 'Source: document',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
                           widget.documentTitle,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: Colors.white.withOpacity(0.7),
                             fontSize: 14,
                           ),
                           textAlign: TextAlign.center,
@@ -127,10 +141,7 @@ class _FlashcardGenerateScreenState
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
-                  // Counter
                   FrostedGlassCard(
                     padding: const EdgeInsets.symmetric(
                       vertical: 28,
@@ -168,7 +179,7 @@ class _FlashcardGenerateScreenState
                             const SizedBox(width: 32),
                             _CounterButton(
                               icon: Icons.add,
-                              onTap: _numCards < 40
+                              onTap: _numCards < 50
                                   ? () => setState(() => _numCards += 5)
                                   : null,
                             ),
@@ -176,7 +187,7 @@ class _FlashcardGenerateScreenState
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'min 5 · max 40',
+                          'min 5 · max 50',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.35),
                             fontSize: 12,
@@ -185,18 +196,14 @@ class _FlashcardGenerateScreenState
                       ],
                     ),
                   ),
-
                   const Spacer(),
-
                   if (generateState.isLoading)
                     const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF97cad8),
-                      ),
+                      child: CircularProgressIndicator(color: Color(0xFF97cad8)),
                     )
                   else
                     CustomButton(
-                      text: '✨  Generate Deck',
+                      text: _fromSession ? 'Generate Session Deck' : 'Generate Deck',
                       onPressed: _generateCards,
                       width: double.infinity,
                       height: 56,
@@ -207,7 +214,6 @@ class _FlashcardGenerateScreenState
                       fontWeight: FontWeight.w600,
                       borderRadius: 16,
                     ),
-
                   const SizedBox(height: 20),
                 ],
               ),

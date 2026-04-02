@@ -30,6 +30,8 @@ class PlanningSessionModel {
   final String priority;
   final String status;
   final String? notes;
+  final int? documentId;
+  final String? documentName;
   final bool isAiGenerated;
   final DateTime? completedAt;
   final DateTime createdAt;
@@ -45,6 +47,8 @@ class PlanningSessionModel {
     required this.priority,
     required this.status,
     required this.notes,
+    required this.documentId,
+    required this.documentName,
     required this.isAiGenerated,
     required this.completedAt,
     required this.createdAt,
@@ -62,6 +66,8 @@ class PlanningSessionModel {
       priority: json['priority']?.toString() ?? 'medium',
       status: json['status']?.toString() ?? 'pending',
       notes: json['notes']?.toString(),
+      documentId: json['document_id'] as int?,
+      documentName: json['document_name']?.toString(),
       isAiGenerated: json['is_ai_generated'] as bool? ?? false,
       completedAt: json['completed_at'] == null
           ? null
@@ -74,6 +80,8 @@ class PlanningSessionModel {
   Duration get duration => end.difference(start);
 
   bool get isCompleted => status == 'completed';
+
+  bool get hasLinkedDocument => documentId != null;
 
   String get priorityLabel {
     switch (priority) {

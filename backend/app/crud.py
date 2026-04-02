@@ -293,6 +293,7 @@ def create_study_session(
         notes=None,
         is_ai_generated=is_ai_generated,
         completed_at=None,
+        document_id=data.document_id,
     )
     db.add(session)
     db.commit()
@@ -317,6 +318,9 @@ def update_study_session(
 
     if "notes" in payload:
         session_obj.notes = payload["notes"]
+
+    if "document_id" in payload:
+        session_obj.document_id = payload["document_id"]
 
     db.commit()
     db.refresh(session_obj)
