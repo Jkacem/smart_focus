@@ -126,6 +126,8 @@ class Quiz(Base):
                            nullable=False, index=True)
     document_id   = Column(Integer, ForeignKey("chat_documents.id", ondelete="CASCADE"),
                            nullable=False, index=True)
+    session_id    = Column(Integer, ForeignKey("study_sessions.id", ondelete="SET NULL"),
+                           nullable=True, index=True)
     title         = Column(String(255), nullable=False)
     num_questions = Column(Integer, nullable=False, default=10)
     score         = Column(Integer, nullable=True)          # filled after submission
@@ -135,6 +137,8 @@ class Quiz(Base):
     # relationships
     user      = relationship("User",         back_populates="quizzes")
     document  = relationship("ChatDocument", back_populates="quizzes")
+    session   = relationship("StudySession", back_populates="generated_quiz",
+                             foreign_keys=[session_id])
     questions = relationship("QuizQuestion", back_populates="quiz",
                              cascade="all, delete-orphan")
 
@@ -169,6 +173,8 @@ class Flashcard(Base):
                          nullable=False, index=True)
     document_id = Column(Integer, ForeignKey("chat_documents.id", ondelete="CASCADE"),
                          nullable=False, index=True)
+    source_session_id = Column(Integer, ForeignKey("study_sessions.id", ondelete="SET NULL"),
+                               nullable=True, index=True)
     front       = Column(String(2000), nullable=False)       # recto (question / term)
     back        = Column(String(2000), nullable=False)       # verso (answer / definition)
 
@@ -182,6 +188,8 @@ class Flashcard(Base):
     # relationships
     user     = relationship("User",         back_populates="flashcards")
     document = relationship("ChatDocument", back_populates="flashcards")
+    source_session = relationship("StudySession", back_populates="generated_flashcards",
+                                  foreign_keys=[source_session_id])
 
 
 # ══════════════════════════════════════════════
@@ -263,8 +271,54 @@ class StudySession(Base):
 
     user = relationship("User", back_populates="study_sessions")
     document = relationship("ChatDocument", back_populates="study_sessions")
+    generated_quiz = relationship(
+        "Quiz",
+        back_populates="session",
+        uselist=False,
+        foreign_keys="Quiz.session_id",
+    )
+    generated_flashcards = relationship(
+        "Flashcard",
+        back_populates="source_session",
+        foreign_keys="Flashcard.source_session_id",
+    )
 
     @property
     def document_name(self) -> str | None:
         return self.document.filename if self.document else None
+
+    @property
+    def session_quiz_id(self) -> int | None:
+        return self.generated_quiz.id if self.generated_quiz else None
+
+    @property
+    def session_quiz_status(self) -> str:
+        if self.generated_quiz is None:
+            return "not_started"
+        if self.generated_quiz.completed_at is not None:
+            return "completed"
+        return "in_progress"
+
+    @property
+    def session_flashcards_total(self) -> int:
+        return len(self.generated_flashcards)
+
+    @property
+    def session_flashcards_due(self) -> int:
+        now = datetime.utcnow()
+        return sum(1 for card in self.generated_flashcards if card.next_review <= now)
+
+    @property
+    def session_flashcards_reviewed(self) -> int:
+        return sum(1 for card in self.generated_flashcards if card.repetitions > 0)
+
+    @property
+    def session_flashcards_status(self) -> str:
+        if not self.generated_flashcards:
+            return "not_started"
+        if self.session_flashcards_due == 0 and self.session_flashcards_reviewed > 0:
+            return "completed"
+        if self.session_flashcards_reviewed > 0:
+            return "in_progress"
+        return "generated"
 

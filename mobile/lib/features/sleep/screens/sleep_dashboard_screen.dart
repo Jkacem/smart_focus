@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import '../../../shared/widgets/index.dart';
 import '../../../shared/widgets/starfield_painter.dart';
 import '../providers/sleep_provider.dart';
@@ -23,17 +24,17 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
 
   void _onItemTapped(int index) {
     if (index == 0) {
-      context.go('/dashboard');
+      context.go(AppRoutes.dashboard);
     } else if (index == 1) {
-      context.go('/planning');
+      context.go(AppRoutes.planning);
     } else if (index == 2) {
-      context.go('/chatbot');
+      context.go(AppRoutes.chatbot);
     } else if (index == 3) {
-      context.go('/statistics');
+      context.go(AppRoutes.statistics);
     } else if (index == 4) {
-      context.go('/sleep');
+      context.go(AppRoutes.sleep);
     } else if (index == 5) {
-      context.go('/settings');
+      context.go(AppRoutes.settings);
     } else {
       setState(() {
         _selectedIndex = index;
@@ -52,7 +53,7 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
       appBar: CustomAppBar(
         title: 'Sommeil 🌙',
         trailingIcon: Icons.alarm,
-        onTrailingPressed: () => context.push('/sleep/alarm'),
+        onTrailingPressed: () => context.push(AppRoutes.sleepAlarm),
       ),
       body: Stack(
         children: [
@@ -110,7 +111,7 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
         onItemTapped: _onItemTapped,
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/sleep/alarm'),
+        onPressed: () => context.push(AppRoutes.sleepAlarm),
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.alarm_add, color: Colors.white),
       ),
@@ -400,7 +401,7 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton.icon(
-        onPressed: () => context.push('/sleep/alarm'),
+        onPressed: () => context.push(AppRoutes.sleepAlarm),
         icon: const Icon(Icons.alarm),
         label: const Text(
           'Configurer le Réveil Intelligent',

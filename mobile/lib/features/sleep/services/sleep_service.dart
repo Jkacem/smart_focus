@@ -2,13 +2,15 @@
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/router/api_client.dart';
+
+import '../../../core/network/app_dio.dart';
 import '../models/sleep_models.dart';
 
 class SleepService {
-  final Dio _dio = ApiClient.createDio();
+  SleepService(this._dio);
 
-  /// Log a night's sleep
+  final Dio _dio;
+
   Future<SleepRecord> logSleep({
     required DateTime sleepStart,
     required DateTime sleepEnd,
@@ -28,7 +30,6 @@ class SleepService {
     return SleepRecord.fromJson(response.data);
   }
 
-  /// Get sleep history (most recent first)
   Future<List<SleepRecord>> getHistory({int limit = 30}) async {
     final response = await _dio.get(
       '/api/v1/sleep/history',
@@ -37,7 +38,6 @@ class SleepService {
     return (response.data as List).map((e) => SleepRecord.fromJson(e)).toList();
   }
 
-  /// Get aggregated stats for a period ("week" or "month")
   Future<SleepStats> getStats({String period = 'week'}) async {
     final response = await _dio.get(
       '/api/v1/sleep/stats',
@@ -46,18 +46,18 @@ class SleepService {
     return SleepStats.fromJson(response.data);
   }
 
-  /// Get the current alarm configuration
   Future<AlarmConfig?> getAlarm() async {
     try {
       final response = await _dio.get('/api/v1/sleep/alarm');
       return AlarmConfig.fromJson(response.data);
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return null; // no alarm configured yet
+      if (e.response?.statusCode == 404) {
+        return null;
+      }
       rethrow;
     }
   }
 
-  /// Create or update the alarm configuration
   Future<AlarmConfig> updateAlarm(AlarmConfig config) async {
     final response = await _dio.put(
       '/api/v1/sleep/alarm',
@@ -68,5 +68,6 @@ class SleepService {
   }
 }
 
-/// Riverpod provider — singleton service instance
-final sleepServiceProvider = Provider<SleepService>((ref) => SleepService());
+final sleepServiceProvider = Provider<SleepService>((ref) {
+  return SleepService(ref.watch(dioProvider));
+});

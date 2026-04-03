@@ -5,7 +5,7 @@ echo ============================================
 
 :: 1. Start the FastAPI backend in a new window
 echo [1/2] Starting FastAPI backend...
-start "FastAPI Backend" cmd /k "cd /d C:\Users\SBS\Desktop\SmartFocus\backend && venv\Scripts\activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+start "FastAPI Backend" cmd /k "cd /d C:\Users\SBS\Desktop\SmartFocus\backend && venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
 
 :: Give uvicorn 3 seconds to start
 timeout /t 3 /nobreak >nul

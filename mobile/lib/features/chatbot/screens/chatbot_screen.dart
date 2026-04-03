@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/document_section.dart';
 import '../providers/chat_provider.dart';
 import '../providers/document_provider.dart';
+import '../../quiz/data/quiz_repository.dart';
 import '../../quiz/models/quiz_models.dart';
-import '../../quiz/providers/quiz_provider.dart';
 
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({Key? key}) : super(key: key);
@@ -38,17 +39,17 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   void _onItemTapped(int index) {
     if (index == 0) {
-      context.go('/dashboard');
+      context.go(AppRoutes.dashboard);
     } else if (index == 1) {
-      context.go('/planning');
+      context.go(AppRoutes.planning);
     } else if (index == 2) {
-      context.go('/chatbot');
+      context.go(AppRoutes.chatbot);
     } else if (index == 3) {
-      context.go('/statistics');
+      context.go(AppRoutes.statistics);
     } else if (index == 4) {
-      context.go('/sleep');
+      context.go(AppRoutes.sleep);
     } else if (index == 5) {
-      context.go('/settings');
+      context.go(AppRoutes.settings);
     } else {
       setState(() {
         _selectedIndex = index;
@@ -207,7 +208,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     if (type == 'quiz') {
       try {
-        final quizzes = await ref.read(quizServiceProvider).getQuizzes();
+        final quizzes = await ref.read(quizRepositoryProvider).getQuizzes();
         QuizModel? latestQuiz;
         for (final quiz in quizzes) {
           if (quiz.documentId == docId) {
@@ -219,17 +220,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         if (!mounted) return;
 
         if (latestQuiz != null) {
-          context.push('/quiz/play/${latestQuiz.id}');
+          context.push(AppRoutes.quizPlay(latestQuiz.id));
           return;
         }
       } catch (_) {
         if (!mounted) return;
       }
 
-      context.push('/quiz/generate/$docId?title=Document');
+      context.push(AppRoutes.quizGenerateDocument(docId, title: 'Document'));
     } else {
-      // For flashcards, check if a deck already exists by going to deck screen
-      context.push('/flashcards/deck/$docId');
+      context.push(AppRoutes.flashcardsDeckDocument(docId));
     }
   }
 

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 
@@ -31,6 +32,15 @@ class _FlashcardGenerateScreenState extends ConsumerState<FlashcardGenerateScree
 
   bool get _fromSession => widget.sessionId != null;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(flashcardGeneratorProvider.notifier).reset();
+    });
+  }
+
   void _generateCards() async {
     try {
       final notifier = ref.read(flashcardGeneratorProvider.notifier);
@@ -40,7 +50,16 @@ class _FlashcardGenerateScreenState extends ConsumerState<FlashcardGenerateScree
 
       if (deck != null && mounted) {
         ref.invalidate(flashcardDeckProvider(deck.documentId));
-        context.pushReplacement('/flashcards/deck/${deck.documentId}');
+        if (deck.sessionId != null) {
+          ref.invalidate(sessionFlashcardDeckProvider(deck.sessionId!));
+        }
+        await ref.read(planningProvider.notifier).refresh();
+        if (!mounted) return;
+        context.pushReplacement(
+          deck.sessionId != null
+              ? '/flashcards/deck/session/${deck.sessionId}'
+              : '/flashcards/deck/${deck.documentId}',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -52,6 +71,12 @@ class _FlashcardGenerateScreenState extends ConsumerState<FlashcardGenerateScree
         );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    ref.read(flashcardGeneratorProvider.notifier).reset();
+    super.dispose();
   }
 
   @override

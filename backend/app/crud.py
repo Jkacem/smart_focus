@@ -3,8 +3,8 @@
 CRUD helpers for SQLAlchemy models.
 """
 
-from datetime import datetime, date
-from typing import Optional, List
+from datetime import date, datetime, time, timedelta
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -209,6 +209,130 @@ def get_sleep_stats(
     }
 
 
+def get_due_flashcard_subjects(
+    db: Session,
+    user_id: int,
+    target_date: date,
+) -> list[dict]:
+    """Group due flashcards by document and rank the most urgent decks first."""
+    end_of_day = datetime.combine(target_date, time(23, 59, 59))
+    cards = (
+        db.query(models.Flashcard)
+        .join(models.ChatDocument, models.ChatDocument.id == models.Flashcard.document_id)
+        .filter(
+            models.Flashcard.user_id == user_id,
+            models.Flashcard.next_review <= end_of_day,
+        )
+        .order_by(models.Flashcard.next_review.asc())
+        .all()
+    )
+
+    grouped: dict[int, dict] = {}
+    for card in cards:
+        document = card.document
+        if document is None:
+            continue
+
+        days_overdue = max((end_of_day - card.next_review).total_seconds() / 86400, 0.0)
+        difficulty_penalty = max(2.5 - card.ease_factor, 0.0)
+        urgency = 1.0 + (days_overdue * 0.25) + difficulty_penalty
+
+        entry = grouped.setdefault(
+            document.id,
+            {
+                "document_id": document.id,
+                "document_name": document.filename,
+                "due_count": 0,
+                "avg_ease_factor": 0.0,
+                "priority_score": 0.0,
+            },
+        )
+        entry["due_count"] += 1
+        entry["avg_ease_factor"] += card.ease_factor
+        entry["priority_score"] += urgency
+
+    results = []
+    for entry in grouped.values():
+        entry["avg_ease_factor"] = round(entry["avg_ease_factor"] / entry["due_count"], 2)
+        entry["priority_score"] = round(entry["priority_score"], 2)
+        results.append(entry)
+
+    results.sort(
+        key=lambda item: (
+            -item["priority_score"],
+            -item["due_count"],
+            item["document_name"].lower(),
+        )
+    )
+    return results
+
+
+def get_recent_quiz_performance(
+    db: Session,
+    user_id: int,
+    *,
+    target_date: date | None = None,
+    lookback_days: int = 7,
+) -> list[dict]:
+    """Return recent quiz weakness signals grouped by document."""
+    end_of_window = datetime.combine(target_date or date.today(), time(23, 59, 59))
+    start_of_window = end_of_window - timedelta(days=lookback_days)
+
+    quizzes = (
+        db.query(models.Quiz)
+        .join(models.ChatDocument, models.ChatDocument.id == models.Quiz.document_id)
+        .filter(
+            models.Quiz.user_id == user_id,
+            models.Quiz.completed_at.isnot(None),
+            models.Quiz.completed_at >= start_of_window,
+            models.Quiz.completed_at <= end_of_window,
+            models.Quiz.num_questions > 0,
+        )
+        .order_by(models.Quiz.completed_at.desc())
+        .all()
+    )
+
+    grouped: dict[int, dict] = {}
+    for quiz in quizzes:
+        document = quiz.document
+        if document is None or quiz.score is None or quiz.num_questions <= 0:
+            continue
+
+        weakness = max(0.0, 1.0 - (quiz.score / quiz.num_questions))
+        entry = grouped.setdefault(
+            document.id,
+            {
+                "document_id": document.id,
+                "document_name": document.filename,
+                "weakness_score_total": 0.0,
+                "attempt_count": 0,
+            },
+        )
+        entry["weakness_score_total"] += weakness
+        entry["attempt_count"] += 1
+
+    results = []
+    for entry in grouped.values():
+        weakness_score = entry["weakness_score_total"] / entry["attempt_count"]
+        results.append(
+            {
+                "document_id": entry["document_id"],
+                "document_name": entry["document_name"],
+                "attempt_count": entry["attempt_count"],
+                "weakness_score": round(weakness_score, 3),
+            }
+        )
+
+    results.sort(
+        key=lambda item: (
+            -item["weakness_score"],
+            -item["attempt_count"],
+            item["document_name"].lower(),
+        )
+    )
+    return results
+
+
 # ══════════════════════════════════════════════
 # SMART ALARM
 # ══════════════════════════════════════════════
@@ -252,6 +376,79 @@ def get_study_sessions_by_date(
         .order_by(models.StudySession.start.asc())
         .all()
     )
+
+
+def get_study_sessions_in_range(
+    db: Session,
+    user_id: int,
+    start_day: date,
+    end_day: date,
+) -> List[models.StudySession]:
+    """Return all sessions for a user between two inclusive dates."""
+    return (
+        db.query(models.StudySession)
+        .filter(
+            models.StudySession.user_id == user_id,
+            models.StudySession.date >= start_day,
+            models.StudySession.date <= end_day,
+        )
+        .order_by(models.StudySession.start.asc())
+        .all()
+    )
+
+
+def get_sleep_records_in_range(
+    db: Session,
+    user_id: int,
+    start_day: date,
+    end_day: date,
+) -> List[models.SleepRecord]:
+    """Return sleep records overlapping the given inclusive date range."""
+    range_start = datetime.combine(start_day, time.min)
+    range_end = datetime.combine(end_day, time.max)
+    return (
+        db.query(models.SleepRecord)
+        .filter(
+            models.SleepRecord.user_id == user_id,
+            models.SleepRecord.sleep_start >= range_start,
+            models.SleepRecord.sleep_start <= range_end,
+        )
+        .order_by(models.SleepRecord.sleep_start.asc())
+        .all()
+    )
+
+
+def get_completion_rate_by_hour(
+    db: Session,
+    user_id: int,
+    *,
+    target_date: date | None = None,
+    lookback_days: int = 14,
+) -> dict[int, dict[str, float | int]]:
+    """Return per-start-hour completion stats for past sessions."""
+    anchor_day = target_date or date.today()
+    end_day = anchor_day - timedelta(days=1)
+    start_day = end_day - timedelta(days=lookback_days - 1)
+    if end_day < start_day:
+        return {}
+
+    sessions = get_study_sessions_in_range(db, user_id, start_day, end_day)
+    grouped: dict[int, dict[str, float | int]] = {}
+
+    for session_obj in sessions:
+        hour = session_obj.start.hour
+        entry = grouped.setdefault(hour, {"completed": 0, "total": 0, "completion_rate": 0.0})
+        entry["total"] = int(entry["total"]) + 1
+        if session_obj.status == "completed":
+            entry["completed"] = int(entry["completed"]) + 1
+
+    for hour, entry in grouped.items():
+        total = int(entry["total"])
+        completed = int(entry["completed"])
+        entry["completion_rate"] = round(completed / total, 3) if total > 0 else 0.0
+        grouped[hour] = entry
+
+    return grouped
 
 
 def delete_study_sessions_by_date(db: Session, user_id: int, day: date, only_ai: bool = False) -> int:

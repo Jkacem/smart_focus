@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
+import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 
@@ -30,6 +32,15 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
 
   bool get _fromSession => widget.sessionId != null;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(quizGeneratorProvider.notifier).reset();
+    });
+  }
+
   void _generateQuiz() async {
     try {
       final notifier = ref.read(quizGeneratorProvider.notifier);
@@ -39,7 +50,9 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
 
       if (newQuiz != null && mounted) {
         ref.invalidate(quizzesProvider);
-        context.pushReplacement('/quiz/play/${newQuiz.id}');
+        await ref.read(planningProvider.notifier).refresh();
+        if (!mounted) return;
+        context.pushReplacement(AppRoutes.quizPlay(newQuiz.id));
       }
     } catch (e) {
       if (mounted) {
@@ -51,6 +64,12 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
         );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    ref.read(quizGeneratorProvider.notifier).reset();
+    super.dispose();
   }
 
   @override

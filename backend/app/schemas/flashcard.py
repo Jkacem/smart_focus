@@ -50,8 +50,10 @@ class FlashcardOut(BaseModel):
     back: str
     ease_factor: float
     interval: int
+    repetitions: int
     next_review: datetime
     created_at: datetime
+    source_session_id: int | None = None
 
     class Config:
         from_attributes = True
@@ -62,6 +64,9 @@ class FlashcardDeckOut(BaseModel):
 
     document_id: int
     document_name: str
+    session_id: int | None = None
+    session_subject: str | None = None
     total_cards: int
     due_cards: int
+    reviewed_cards: int = 0
     cards: List[FlashcardOut]

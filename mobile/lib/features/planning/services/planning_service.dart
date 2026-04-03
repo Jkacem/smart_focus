@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/router/api_client.dart';
+import '../../../core/network/app_dio.dart';
 import '../models/planning_models.dart';
 
 class PlanningService {
-  final Dio _dio = ApiClient.createDio();
+  PlanningService(this._dio);
+
+  final Dio _dio;
 
   Future<PlanningDayModel> getDay(DateTime day) async {
     final response = await _dio.get('/api/v1/planning/${_formatDay(day)}');
@@ -15,6 +17,14 @@ class PlanningService {
   Future<PlanningDayModel> getToday() async {
     final response = await _dio.get('/api/v1/planning/today');
     return PlanningDayModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<PlanningInsightsModel> getInsights({String period = 'week'}) async {
+    final response = await _dio.get(
+      '/api/v1/planning/insights',
+      queryParameters: {'period': period},
+    );
+    return PlanningInsightsModel.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<PlanningDayModel> generatePlanning({
@@ -110,6 +120,11 @@ class PlanningService {
     return PlanningSessionModel.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<PlanningSessionModel> rescheduleSession(int sessionId) async {
+    final response = await _dio.post('/api/v1/planning/reschedule/$sessionId');
+    return PlanningSessionModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<void> deleteSession(int sessionId) async {
     await _dio.delete('/api/v1/planning/sessions/$sessionId');
   }
@@ -123,5 +138,5 @@ class PlanningService {
 }
 
 final planningServiceProvider = Provider<PlanningService>((ref) {
-  return PlanningService();
+  return PlanningService(ref.watch(dioProvider));
 });

@@ -1,21 +1,29 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../../../core/router/api_client.dart';
+
+import '../../../core/network/app_dio.dart';
 
 class AuthService {
-  final Dio _dio = ApiClient.createDio();
+  AuthService(this._dio);
 
-  /// Login — FastAPI expects form-data (OAuth2PasswordRequestForm)
+  final Dio _dio;
+
+  /// Login: FastAPI expects form-data (OAuth2PasswordRequestForm)
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await _dio.post(
       '/auth/login',
       data: {'username': email, 'password': password},
       options: Options(contentType: Headers.formUrlEncodedContentType),
     );
-    return response.data;
+    final data = response.data;
+    if (data is! Map) {
+      throw const FormatException('Unexpected login response format');
+    }
+    return Map<String, dynamic>.from(data as Map);
   }
 
-  /// Register — FastAPI expects JSON body
+  /// Register: FastAPI expects JSON body
   Future<Map<String, dynamic>> register({
     required String fullName,
     required String email,
@@ -32,19 +40,39 @@ class AuthService {
       },
       options: Options(contentType: Headers.jsonContentType),
     );
-    return response.data;
+    final data = response.data;
+    if (data is! Map) {
+      throw const FormatException('Unexpected register response format');
+    }
+    return Map<String, dynamic>.from(data as Map);
   }
 
-  /// Save tokens to Hive local storage
   Future<void> saveTokens(Map<String, dynamic> tokens) async {
+    final accessToken = tokens['access_token'];
+    final refreshToken = tokens['refresh_token'];
+    final tokenType = tokens['token_type'];
+
+    if (accessToken is! String || accessToken.isEmpty) {
+      throw const FormatException('Missing access token in response');
+    }
+    if (refreshToken is! String || refreshToken.isEmpty) {
+      throw const FormatException('Missing refresh token in response');
+    }
+
     final box = Hive.box('auth');
-    await box.put('access_token', tokens['access_token']);
-    await box.put('refresh_token', tokens['refresh_token']);
+    await box.put('access_token', accessToken);
+    await box.put('refresh_token', refreshToken);
+    if (tokenType is String && tokenType.isNotEmpty) {
+      await box.put('token_type', tokenType);
+    }
   }
 
-  /// Clear tokens on logout
   Future<void> logout() async {
     final box = Hive.box('auth');
-    await box.deleteAll(['access_token', 'refresh_token']);
+    await box.deleteAll(['access_token', 'refresh_token', 'token_type']);
   }
 }
+
+final authServiceProvider = Provider<AuthService>((ref) {
+  return AuthService(ref.watch(dioProvider));
+});

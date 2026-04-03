@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 
 class RecommendationCard extends StatelessWidget {
-  const RecommendationCard({Key? key}) : super(key: key);
+  final String title;
+  final String message;
+
+  const RecommendationCard({
+    Key? key,
+    this.title = 'Recommandations IA',
+    this.message =
+        'Votre focus baisse le jeudi. Essayez de planifier des sessions plus courtes avec des pauses plus longues.',
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -21,9 +29,9 @@ class RecommendationCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Recommandations IA',
-                  style: TextStyle(
+                Text(
+                  title,
+                  style: const TextStyle(
                     color: Colors.blueAccent,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -31,7 +39,7 @@ class RecommendationCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Votre focus baisse le jeudi. Essayez de planifier des sessions plus courtes avec des pauses plus longues.',
+                  message,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 14,

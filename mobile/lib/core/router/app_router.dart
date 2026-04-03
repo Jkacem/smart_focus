@@ -1,8 +1,9 @@
+import 'package:alarm/alarm.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-// Screens
+import 'app_routes.dart';
 import 'package:smart_focus/features/auth/screens/welcome_screen.dart';
 import 'package:smart_focus/features/auth/screens/login_form.dart';
 import 'package:smart_focus/features/auth/screens/sign_form.dart';
@@ -13,8 +14,6 @@ import 'package:smart_focus/features/chatbot/screens/chatbot_screen.dart';
 import 'package:smart_focus/features/stats/screens/statistics_screen.dart';
 import 'package:smart_focus/features/settings/screens/settings_screen.dart';
 import 'package:smart_focus/features/dashboard/screens/session_active_screen.dart';
-
-// Quiz & Flashcards
 import 'package:smart_focus/features/quiz/models/quiz_models.dart';
 import 'package:smart_focus/features/quiz/screens/quiz_generate_screen.dart';
 import 'package:smart_focus/features/quiz/screens/quiz_play_screen.dart';
@@ -22,65 +21,60 @@ import 'package:smart_focus/features/quiz/screens/quiz_result_screen.dart';
 import 'package:smart_focus/features/flashcards/screens/flashcard_generate_screen.dart';
 import 'package:smart_focus/features/flashcards/screens/flashcard_deck_screen.dart';
 import 'package:smart_focus/features/flashcards/screens/flashcard_review_screen.dart';
-
-// Sleep
 import 'package:smart_focus/features/sleep/screens/sleep_dashboard_screen.dart';
 import 'package:smart_focus/features/sleep/screens/alarm_settings_screen.dart';
 import 'package:smart_focus/features/sleep/screens/alarm_ring_screen.dart';
-import 'package:alarm/alarm.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: AppRoutes.welcome,
     debugLogDiagnostics: true,
     routes: [
       GoRoute(
-        path: '/',
+        path: AppRoutes.welcome,
         builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
-        path: '/auth_options',
+        path: AppRoutes.authOptions,
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
-        path: '/login',
+        path: AppRoutes.login,
         builder: (context, state) => const LoginFormScreen(),
       ),
       GoRoute(
-        path: '/register',
+        path: AppRoutes.register,
         builder: (context, state) => const SignFormScreen(),
       ),
       GoRoute(
-        path: '/dashboard',
+        path: AppRoutes.dashboard,
         builder: (context, state) => const HomePage(),
       ),
       GoRoute(
-        path: '/planning',
+        path: AppRoutes.planning,
         builder: (context, state) => const PlanningScreen(),
       ),
       GoRoute(
-        path: '/chatbot',
+        path: AppRoutes.chatbot,
         builder: (context, state) => const ChatbotScreen(),
       ),
       GoRoute(
-        path: '/statistics',
+        path: AppRoutes.statistics,
         builder: (context, state) => const StatisticsScreen(),
       ),
       GoRoute(
-        path: '/settings',
+        path: AppRoutes.settings,
         builder: (context, state) => const SettingsScreen(),
       ),
       GoRoute(
-        path: '/session',
+        path: AppRoutes.session,
         builder: (context, state) => const SessionActiveScreen(),
       ),
-
-      // ===== QUIZ ROUTES =====
       GoRoute(
-        path: '/quiz/generate/:docId',
+        path: AppRoutes.quizGenerateDocumentPattern,
         builder: (context, state) {
           final docId = int.parse(state.pathParameters['docId']!);
           final title = state.uri.queryParameters['title'] ?? 'Document';
@@ -88,7 +82,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/quiz/generate/session/:sessionId',
+        path: AppRoutes.quizGenerateSessionPattern,
         builder: (context, state) {
           final sessionId = int.parse(state.pathParameters['sessionId']!);
           final title = state.uri.queryParameters['title'] ?? 'Session';
@@ -96,24 +90,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/quiz/play/:quizId',
+        path: AppRoutes.quizPlayPattern,
         builder: (context, state) {
           final quizId = int.parse(state.pathParameters['quizId']!);
           return QuizPlayScreen(quizId: quizId);
         },
       ),
       GoRoute(
-        path: '/quiz/result/:quizId',
+        path: AppRoutes.quizResultPattern,
         builder: (context, state) {
           final quizId = int.parse(state.pathParameters['quizId']!);
           final result = state.extra as QuizResultModel;
           return QuizResultScreen(quizId: quizId, result: result);
         },
       ),
-
-      // ===== FLASHCARD ROUTES =====
       GoRoute(
-        path: '/flashcards/generate/:docId',
+        path: AppRoutes.flashcardsGenerateDocumentPattern,
         builder: (context, state) {
           final docId = int.parse(state.pathParameters['docId']!);
           final title = state.uri.queryParameters['title'] ?? 'Document';
@@ -121,7 +113,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/flashcards/generate/session/:sessionId',
+        path: AppRoutes.flashcardsGenerateSessionPattern,
         builder: (context, state) {
           final sessionId = int.parse(state.pathParameters['sessionId']!);
           final title = state.uri.queryParameters['title'] ?? 'Session';
@@ -132,32 +124,39 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/flashcards/deck/:docId',
+        path: AppRoutes.flashcardsDeckDocumentPattern,
         builder: (context, state) {
           final docId = int.parse(state.pathParameters['docId']!);
           return FlashcardDeckScreen(documentId: docId);
         },
       ),
       GoRoute(
-        path: '/flashcards/review',
+        path: AppRoutes.flashcardsDeckSessionPattern,
+        builder: (context, state) {
+          final sessionId = int.parse(state.pathParameters['sessionId']!);
+          return FlashcardDeckScreen(sessionId: sessionId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.flashcardsReviewPattern,
         builder: (context, state) {
           final docIdStr = state.uri.queryParameters['documentId'];
           final docId = docIdStr != null ? int.tryParse(docIdStr) : null;
-          return FlashcardReviewScreen(documentId: docId);
+          final sessionIdStr = state.uri.queryParameters['sessionId'];
+          final sessionId = sessionIdStr != null ? int.tryParse(sessionIdStr) : null;
+          return FlashcardReviewScreen(documentId: docId, sessionId: sessionId);
         },
       ),
-
-      // ===== SLEEP ROUTES =====
       GoRoute(
-        path: '/sleep',
+        path: AppRoutes.sleep,
         builder: (context, state) => const SleepDashboardScreen(),
       ),
       GoRoute(
-        path: '/sleep/alarm',
+        path: AppRoutes.sleepAlarm,
         builder: (context, state) => const AlarmSettingsScreen(),
       ),
       GoRoute(
-        path: '/alarm-ring',
+        path: AppRoutes.alarmRing,
         builder: (context, state) {
           final alarmSettings = state.extra as AlarmSettings;
           return AlarmRingScreen(alarmSettings: alarmSettings);

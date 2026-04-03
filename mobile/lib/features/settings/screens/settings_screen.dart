@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 import 'package:smart_focus/features/auth/providers/auth_provider.dart';
@@ -23,17 +24,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _onItemTapped(int index) {
     if (index == 0) {
-      context.go('/dashboard');
+      context.go(AppRoutes.dashboard);
     } else if (index == 1) {
-      context.go('/planning');
+      context.go(AppRoutes.planning);
     } else if (index == 2) {
-      context.go('/chatbot');
+      context.go(AppRoutes.chatbot);
     } else if (index == 3) {
-      context.go('/statistics');
+      context.go(AppRoutes.statistics);
     } else if (index == 4) {
-      context.go('/sleep');
+      context.go(AppRoutes.sleep);
     } else if (index == 5) {
-      context.go('/settings');
+      context.go(AppRoutes.settings);
     } else {
       setState(() {
         _selectedIndex = index;
@@ -361,10 +362,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       height: 56,
       child: TextButton.icon(
         onPressed: () async {
-          // Clear cached chat history before logging out
           ref.invalidate(chatProvider);
           await ref.read(authProvider.notifier).logout();
-          if (mounted) context.go('/');
+          if (mounted) context.go(AppRoutes.welcome);
         },
         icon: const Icon(Icons.exit_to_app),
         label: const Text(

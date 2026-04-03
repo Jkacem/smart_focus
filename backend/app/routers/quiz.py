@@ -79,6 +79,7 @@ def _create_quiz_from_document(
     doc: ChatDocument,
     num_questions: int,
     title_prefix: str = "Quiz",
+    session_obj: StudySession | None = None,
 ) -> QuizOut:
     try:
         raw_questions = rag_service.generate_quiz(
@@ -99,6 +100,7 @@ def _create_quiz_from_document(
     quiz = Quiz(
         user_id=current_user.id,
         document_id=doc.id,
+        session_id=session_obj.id if session_obj is not None else None,
         title=f"{title_prefix} - {doc.filename}",
         num_questions=len(raw_questions),
     )
@@ -119,25 +121,33 @@ def _create_quiz_from_document(
     db.commit()
     db.refresh(quiz)
 
-    questions_out = [
-        QuizQuestionOut(
-            id=q.id,
-            question_text=q.question_text,
-            options=q.options,
-            correct_index=None,
-            explanation=None,
-            user_answer_index=None,
-        )
-        for q in quiz.questions
-    ]
+    return _serialize_quiz(quiz)
+
+
+def _serialize_quiz(quiz: Quiz) -> QuizOut:
+    if quiz.completed_at is None:
+        questions_out = [
+            QuizQuestionOut(
+                id=q.id,
+                question_text=q.question_text,
+                options=q.options,
+                correct_index=None,
+                explanation=None,
+                user_answer_index=None,
+            )
+            for q in quiz.questions
+        ]
+    else:
+        questions_out = [QuizQuestionOut.model_validate(q) for q in quiz.questions]
 
     return QuizOut(
         id=quiz.id,
         document_id=quiz.document_id,
+        session_id=quiz.session_id,
         title=quiz.title,
         num_questions=quiz.num_questions,
-        score=None,
-        completed_at=None,
+        score=quiz.score,
+        completed_at=quiz.completed_at,
         created_at=quiz.created_at,
         questions=questions_out,
     )
@@ -179,12 +189,25 @@ def generate_quiz_from_session(
 ):
     """Generate quiz questions from the document linked to a completed session."""
     session_obj, doc = _get_completed_session_with_document(db, current_user, session_id)
+    existing_quiz = (
+        db.query(Quiz)
+        .filter(
+            Quiz.user_id == current_user.id,
+            Quiz.session_id == session_obj.id,
+        )
+        .order_by(Quiz.created_at.desc())
+        .first()
+    )
+    if existing_quiz is not None:
+        return _serialize_quiz(existing_quiz)
+
     return _create_quiz_from_document(
         db=db,
         current_user=current_user,
         doc=doc,
         num_questions=request.num_questions,
         title_prefix=f"Session Quiz - {session_obj.subject}",
+        session_obj=session_obj,
     )
 
 
@@ -226,31 +249,7 @@ def get_quiz(
     if not quiz:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found.")
 
-    if quiz.completed_at is None:
-        questions_out = [
-            QuizQuestionOut(
-                id=q.id,
-                question_text=q.question_text,
-                options=q.options,
-                correct_index=None,
-                explanation=None,
-                user_answer_index=None,
-            )
-            for q in quiz.questions
-        ]
-    else:
-        questions_out = [QuizQuestionOut.model_validate(q) for q in quiz.questions]
-
-    return QuizOut(
-        id=quiz.id,
-        document_id=quiz.document_id,
-        title=quiz.title,
-        num_questions=quiz.num_questions,
-        score=quiz.score,
-        completed_at=quiz.completed_at,
-        created_at=quiz.created_at,
-        questions=questions_out,
-    )
+    return _serialize_quiz(quiz)
 
 
 @router.post(

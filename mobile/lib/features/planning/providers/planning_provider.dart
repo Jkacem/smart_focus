@@ -1,9 +1,9 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../../core/network/app_exception.dart';
+import '../data/planning_repository.dart';
 import '../models/planning_models.dart';
-import '../services/planning_service.dart';
 
 class PlanningState {
   final DateTime selectedDate;
@@ -44,11 +44,11 @@ class PlanningState {
 }
 
 class PlanningNotifier extends StateNotifier<PlanningState> {
-  final PlanningService _service;
-
-  PlanningNotifier(this._service) : super(PlanningState.initial()) {
+  PlanningNotifier(this._repository) : super(PlanningState.initial()) {
     loadDay(state.selectedDate).catchError((_) {});
   }
+
+  final PlanningRepository _repository;
 
   Future<void> loadDay(DateTime date, {bool showLoading = true}) async {
     final normalized = _normalizeDate(date);
@@ -59,7 +59,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     );
 
     try {
-      final result = await _service.getDay(normalized);
+      final result = await _repository.getDay(normalized);
       state = state.copyWith(
         selectedDate: normalized,
         sessions: _sortSessions(result.sessions),
@@ -92,7 +92,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     state = state.copyWith(isMutating: true, clearError: true);
 
     try {
-      final created = await _service.createSession(
+      final created = await _repository.createSession(
         subject: subject,
         start: start,
         end: end,
@@ -118,9 +118,11 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     state = state.copyWith(isMutating: true, clearError: true);
 
     try {
-      await _service.deleteSession(sessionId);
+      await _repository.deleteSession(sessionId);
       state = state.copyWith(
-        sessions: state.sessions.where((session) => session.id != sessionId).toList(),
+        sessions: state.sessions
+            .where((session) => session.id != sessionId)
+            .toList(),
         isMutating: false,
         clearError: true,
       );
@@ -141,7 +143,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     state = state.copyWith(isMutating: true, clearError: true);
 
     try {
-      final updated = await _service.updateSessionStatus(sessionId, status);
+      final updated = await _repository.updateSessionStatus(sessionId, status);
       final sessions = state.sessions
           .map((session) => session.id == sessionId ? updated : session)
           .toList();
@@ -164,7 +166,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     state = state.copyWith(isMutating: true, clearError: true);
 
     try {
-      final updated = await _service.updateSessionDocument(sessionId, documentId);
+      final updated = await _repository.updateSessionDocument(sessionId, documentId);
       final sessions = state.sessions
           .map((session) => session.id == sessionId ? updated : session)
           .toList();
@@ -183,23 +185,28 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     }
   }
 
+  Future<PlanningSessionModel> rescheduleSession(int sessionId) async {
+    state = state.copyWith(isMutating: true, clearError: true);
+
+    try {
+      final rescheduled = await _repository.rescheduleSession(sessionId);
+      await loadDay(state.selectedDate, showLoading: false);
+      return rescheduled;
+    } catch (e) {
+      state = state.copyWith(
+        isMutating: false,
+        errorMessage: _extractError(e),
+      );
+      rethrow;
+    }
+  }
+
   Future<void> toggleSessionCompletion(int sessionId, bool isCompleted) async {
     await updateSessionStatus(sessionId, isCompleted ? 'pending' : 'completed');
   }
 
   Future<void> autoUnvalidateExpiredSessions() async {
-    final now = DateTime.now();
-    final expiredCompletedSessions = state.sessions
-        .where((session) => session.isCompleted && !session.end.isAfter(now))
-        .toList();
-
-    if (expiredCompletedSessions.isEmpty || state.isMutating) {
-      return;
-    }
-
-    for (final session in expiredCompletedSessions) {
-      await updateSessionStatus(session.id, 'pending');
-    }
+    return;
   }
 
   Future<void> generatePlanning({
@@ -210,7 +217,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     state = state.copyWith(isMutating: true, clearError: true);
 
     try {
-      final result = await _service.generatePlanning(
+      final result = await _repository.generatePlanning(
         date: state.selectedDate,
         documentId: documentId,
         weekType: weekType,
@@ -239,14 +246,14 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     state = state.copyWith(isMutating: true, clearError: true);
 
     try {
-      await _service.generatePlanningWeek(
+      await _repository.generatePlanningWeek(
         date: state.selectedDate,
         documentId: documentId,
         weekType: weekType,
         preferences: preferences,
       );
 
-      final result = await _service.getDay(state.selectedDate);
+      final result = await _repository.getDay(state.selectedDate);
       state = state.copyWith(
         sessions: _sortSessions(result.sessions),
         isMutating: false,
@@ -272,22 +279,21 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
   }
 
   String _extractError(Object error) {
-    if (error is DioException) {
-      final data = error.response?.data;
-      if (data is Map<String, dynamic>) {
-        final detail = data['detail'];
-        if (detail is String && detail.isNotEmpty) {
-          return detail;
-        }
-      }
-      if (data is String && data.isNotEmpty) {
-        return data;
-      }
-    }
-    return error.toString();
+    return AppExceptionMapper.message(error);
   }
 }
 
 final planningProvider = StateNotifierProvider<PlanningNotifier, PlanningState>((ref) {
-  return PlanningNotifier(ref.watch(planningServiceProvider));
+  return PlanningNotifier(ref.watch(planningRepositoryProvider));
+});
+
+final planningInsightsProvider = FutureProvider.family
+    .autoDispose<PlanningInsightsModel, String>((ref, period) async {
+      final repository = ref.watch(planningRepositoryProvider);
+      return repository.getInsights(period: period);
+    });
+
+final todayPlanningProvider = FutureProvider.autoDispose<PlanningDayModel>((ref) async {
+  final repository = ref.watch(planningRepositoryProvider);
+  return repository.getToday();
 });

@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import '../providers/auth_provider.dart';
 
@@ -56,7 +57,7 @@ class _SignFormScreenState extends ConsumerState<SignFormScreen> {
       return;
     }
 
-    await ref.read(authProvider.notifier).register(
+    final didRegister = await ref.read(authProvider.notifier).register(
           fullName,
           email,
           password,
@@ -64,10 +65,10 @@ class _SignFormScreenState extends ConsumerState<SignFormScreen> {
         );
 
     if (!mounted) return;
-    final state = ref.read(authProvider);
-    if (state.status == AuthStatus.success) {
-      context.go('/dashboard');
-    } else if (state.status == AuthStatus.error) {
+    if (didRegister) {
+      context.go(AppRoutes.dashboard);
+    } else {
+      final state = ref.read(authProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(state.errorMessage ?? 'Erreur lors de l\'inscription'),
@@ -212,7 +213,7 @@ class _SignFormScreenState extends ConsumerState<SignFormScreen> {
                           Center(
                             child: GestureDetector(
                               onTap: () {
-                                context.go('/login');
+                                context.go(AppRoutes.login);
                               },
                               child: RichText(
                                 text: const TextSpan(

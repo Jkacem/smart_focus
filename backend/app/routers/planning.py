@@ -17,10 +17,10 @@ from app.services.schedule_parser import is_csv_schedule, parse_csv_schedule
 
 logger = logging.getLogger(__name__)
 
-# ── Day boundaries for revision slots ─────────────────────────────────────────
-_DAY_START_HOUR = 8   # 08:00
-_DAY_END_HOUR = 22    # 22:00
-_BUFFER_MINUTES = 15  # buffer before/after each class
+# Day boundaries for revision slots
+_DAY_START_HOUR = 8
+_DAY_END_HOUR = 22
+_BUFFER_MINUTES = 15
 
 router = APIRouter(prefix="/api/v1/planning", tags=["Planning"])
 
@@ -30,6 +30,212 @@ def _to_day_response(day: date, sessions: list[StudySession]) -> schemas.Plannin
     return schemas.PlanningDayOut(
         planning=schemas.PlanningOut(date=day),
         sessions=sessions_out,
+    )
+
+
+def _resolve_period_window(
+    period: schemas.PlanningInsightsPeriod,
+    anchor_day: date,
+) -> tuple[date, date, int]:
+    lookback_days = 7 if period == "week" else 30
+    start_day = anchor_day - timedelta(days=lookback_days - 1)
+    return start_day, anchor_day, lookback_days
+
+
+def _session_topic_label(session_obj: StudySession) -> str:
+    if session_obj.document_name:
+        return session_obj.document_name
+
+    prefixes = (
+        "revision flashcards:",
+        "revision quiz:",
+        "revision:",
+    )
+    normalized = session_obj.subject.strip()
+    lowered = normalized.lower()
+    for prefix in prefixes:
+        if lowered.startswith(prefix):
+            return normalized[len(prefix):].strip() or normalized
+    return normalized
+
+
+def _compute_sleep_study_correlation(
+    sessions: list[StudySession],
+    sleep_records: list[SleepRecord],
+) -> str:
+    if not sessions or not sleep_records:
+        return "insufficient_data"
+
+    completed_minutes_by_day: dict[date, int] = {}
+    for session_obj in sessions:
+        if session_obj.status != "completed":
+            continue
+        completed_minutes_by_day.setdefault(session_obj.date, 0)
+        completed_minutes_by_day[session_obj.date] += int(
+            (session_obj.end - session_obj.start).total_seconds() // 60
+        )
+
+    pairs: list[tuple[int, int]] = []
+    for record in sleep_records:
+        if record.sleep_score is None:
+            continue
+        study_day = (record.sleep_start + timedelta(days=1)).date()
+        if study_day in completed_minutes_by_day:
+            pairs.append((record.sleep_score, completed_minutes_by_day[study_day]))
+
+    if len(pairs) < 2:
+        return "insufficient_data"
+
+    avg_score = sum(score for score, _ in pairs) / len(pairs)
+    avg_minutes = sum(minutes for _, minutes in pairs) / len(pairs)
+    covariance = sum(
+        (score - avg_score) * (minutes - avg_minutes)
+        for score, minutes in pairs
+    )
+    if covariance > 50:
+        return "positive"
+    if covariance < -50:
+        return "negative"
+    return "neutral"
+
+
+def _build_recommendation(
+    *,
+    sessions: list[StudySession],
+    avg_sleep_score: float | None,
+    weakest_subject: str | None,
+) -> str:
+    ended_sessions = [
+        session_obj
+        for session_obj in sessions
+        if session_obj.status in {"completed", "cancelled"} or session_obj.end <= datetime.utcnow()
+    ]
+    if ended_sessions:
+        buckets = {
+            "morning": {"label": "le matin", "completed": 0, "total": 0},
+            "afternoon": {"label": "l'apres-midi", "completed": 0, "total": 0},
+            "evening": {"label": "apres 19h", "completed": 0, "total": 0},
+        }
+        for session_obj in ended_sessions:
+            bucket_key = (
+                "morning"
+                if session_obj.start.hour < 12
+                else "afternoon"
+                if session_obj.start.hour < 19
+                else "evening"
+            )
+            buckets[bucket_key]["total"] += 1
+            if session_obj.status == "completed":
+                buckets[bucket_key]["completed"] += 1
+
+        rates = {
+            key: (bucket["completed"] / bucket["total"])
+            for key, bucket in buckets.items()
+            if bucket["total"] > 0
+        }
+        if len(rates) >= 2:
+            best_key = max(rates, key=rates.get)
+            worst_key = min(rates, key=rates.get)
+            if rates[best_key] - rates[worst_key] >= 0.2:
+                return (
+                    f"Votre taux de completion est plus fort {buckets[best_key]['label']}. "
+                    f"Essayez de reduire les sessions {buckets[worst_key]['label']}."
+                )
+
+    if avg_sleep_score is not None and avg_sleep_score < 60:
+        return (
+            "Votre score de sommeil est bas sur cette periode. "
+            "Essayez de privilegier des sessions plus courtes et plus tot dans la journee."
+        )
+
+    if weakest_subject:
+        return (
+            f"{weakest_subject} ressort comme votre sujet le plus fragile. "
+            "Ajoutez une courte revision ciblee avant votre prochaine session."
+        )
+
+    return (
+        "Votre rythme est globalement stable. Continuez a valider vos sessions "
+        "pour affiner les prochaines recommandations."
+    )
+
+
+def _build_planning_insights(
+    db: Session,
+    current_user: User,
+    *,
+    period: schemas.PlanningInsightsPeriod,
+    anchor_day: date | None = None,
+) -> schemas.PlanningInsightsOut:
+    reference_day = anchor_day or date.today()
+    start_day, end_day, lookback_days = _resolve_period_window(period, reference_day)
+    sessions = crud.get_study_sessions_in_range(db, current_user.id, start_day, end_day)
+    sleep_records = crud.get_sleep_records_in_range(db, current_user.id, start_day, end_day)
+    quiz_performance = crud.get_recent_quiz_performance(
+        db,
+        current_user.id,
+        target_date=end_day,
+        lookback_days=lookback_days,
+    )
+
+    total_study_minutes = sum(
+        int((session_obj.end - session_obj.start).total_seconds() // 60)
+        for session_obj in sessions
+        if session_obj.status != "cancelled"
+    )
+    completed_sessions = sum(1 for session_obj in sessions if session_obj.status == "completed")
+    skipped_sessions = sum(
+        1
+        for session_obj in sessions
+        if session_obj.status == "cancelled"
+        or (
+            session_obj.status in {"pending", "in_progress"}
+            and session_obj.end <= datetime.utcnow()
+        )
+    )
+    measured_sessions = completed_sessions + skipped_sessions
+    completion_rate = round(
+        completed_sessions / measured_sessions,
+        2,
+    ) if measured_sessions > 0 else 0.0
+
+    scored_sleep = [record.sleep_score for record in sleep_records if record.sleep_score is not None]
+    avg_sleep_score = round(sum(scored_sleep) / len(scored_sleep), 1) if scored_sleep else None
+    sleep_study_correlation = _compute_sleep_study_correlation(sessions, sleep_records)
+
+    weakest_subject = quiz_performance[0]["document_name"] if quiz_performance else None
+    strongest_subject = quiz_performance[-1]["document_name"] if quiz_performance else None
+
+    if not quiz_performance and sessions:
+        completed_minutes_by_topic: dict[str, int] = {}
+        for session_obj in sessions:
+            if session_obj.status != "completed":
+                continue
+            topic = _session_topic_label(session_obj)
+            completed_minutes_by_topic.setdefault(topic, 0)
+            completed_minutes_by_topic[topic] += int(
+                (session_obj.end - session_obj.start).total_seconds() // 60
+            )
+        if completed_minutes_by_topic:
+            strongest_subject = max(completed_minutes_by_topic, key=completed_minutes_by_topic.get)
+
+    recommendation = _build_recommendation(
+        sessions=sessions,
+        avg_sleep_score=avg_sleep_score,
+        weakest_subject=weakest_subject,
+    )
+
+    return schemas.PlanningInsightsOut(
+        period=period,
+        total_study_minutes=total_study_minutes,
+        completed_sessions=completed_sessions,
+        skipped_sessions=skipped_sessions,
+        completion_rate=completion_rate,
+        avg_sleep_score=avg_sleep_score,
+        sleep_study_correlation=sleep_study_correlation,
+        weakest_subject=weakest_subject,
+        strongest_subject=strongest_subject,
+        recommendation=recommendation,
     )
 
 
@@ -80,22 +286,12 @@ def _get_owned_session(db: Session, current_user: User, session_id: int) -> Stud
     return session_obj
 
 
-# ── Sleep-based revision calibration ──────────────────────────────────────────
-
 def _get_sleep_profile(
     db: Session,
     user_id: int,
     target_day: date,
 ) -> dict[str, Any]:
-    """Return revision parameters calibrated on the user's latest sleep score.
-
-    Returns a dict with:
-      - max_session_min:  max duration of a single revision session
-      - break_min:        minimum break between revision sessions
-      - max_sessions:     cap on revision sessions for the day
-      - priority:         priority tag for generated sessions
-      - label:            human-readable sleep quality label
-    """
+    """Return revision parameters calibrated on the user's latest sleep score."""
     record: SleepRecord | None = crud.get_latest_sleep_record(db, user_id, target_day)
     score: int | None = record.sleep_score if record else None
 
@@ -105,7 +301,7 @@ def _get_sleep_profile(
             "break_min": 10,
             "max_sessions": 6,
             "priority": "high",
-            "label": "Bien reposé",
+            "label": "Bien repose",
         }
     elif score is not None and score < 50:
         profile = {
@@ -116,105 +312,384 @@ def _get_sleep_profile(
             "label": "Sommeil insuffisant",
         }
     else:
-        # Average sleep (50-79) or no data available
         profile = {
             "max_session_min": 35,
             "break_min": 15,
             "max_sessions": 4,
             "priority": "medium",
-            "label": "Sommeil moyen" if score is not None else "Pas de données sommeil",
+            "label": "Sommeil moyen" if score is not None else "Pas de donnees sommeil",
         }
 
     logger.info(
-        "Sleep profile for user %d on %s: score=%s → %s (max %d min × %d sessions)",
-        user_id, target_day.isoformat(), score, profile["label"],
-        profile["max_session_min"], profile["max_sessions"],
+        "Sleep profile for user %d on %s: score=%s -> %s (max %d min x %d sessions)",
+        user_id,
+        target_day.isoformat(),
+        score,
+        profile["label"],
+        profile["max_session_min"],
+        profile["max_sessions"],
     )
     return profile
 
 
-def _build_revision_sessions(
+def _compute_free_slots(
     target_day: date,
     class_sessions: list[dict[str, Any]],
-    sleep_profile: dict[str, Any],
-) -> list[dict[str, Any]]:
-    """Generate revision sessions in the free slots around *class_sessions*.
-
-    The number, duration, and priority of revision sessions is driven by
-    *sleep_profile* (see `_get_sleep_profile`).
-    """
-    if not class_sessions:
-        return []
-
-    max_min = sleep_profile["max_session_min"]
-    break_min = sleep_profile["break_min"]
-    max_sessions = sleep_profile["max_sessions"]
-    priority = sleep_profile["priority"]
-
+) -> list[tuple[datetime, datetime]]:
     day_start = datetime.combine(target_day, time(_DAY_START_HOUR, 0))
     day_end = datetime.combine(target_day, time(_DAY_END_HOUR, 0))
     buffer = timedelta(minutes=_BUFFER_MINUTES)
 
-    # Sort classes chronologically
+    if not class_sessions:
+        return [(day_start, day_end)]
+
     sorted_classes = sorted(class_sessions, key=lambda s: s["start"])
-
-    # Collect subjects for revision labelling (round-robin)
-    subjects = [s["subject"] for s in sorted_classes]
-
-    # ── Compute free slots ────────────────────────────────────────────────
     free_slots: list[tuple[datetime, datetime]] = []
 
-    # Before first class
     first_start = sorted_classes[0]["start"]
     slot_end = first_start - buffer
     if slot_end > day_start:
         free_slots.append((day_start, slot_end))
 
-    # Between classes
     for i in range(len(sorted_classes) - 1):
         gap_start = sorted_classes[i]["end"] + buffer
         gap_end = sorted_classes[i + 1]["start"] - buffer
         if gap_end > gap_start:
             free_slots.append((gap_start, gap_end))
 
-    # After last class
     last_end = sorted_classes[-1]["end"]
     slot_start = last_end + buffer
     if slot_start < day_end:
         free_slots.append((slot_start, day_end))
 
-    # ── Fill free slots with revision sessions ────────────────────────────
-    revision_sessions: list[dict[str, Any]] = []
-    subject_idx = 0
-    session_duration = timedelta(minutes=max_min)
+    return free_slots
+
+
+def _preferred_schedule_hours(preferred_schedule: str | None) -> set[int]:
+    schedule = (preferred_schedule or "morning").strip().lower()
+    if schedule in {"afternoon", "noon"}:
+        return set(range(12, 18))
+    if schedule in {"night", "evening", "late"}:
+        return set(range(18, 22))
+    return set(range(8, 12))
+
+
+def _resolve_allowed_revision_hours(
+    completion_rate_by_hour: dict[int, dict[str, float | int]] | None,
+    preferred_schedule: str | None,
+) -> set[int]:
+    stats = completion_rate_by_hour or {}
+    golden_hours = {
+        hour
+        for hour, entry in stats.items()
+        if float(entry.get("completion_rate", 0.0)) > 0.5
+    }
+    if golden_hours:
+        return golden_hours
+    return _preferred_schedule_hours(preferred_schedule)
+
+
+def _filter_free_slots_by_allowed_hours(
+    target_day: date,
+    free_slots: list[tuple[datetime, datetime]],
+    allowed_hours: set[int],
+) -> list[tuple[datetime, datetime]]:
+    if not free_slots or not allowed_hours:
+        return free_slots
+
+    segments: list[tuple[datetime, datetime]] = []
+    for slot_start, slot_end in free_slots:
+        for hour in sorted(allowed_hours):
+            hour_start = datetime.combine(target_day, time(hour, 0))
+            hour_end = datetime.combine(target_day, time(hour + 1, 0))
+            segment_start = max(slot_start, hour_start)
+            segment_end = min(slot_end, hour_end)
+            if segment_end > segment_start:
+                segments.append((segment_start, segment_end))
+
+    if not segments:
+        return []
+
+    merged: list[tuple[datetime, datetime]] = [segments[0]]
+    for segment_start, segment_end in segments[1:]:
+        last_start, last_end = merged[-1]
+        if segment_start <= last_end:
+            merged[-1] = (last_start, max(last_end, segment_end))
+        else:
+            merged.append((segment_start, segment_end))
+    return merged
+
+
+def _align_to_slot_boundary(value: datetime, *, minutes: int = 5) -> datetime:
+    aligned = value.replace(second=0, microsecond=0)
+    remainder = aligned.minute % minutes
+    if remainder == 0:
+        return aligned
+    return aligned + timedelta(minutes=minutes - remainder)
+
+
+def _find_next_reschedule_slot(
+    db: Session,
+    user_id: int,
+    *,
+    duration: timedelta,
+    reference_time: datetime,
+    skip_session_id: int | None = None,
+    max_days: int = 2,
+) -> tuple[datetime, datetime]:
+    search_start = _align_to_slot_boundary(reference_time)
+    for day_offset in range(max_days):
+        target_day = search_start.date() + timedelta(days=day_offset)
+        day_sessions = crud.get_study_sessions_by_date(db, user_id, target_day)
+        occupied_sessions = [
+            {
+                "subject": session_obj.subject,
+                "start": session_obj.start,
+                "end": session_obj.end,
+            }
+            for session_obj in day_sessions
+            if session_obj.id != skip_session_id and session_obj.status != "cancelled"
+        ]
+        free_slots = _compute_free_slots(target_day, occupied_sessions)
+
+        for slot_start, slot_end in free_slots:
+            candidate_start = slot_start
+            if target_day == search_start.date():
+                candidate_start = max(candidate_start, search_start)
+            candidate_start = _align_to_slot_boundary(candidate_start)
+            candidate_end = candidate_start + duration
+            if candidate_end <= slot_end:
+                return candidate_start, candidate_end
+
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="No free slot available today or tomorrow to reschedule this session.",
+    )
+
+
+def _reschedule_study_session(
+    db: Session,
+    current_user: User,
+    session_obj: StudySession,
+    *,
+    reference_time: datetime | None = None,
+) -> StudySession:
+    now = reference_time or datetime.utcnow()
+    if session_obj.status == "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Completed sessions cannot be rescheduled.",
+        )
+    if session_obj.status != "cancelled" and session_obj.end > now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only missed or cancelled sessions can be rescheduled.",
+        )
+
+    duration = session_obj.end - session_obj.start
+    if duration <= timedelta(0):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Session duration must be positive to reschedule.",
+        )
+
+    effective_reference = max(now, session_obj.end)
+    new_start, new_end = _find_next_reschedule_slot(
+        db,
+        current_user.id,
+        duration=duration,
+        reference_time=effective_reference,
+        skip_session_id=session_obj.id,
+    )
+
+    payload = schemas.StudySessionCreate(
+        subject=session_obj.subject,
+        start=new_start,
+        end=new_end,
+        priority=session_obj.priority,
+        document_id=session_obj.document_id,
+    )
+    new_session = crud.create_study_session(
+        db,
+        current_user.id,
+        payload,
+        is_ai_generated=session_obj.is_ai_generated,
+    )
+
+    if session_obj.notes:
+        new_session.notes = session_obj.notes
+
+    session_obj.status = "cancelled"
+    session_obj.completed_at = None
+    db.commit()
+    db.refresh(session_obj)
+    db.refresh(new_session)
+    return new_session
+
+
+def _build_weighted_rotation(
+    targets: list[dict[str, Any]],
+    count: int,
+) -> list[dict[str, Any]]:
+    if count <= 0 or not targets:
+        return []
+
+    weighted_targets = [
+        {
+            **target,
+            "weight": max(float(target.get("weight", 1.0)), 0.1),
+            "current_weight": 0.0,
+        }
+        for target in targets
+    ]
+    total_weight = sum(target["weight"] for target in weighted_targets)
+    rotation: list[dict[str, Any]] = []
+
+    for _ in range(count):
+        best_target: dict[str, Any] | None = None
+        for target in weighted_targets:
+            target["current_weight"] += target["weight"]
+            if best_target is None or target["current_weight"] > best_target["current_weight"]:
+                best_target = target
+
+        if best_target is None:
+            break
+
+        best_target["current_weight"] -= total_weight
+        rotation.append(best_target)
+
+    return rotation
+
+
+def _build_revision_targets(
+    class_sessions: list[dict[str, Any]],
+    quiz_performance: list[dict[str, Any]],
+    default_priority: str,
+    session_duration_min: int,
+) -> list[dict[str, Any]]:
+    subject_counts: dict[str, int] = {}
+    for session in class_sessions:
+        subject = session["subject"]
+        subject_counts[subject] = subject_counts.get(subject, 0) + 1
+
+    targets: list[dict[str, Any]] = [
+        {
+            "subject": f"Revision: {subject}",
+            "priority": default_priority,
+            "duration_min": session_duration_min,
+            "document_id": None,
+            "weight": float(count),
+        }
+        for subject, count in subject_counts.items()
+    ]
+
+    for item in quiz_performance:
+        weakness = item["weakness_score"]
+        if weakness <= 0:
+            continue
+
+        targets.append(
+            {
+                "subject": f"Revision quiz: {item['document_name']}",
+                "priority": "high" if weakness >= 0.6 else default_priority,
+                "duration_min": session_duration_min,
+                "document_id": item["document_id"],
+                "weight": 1.0 + (weakness * 3.0),
+            }
+        )
+
+    return targets
+
+
+def _build_revision_sessions(
+    target_day: date,
+    class_sessions: list[dict[str, Any]],
+    sleep_profile: dict[str, Any],
+    due_flashcard_subjects: list[dict[str, Any]] | None = None,
+    quiz_performance: list[dict[str, Any]] | None = None,
+    completion_rate_by_hour: dict[int, dict[str, float | int]] | None = None,
+    preferred_schedule: str | None = None,
+) -> list[dict[str, Any]]:
+    """Generate adaptive revision sessions in the free slots for the day."""
+    due_flashcard_subjects = due_flashcard_subjects or []
+    quiz_performance = quiz_performance or []
+
+    if not class_sessions and not due_flashcard_subjects and not quiz_performance:
+        return []
+
+    max_min = sleep_profile["max_session_min"]
+    break_min = sleep_profile["break_min"]
+    max_sessions = sleep_profile["max_sessions"]
+    priority = sleep_profile["priority"]
     break_delta = timedelta(minutes=break_min)
+    free_slots = _compute_free_slots(target_day, class_sessions)
+    allowed_hours = _resolve_allowed_revision_hours(
+        completion_rate_by_hour,
+        preferred_schedule,
+    )
+    free_slots = _filter_free_slots_by_allowed_hours(target_day, free_slots, allowed_hours)
+
+    revision_targets = _build_revision_targets(
+        class_sessions,
+        quiz_performance,
+        priority,
+        max_min,
+    )
+    flashcard_duration_min = max(15, min(25, max_min - 15))
+    planned_targets: list[dict[str, Any]] = [
+        {
+            "subject": f"Revision flashcards: {item['document_name']}",
+            "priority": priority,
+            "duration_min": flashcard_duration_min,
+            "document_id": item["document_id"],
+        }
+        for item in due_flashcard_subjects
+    ][:max_sessions]
+
+    remaining_capacity = max_sessions - len(planned_targets)
+    planned_targets.extend(_build_weighted_rotation(revision_targets, remaining_capacity))
+
+    if not planned_targets:
+        return []
+
+    revision_sessions: list[dict[str, Any]] = []
+    target_idx = 0
 
     for slot_start_dt, slot_end_dt in free_slots:
-        if len(revision_sessions) >= max_sessions:
+        if target_idx >= len(planned_targets):
             break
 
         cursor = slot_start_dt
-        while cursor + session_duration <= slot_end_dt and len(revision_sessions) < max_sessions:
-            subject_label = f"Révision: {subjects[subject_idx % len(subjects)]}"
-            revision_sessions.append({
-                "subject": subject_label,
-                "start": cursor,
-                "end": cursor + session_duration,
-                "priority": priority,
-            })
+        while target_idx < len(planned_targets):
+            target = planned_targets[target_idx]
+            session_duration = timedelta(minutes=target["duration_min"])
+            if cursor + session_duration > slot_end_dt:
+                break
+
+            revision_sessions.append(
+                {
+                    "subject": target["subject"],
+                    "start": cursor,
+                    "end": cursor + session_duration,
+                    "priority": target["priority"],
+                    "document_id": target["document_id"],
+                }
+            )
             logger.info(
-                "  + Revision: '%s' %s → %s [%s]",
-                subject_label,
+                "  + Planned: '%s' %s -> %s [%s]",
+                target["subject"],
                 cursor.strftime("%H:%M"),
                 (cursor + session_duration).strftime("%H:%M"),
-                priority,
+                target["priority"],
             )
-            subject_idx += 1
+            target_idx += 1
             cursor = cursor + session_duration + break_delta
 
     logger.info(
-        "Generated %d revision sessions for %s (%s)",
-        len(revision_sessions), target_day.isoformat(), sleep_profile["label"],
+        "Generated %d adaptive sessions for %s (%s)",
+        len(revision_sessions),
+        target_day.isoformat(),
+        sleep_profile["label"],
     )
     return revision_sessions
 
@@ -232,6 +707,17 @@ def _generate_sessions_for_day(
 ) -> list[dict]:
     crud.delete_study_sessions_by_date(db, current_user.id, target_day, only_ai=True)
     existing_sessions = crud.get_study_sessions_by_date(db, current_user.id, target_day)
+    due_flashcard_subjects = crud.get_due_flashcard_subjects(db, current_user.id, target_day)
+    completion_rate_by_hour = crud.get_completion_rate_by_hour(
+        db,
+        current_user.id,
+        target_date=target_day,
+    )
+    quiz_performance = crud.get_recent_quiz_performance(
+        db,
+        current_user.id,
+        target_date=target_day,
+    )
 
     if doc_file_path and is_csv_schedule(doc_file_path):
         class_sessions = parse_csv_schedule(
@@ -251,11 +737,18 @@ def _generate_sessions_for_day(
                 f"Verifiez votre fichier CSV."
             )
 
-        # ── Sleep-aware revision sessions ─────────────────────────────────
-        if class_sessions:
+        if class_sessions or due_flashcard_subjects or quiz_performance:
             sleep_profile = _get_sleep_profile(db, current_user.id, target_day)
             revision_sessions = _build_revision_sessions(
-                target_day, class_sessions, sleep_profile,
+                target_day,
+                class_sessions,
+                sleep_profile,
+                due_flashcard_subjects=due_flashcard_subjects,
+                quiz_performance=quiz_performance,
+                completion_rate_by_hour=completion_rate_by_hour,
+                preferred_schedule=current_user.profile.preferred_schedule
+                if current_user.profile
+                else "morning",
             )
             return class_sessions + revision_sessions
 
@@ -284,6 +777,7 @@ def _create_ai_sessions_for_day(
             start=item["start"],
             end=item["end"],
             priority=item.get("priority", "medium"),
+            document_id=item.get("document_id"),
         )
         created.append(
             crud.create_study_session(db, current_user.id, payload, is_ai_generated=True)
@@ -390,6 +884,29 @@ def generate_week_planning(
         week_end=target_days[-1],
         days=days_out,
     )
+
+
+@router.get("/insights", response_model=schemas.PlanningInsightsOut)
+def get_planning_insights(
+    period: schemas.PlanningInsightsPeriod = "week",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return _build_planning_insights(
+        db,
+        current_user,
+        period=period,
+    )
+
+
+@router.post("/reschedule/{session_id}", response_model=schemas.StudySessionOut)
+def reschedule_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    session_obj = _get_owned_session(db, current_user, session_id)
+    return _reschedule_study_session(db, current_user, session_obj)
 
 
 @router.get("/{day}", response_model=schemas.PlanningDayOut)

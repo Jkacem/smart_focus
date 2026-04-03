@@ -78,6 +78,7 @@ def _create_flashcards_from_document(
     current_user: User,
     doc: ChatDocument,
     num_cards: int,
+    session_obj: StudySession | None = None,
 ) -> FlashcardDeckOut:
     try:
         raw_cards = rag_service.generate_flashcards(
@@ -100,6 +101,7 @@ def _create_flashcards_from_document(
         card = Flashcard(
             user_id=current_user.id,
             document_id=doc.id,
+            source_session_id=session_obj.id if session_obj is not None else None,
             front=card_data["front"],
             back=card_data["back"],
             ease_factor=2.5,
@@ -114,12 +116,29 @@ def _create_flashcards_from_document(
     for card in created_cards:
         db.refresh(card)
 
-    cards_out = [FlashcardOut.model_validate(card) for card in created_cards]
+    return _build_deck_out(
+        doc=doc,
+        cards=created_cards,
+        session_obj=session_obj,
+    )
+
+
+def _build_deck_out(
+    *,
+    doc: ChatDocument,
+    cards: list[Flashcard],
+    session_obj: StudySession | None = None,
+) -> FlashcardDeckOut:
+    now = datetime.utcnow()
+    cards_out = [FlashcardOut.model_validate(card) for card in cards]
     return FlashcardDeckOut(
         document_id=doc.id,
         document_name=doc.filename,
+        session_id=session_obj.id if session_obj is not None else None,
+        session_subject=session_obj.subject if session_obj is not None else None,
         total_cards=len(cards_out),
-        due_cards=len(cards_out),
+        due_cards=sum(1 for card in cards if card.next_review <= now),
+        reviewed_cards=sum(1 for card in cards if card.repetitions > 0),
         cards=cards_out,
     )
 
@@ -158,12 +177,25 @@ def generate_flashcards_from_session(
     current_user: User = Depends(get_current_user),
 ):
     """Generate flashcards from the document linked to a completed session."""
-    _, doc = _get_completed_session_with_document(db, current_user, session_id)
+    session_obj, doc = _get_completed_session_with_document(db, current_user, session_id)
+    existing_cards = (
+        db.query(Flashcard)
+        .filter(
+            Flashcard.user_id == current_user.id,
+            Flashcard.source_session_id == session_obj.id,
+        )
+        .order_by(Flashcard.created_at.asc())
+        .all()
+    )
+    if existing_cards:
+        return _build_deck_out(doc=doc, cards=existing_cards, session_obj=session_obj)
+
     return _create_flashcards_from_document(
         db=db,
         current_user=current_user,
         doc=doc,
         num_cards=request.num_cards,
+        session_obj=session_obj,
     )
 
 
@@ -189,17 +221,31 @@ def get_deck(
         .all()
     )
 
-    now = datetime.utcnow()
-    due_count = sum(1 for card in cards if card.next_review <= now)
-    cards_out = [FlashcardOut.model_validate(card) for card in cards]
+    return _build_deck_out(doc=doc, cards=cards)
 
-    return FlashcardDeckOut(
-        document_id=doc.id,
-        document_name=doc.filename,
-        total_cards=len(cards_out),
-        due_cards=due_count,
-        cards=cards_out,
+
+@router.get(
+    "/deck/session/{session_id}",
+    response_model=FlashcardDeckOut,
+    summary="Get the flashcard deck generated for one session",
+)
+def get_session_deck(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the session-specific flashcard deck if it exists."""
+    session_obj, doc = _get_completed_session_with_document(db, current_user, session_id)
+    cards = (
+        db.query(Flashcard)
+        .filter(
+            Flashcard.user_id == current_user.id,
+            Flashcard.source_session_id == session_obj.id,
+        )
+        .order_by(Flashcard.created_at.asc())
+        .all()
     )
+    return _build_deck_out(doc=doc, cards=cards, session_obj=session_obj)
 
 
 @router.get(

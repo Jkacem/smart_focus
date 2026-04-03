@@ -8,21 +8,39 @@
             "name": "mobile",
             "cwd": "mobile",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "toolArgs": [
+                "--dart-define=API_BASE_URL=http://192.168.1.4:8000"
+            ]
+        },
+        {
+            "name": "mobile (emulator)",
+            "cwd": "mobile",
+            "request": "launch",
+            "type": "dart",
+            "toolArgs": [
+                "--dart-define=API_BASE_URL=http://localhost:8000"
+            ]
         },
         {
             "name": "mobile (profile mode)",
             "cwd": "mobile",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "flutterMode": "profile",
+            "toolArgs": [
+                "--dart-define=API_BASE_URL=http://192.168.1.4:8000"
+            ]
         },
         {
             "name": "mobile (release mode)",
             "cwd": "mobile",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "flutterMode": "release",
+            "toolArgs": [
+                "--dart-define=API_BASE_URL=http://192.168.1.4:8000"
+            ]
         }
     ]
 }

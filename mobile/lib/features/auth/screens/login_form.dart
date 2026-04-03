@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/features/auth/screens/sign_form.dart';
 import 'package:smart_focus/features/chatbot/providers/chat_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
@@ -45,16 +46,15 @@ class _LoginFormScreenState extends ConsumerState<LoginFormScreen> {
       return;
     }
 
-    await ref.read(authProvider.notifier).login(email, password);
-
-    // Read state after the async call
     if (!mounted) return;
-    final state = ref.read(authProvider);
-    if (state.status == AuthStatus.success) {
-      // Invalidate chat history so the new user's history is loaded fresh
+    final didLogin = await ref.read(authProvider.notifier).login(email, password);
+
+    if (!mounted) return;
+    if (didLogin) {
       ref.invalidate(chatProvider);
-      context.go('/dashboard');
-    } else if (state.status == AuthStatus.error) {
+      context.go(AppRoutes.dashboard);
+    } else {
+      final state = ref.read(authProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(state.errorMessage ?? 'Erreur de connexion'),

@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
+import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 import '../models/quiz_models.dart';
@@ -34,7 +36,9 @@ class _QuizPlayScreenState extends ConsumerState<QuizPlayScreen> {
 
       if (result != null && mounted) {
         ref.invalidate(quizzesProvider);
-        context.pushReplacement('/quiz/result/${quiz.id}', extra: result);
+        await ref.read(planningProvider.notifier).refresh();
+        if (!mounted) return;
+        context.pushReplacement(AppRoutes.quizResult(quiz.id), extra: result);
       }
     } catch (e) {
       if (mounted) {

@@ -54,6 +54,12 @@ class StudySessionOut(BaseModel):
     completed_at: Optional[datetime]
     document_id: Optional[int] = None
     document_name: Optional[str] = None
+    session_quiz_id: Optional[int] = None
+    session_quiz_status: str = "not_started"
+    session_flashcards_total: int = 0
+    session_flashcards_due: int = 0
+    session_flashcards_reviewed: int = 0
+    session_flashcards_status: str = "not_started"
     created_at: datetime
     updated_at: datetime
 
@@ -70,4 +76,20 @@ class PlanningWeekOut(BaseModel):
     week_start: date
     week_end: date
     days: list[PlanningDayOut]
+
+
+PlanningInsightsPeriod = Literal["week", "month"]
+
+
+class PlanningInsightsOut(BaseModel):
+    period: PlanningInsightsPeriod
+    total_study_minutes: int
+    completed_sessions: int
+    skipped_sessions: int
+    completion_rate: float
+    avg_sleep_score: Optional[float] = None
+    sleep_study_correlation: str
+    weakest_subject: Optional[str] = None
+    strongest_subject: Optional[str] = None
+    recommendation: str
 

@@ -20,6 +20,91 @@ class PlanningDayModel {
   }
 }
 
+class PlanningInsightsModel {
+  final String period;
+  final int totalStudyMinutes;
+  final int completedSessions;
+  final int skippedSessions;
+  final double completionRate;
+  final double? avgSleepScore;
+  final String sleepStudyCorrelation;
+  final String? weakestSubject;
+  final String? strongestSubject;
+  final String recommendation;
+
+  const PlanningInsightsModel({
+    required this.period,
+    required this.totalStudyMinutes,
+    required this.completedSessions,
+    required this.skippedSessions,
+    required this.completionRate,
+    required this.avgSleepScore,
+    required this.sleepStudyCorrelation,
+    required this.weakestSubject,
+    required this.strongestSubject,
+    required this.recommendation,
+  });
+
+  factory PlanningInsightsModel.fromJson(Map<String, dynamic> json) {
+    return PlanningInsightsModel(
+      period: json['period']?.toString() ?? 'week',
+      totalStudyMinutes: json['total_study_minutes'] as int? ?? 0,
+      completedSessions: json['completed_sessions'] as int? ?? 0,
+      skippedSessions: json['skipped_sessions'] as int? ?? 0,
+      completionRate: (json['completion_rate'] as num?)?.toDouble() ?? 0,
+      avgSleepScore: (json['avg_sleep_score'] as num?)?.toDouble(),
+      sleepStudyCorrelation:
+          json['sleep_study_correlation']?.toString() ?? 'insufficient_data',
+      weakestSubject: json['weakest_subject']?.toString(),
+      strongestSubject: json['strongest_subject']?.toString(),
+      recommendation: json['recommendation']?.toString() ?? '',
+    );
+  }
+
+  String get studyHoursLabel {
+    final hours = totalStudyMinutes ~/ 60;
+    final minutes = totalStudyMinutes % 60;
+    if (hours > 0 && minutes > 0) {
+      return '${hours}h${minutes.toString().padLeft(2, '0')}';
+    }
+    if (hours > 0) {
+      return '${hours}h';
+    }
+    return '${minutes}min';
+  }
+
+  int get completionRatePercent => (completionRate * 100).round();
+
+  String get periodLabel => period == 'month' ? 'Mois' : 'Semaine';
+
+  int get trackedSessions => completedSessions + skippedSessions;
+
+  bool get hasAdaptiveSchedulingHistory => trackedSessions >= 3;
+
+  String get adaptiveSchedulingLabel =>
+      hasAdaptiveSchedulingHistory ? 'Horaires adaptes' : 'Apprentissage en cours';
+
+  String get adaptiveSchedulingHint {
+    if (hasAdaptiveSchedulingHistory) {
+      return 'Les prochaines revisions privilegient vos heures de completion les plus fiables.';
+    }
+    return 'Validez encore quelques sessions pour que les prochaines revisions s adaptent automatiquement a vos meilleurs horaires.';
+  }
+
+  String get sleepCorrelationLabel {
+    switch (sleepStudyCorrelation) {
+      case 'positive':
+        return 'Correlation positive';
+      case 'negative':
+        return 'Correlation negative';
+      case 'neutral':
+        return 'Correlation neutre';
+      default:
+        return 'Donnees insuffisantes';
+    }
+  }
+}
+
 class PlanningSessionModel {
   final int id;
   final int userId;
@@ -32,6 +117,12 @@ class PlanningSessionModel {
   final String? notes;
   final int? documentId;
   final String? documentName;
+  final int? sessionQuizId;
+  final String sessionQuizStatus;
+  final int sessionFlashcardsTotal;
+  final int sessionFlashcardsDue;
+  final int sessionFlashcardsReviewed;
+  final String sessionFlashcardsStatus;
   final bool isAiGenerated;
   final DateTime? completedAt;
   final DateTime createdAt;
@@ -49,6 +140,12 @@ class PlanningSessionModel {
     required this.notes,
     required this.documentId,
     required this.documentName,
+    required this.sessionQuizId,
+    required this.sessionQuizStatus,
+    required this.sessionFlashcardsTotal,
+    required this.sessionFlashcardsDue,
+    required this.sessionFlashcardsReviewed,
+    required this.sessionFlashcardsStatus,
     required this.isAiGenerated,
     required this.completedAt,
     required this.createdAt,
@@ -68,6 +165,13 @@ class PlanningSessionModel {
       notes: json['notes']?.toString(),
       documentId: json['document_id'] as int?,
       documentName: json['document_name']?.toString(),
+      sessionQuizId: json['session_quiz_id'] as int?,
+      sessionQuizStatus: json['session_quiz_status']?.toString() ?? 'not_started',
+      sessionFlashcardsTotal: json['session_flashcards_total'] as int? ?? 0,
+      sessionFlashcardsDue: json['session_flashcards_due'] as int? ?? 0,
+      sessionFlashcardsReviewed: json['session_flashcards_reviewed'] as int? ?? 0,
+      sessionFlashcardsStatus:
+          json['session_flashcards_status']?.toString() ?? 'not_started',
       isAiGenerated: json['is_ai_generated'] as bool? ?? false,
       completedAt: json['completed_at'] == null
           ? null
@@ -81,7 +185,73 @@ class PlanningSessionModel {
 
   bool get isCompleted => status == 'completed';
 
+  bool get isCancelled => status == 'cancelled';
+
+  bool get isMissed =>
+      !isCompleted &&
+      !isCancelled &&
+      end.isBefore(DateTime.now());
+
+  bool get canBeRescheduled => isCancelled || isMissed;
+
   bool get hasLinkedDocument => documentId != null;
+
+  bool get hasSavedQuiz => sessionQuizId != null;
+
+  bool get quizCompleted => sessionQuizStatus == 'completed';
+
+  bool get quizStarted =>
+      sessionQuizStatus == 'in_progress' || sessionQuizStatus == 'completed';
+
+  bool get hasSavedFlashcards => sessionFlashcardsTotal > 0;
+
+  bool get flashcardsCompleted => sessionFlashcardsStatus == 'completed';
+
+  bool get flashcardsStarted =>
+      sessionFlashcardsStatus == 'generated' ||
+      sessionFlashcardsStatus == 'in_progress' ||
+      sessionFlashcardsStatus == 'completed';
+
+  String get _normalizedSubject => subject.trim().toLowerCase();
+
+  bool get isFlashcardReviewSession =>
+      _normalizedSubject.startsWith('revision flashcards:');
+
+  bool get isQuizRevisionSession =>
+      _normalizedSubject.startsWith('revision quiz:');
+
+  bool get isSmartRevisionSession =>
+      isFlashcardReviewSession || isQuizRevisionSession;
+
+  String? get smartSessionLabel {
+    if (isFlashcardReviewSession) {
+      return 'Flashcards';
+    }
+    if (isQuizRevisionSession) {
+      return 'Quiz cible';
+    }
+    if (isAiGenerated && _normalizedSubject.startsWith('revision:')) {
+      return 'Revision IA';
+    }
+    return null;
+  }
+
+  String? get smartSessionHint {
+    if (isFlashcardReviewSession) {
+      return hasLinkedDocument
+          ? 'Des cartes sont dues pour ce document. Lance la revision directement depuis cette carte.'
+          : 'Des cartes sont dues pour cette session de revision.';
+    }
+    if (isQuizRevisionSession) {
+      return hasLinkedDocument
+          ? 'Ce document a ete priorise a cause de recents scores plus faibles.'
+          : 'Cette session a ete priorisee a partir des performances recentes.';
+    }
+    if (isAiGenerated && _normalizedSubject.startsWith('revision:')) {
+      return 'Session de revision ajoutee automatiquement par le planificateur.';
+    }
+    return null;
+  }
 
   String get priorityLabel {
     switch (priority) {

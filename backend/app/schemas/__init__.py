@@ -11,6 +11,8 @@ from .sleep import (
 from .planning import (
     PlanningPreferences,
     PlanningGenerateRequest,
+    PlanningInsightsPeriod,
+    PlanningInsightsOut,
     StudySessionCreate,
     StudySessionUpdate,
     StudySessionOut,

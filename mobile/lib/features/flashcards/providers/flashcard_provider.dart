@@ -1,34 +1,42 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+
+import '../data/flashcard_repository.dart';
 import '../models/flashcard_models.dart';
-import '../services/flashcard_service.dart';
 
-final flashcardServiceProvider = Provider<FlashcardService>((ref) {
-  return FlashcardService();
-});
+final flashcardDeckProvider =
+    FutureProvider.family.autoDispose<FlashcardDeckModel, int>(
+      (ref, documentId) async {
+        final repository = ref.watch(flashcardRepositoryProvider);
+        return repository.getDeck(documentId);
+      },
+    );
 
-// Provides the deck of flashcards for a specific document
-final flashcardDeckProvider = FutureProvider.family
-    .autoDispose<FlashcardDeckModel, int>((ref, documentId) async {
-      final service = ref.watch(flashcardServiceProvider);
-      return await service.getDeck(documentId);
-    });
+final sessionFlashcardDeckProvider =
+    FutureProvider.family.autoDispose<FlashcardDeckModel, int>(
+      (ref, sessionId) async {
+        final repository = ref.watch(flashcardRepositoryProvider);
+        return repository.getSessionDeck(sessionId);
+      },
+    );
 
-// Provides the list of globally due flashcards
 final dueFlashcardsProvider = FutureProvider.autoDispose<List<FlashcardModel>>((
   ref,
 ) async {
-  final service = ref.watch(flashcardServiceProvider);
-  return await service.getDueCards();
+  final repository = ref.watch(flashcardRepositoryProvider);
+  return repository.getDueCards();
 });
 
-// StateNotifier for generating flashcards
 class FlashcardGeneratorNotifier
     extends StateNotifier<AsyncValue<FlashcardDeckModel?>> {
-  final FlashcardService _service;
-
-  FlashcardGeneratorNotifier(this._service)
+  FlashcardGeneratorNotifier(this._repository)
     : super(const AsyncValue.data(null));
+
+  final FlashcardRepository _repository;
+
+  void reset() {
+    state = const AsyncValue.data(null);
+  }
 
   Future<FlashcardDeckModel?> generateFlashcards(
     int documentId,
@@ -36,7 +44,7 @@ class FlashcardGeneratorNotifier
   ) async {
     state = const AsyncValue.loading();
     try {
-      final deck = await _service.generateFlashcards(
+      final deck = await _repository.generateFlashcards(
         documentId,
         numCards: numCards,
       );
@@ -54,7 +62,7 @@ class FlashcardGeneratorNotifier
   ) async {
     state = const AsyncValue.loading();
     try {
-      final deck = await _service.generateFlashcardsFromSession(
+      final deck = await _repository.generateFlashcardsFromSession(
         sessionId,
         numCards: numCards,
       );
@@ -67,20 +75,18 @@ class FlashcardGeneratorNotifier
   }
 }
 
-final flashcardGeneratorProvider =
-    StateNotifierProvider<
-      FlashcardGeneratorNotifier,
-      AsyncValue<FlashcardDeckModel?>
-    >((ref) {
-      final service = ref.watch(flashcardServiceProvider);
-      return FlashcardGeneratorNotifier(service);
-    });
+final flashcardGeneratorProvider = StateNotifierProvider.autoDispose<
+  FlashcardGeneratorNotifier,
+  AsyncValue<FlashcardDeckModel?>
+>((ref) {
+  final repository = ref.watch(flashcardRepositoryProvider);
+  return FlashcardGeneratorNotifier(repository);
+});
 
-// Provides a way to submit single reviews
 final reviewFlashcardProvider =
     Provider<Future<FlashcardModel> Function(int, int)>((ref) {
-      final service = ref.watch(flashcardServiceProvider);
-      return (int cardId, int quality) async {
-        return await service.reviewCard(cardId, quality);
+      final repository = ref.watch(flashcardRepositoryProvider);
+      return (int cardId, int quality) {
+        return repository.reviewCard(cardId, quality);
       };
     });

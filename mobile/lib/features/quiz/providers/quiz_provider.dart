@@ -1,39 +1,35 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+
+import '../data/quiz_repository.dart';
 import '../models/quiz_models.dart';
-import '../services/quiz_service.dart';
 
-final quizServiceProvider = Provider<QuizService>((ref) {
-  return QuizService();
+final quizzesProvider = FutureProvider.autoDispose<List<QuizModel>>((ref) async {
+  final repository = ref.watch(quizRepositoryProvider);
+  return repository.getQuizzes();
 });
 
-// Provides the list of quizzes for the current user
-final quizzesProvider = FutureProvider.autoDispose<List<QuizModel>>((
-  ref,
-) async {
-  final service = ref.watch(quizServiceProvider);
-  return await service.getQuizzes();
-});
-
-// Provides a specific quiz by ID
 final quizDetailProvider = FutureProvider.family.autoDispose<QuizModel, int>((
   ref,
   quizId,
 ) async {
-  final service = ref.watch(quizServiceProvider);
-  return await service.getQuiz(quizId);
+  final repository = ref.watch(quizRepositoryProvider);
+  return repository.getQuiz(quizId);
 });
 
-// StateNotifier for generating a new quiz (handles loading state)
 class QuizGeneratorNotifier extends StateNotifier<AsyncValue<QuizModel?>> {
-  final QuizService _service;
+  QuizGeneratorNotifier(this._repository) : super(const AsyncValue.data(null));
 
-  QuizGeneratorNotifier(this._service) : super(const AsyncValue.data(null));
+  final QuizRepository _repository;
+
+  void reset() {
+    state = const AsyncValue.data(null);
+  }
 
   Future<QuizModel?> generateQuiz(int documentId, int numQuestions) async {
     state = const AsyncValue.loading();
     try {
-      final quiz = await _service.generateQuiz(
+      final quiz = await _repository.generateQuiz(
         documentId,
         numQuestions: numQuestions,
       );
@@ -48,7 +44,7 @@ class QuizGeneratorNotifier extends StateNotifier<AsyncValue<QuizModel?>> {
   Future<QuizModel?> generateQuizFromSession(int sessionId, int numQuestions) async {
     state = const AsyncValue.loading();
     try {
-      final quiz = await _service.generateQuizFromSession(
+      final quiz = await _repository.generateQuizFromSession(
         sessionId,
         numQuestions: numQuestions,
       );
@@ -61,22 +57,23 @@ class QuizGeneratorNotifier extends StateNotifier<AsyncValue<QuizModel?>> {
   }
 }
 
-final quizGeneratorProvider =
-    StateNotifierProvider<QuizGeneratorNotifier, AsyncValue<QuizModel?>>((ref) {
-      final service = ref.watch(quizServiceProvider);
-      return QuizGeneratorNotifier(service);
-    });
+final quizGeneratorProvider = StateNotifierProvider.autoDispose<
+  QuizGeneratorNotifier,
+  AsyncValue<QuizModel?>
+>((ref) {
+  final repository = ref.watch(quizRepositoryProvider);
+  return QuizGeneratorNotifier(repository);
+});
 
-// StateNotifier for submitting a quiz
 class QuizSubmitNotifier extends StateNotifier<AsyncValue<QuizResultModel?>> {
-  final QuizService _service;
+  QuizSubmitNotifier(this._repository) : super(const AsyncValue.data(null));
 
-  QuizSubmitNotifier(this._service) : super(const AsyncValue.data(null));
+  final QuizRepository _repository;
 
   Future<QuizResultModel?> submitQuiz(int quizId, List<int> answers) async {
     state = const AsyncValue.loading();
     try {
-      final result = await _service.submitQuiz(quizId, answers);
+      final result = await _repository.submitQuiz(quizId, answers);
       state = AsyncValue.data(result);
       return result;
     } catch (e, st) {
@@ -87,9 +84,9 @@ class QuizSubmitNotifier extends StateNotifier<AsyncValue<QuizResultModel?>> {
 }
 
 final quizSubmitProvider =
-    StateNotifierProvider<QuizSubmitNotifier, AsyncValue<QuizResultModel?>>((
-      ref,
-    ) {
-      final service = ref.watch(quizServiceProvider);
-      return QuizSubmitNotifier(service);
-    });
+    StateNotifierProvider<QuizSubmitNotifier, AsyncValue<QuizResultModel?>>(
+      (ref) {
+        final repository = ref.watch(quizRepositoryProvider);
+        return QuizSubmitNotifier(repository);
+      },
+    );

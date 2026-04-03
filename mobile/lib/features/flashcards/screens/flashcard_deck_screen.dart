@@ -1,20 +1,33 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
+
+import '../data/flashcard_repository.dart';
 import '../providers/flashcard_provider.dart';
 
 class FlashcardDeckScreen extends ConsumerWidget {
-  final int documentId;
+  final int? documentId;
+  final int? sessionId;
 
-  const FlashcardDeckScreen({Key? key, required this.documentId})
-    : super(key: key);
+  const FlashcardDeckScreen({
+    Key? key,
+    this.documentId,
+    this.sessionId,
+  }) : assert(documentId != null || sessionId != null),
+       super(key: key);
+
+  bool get _fromSession => sessionId != null;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final deckAsync = ref.watch(flashcardDeckProvider(documentId));
+    final deckAsync = _fromSession
+        ? ref.watch(sessionFlashcardDeckProvider(sessionId!))
+        : ref.watch(flashcardDeckProvider(documentId!));
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -57,7 +70,6 @@ class FlashcardDeckScreen extends ConsumerWidget {
 
                 return Column(
                   children: [
-                    // Stats header
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                       child: FrostedGlassCard(
@@ -66,16 +78,29 @@ class FlashcardDeckScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              deck.documentName,
+                              deck.sessionSubject ?? deck.documentName,
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                               ),
                               textAlign: TextAlign.center,
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (_fromSession) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                deck.documentName,
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.55),
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                             const SizedBox(height: 20),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -104,12 +129,10 @@ class FlashcardDeckScreen extends ConsumerWidget {
                             const SizedBox(height: 20),
                             CustomButton(
                               text: deck.dueCards > 0
-                                  ? '▶  Review ${deck.dueCards} Cards'
-                                  : '✓  All Caught Up!',
+                                  ? 'Review ${deck.dueCards} Cards'
+                                  : 'All Caught Up',
                               onPressed: deck.dueCards > 0
-                                  ? () => context.push(
-                                      '/flashcards/review?documentId=$documentId',
-                                    )
+                                  ? () => context.push(_reviewRoute)
                                   : () {},
                               height: 52,
                               backgroundColor: deck.dueCards > 0
@@ -129,10 +152,7 @@ class FlashcardDeckScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // Cards list
                     Expanded(
                       child: ListView.separated(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -140,9 +160,7 @@ class FlashcardDeckScreen extends ConsumerWidget {
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final card = deck.cards[index];
-                          final isDue = card.nextReview.isBefore(
-                            DateTime.now().toUtc(),
-                          );
+                          final isDue = card.nextReview.isBefore(DateTime.now().toUtc());
 
                           return ClipRRect(
                             borderRadius: BorderRadius.circular(14),
@@ -158,9 +176,7 @@ class FlashcardDeckScreen extends ConsumerWidget {
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: isDue
-                                        ? const Color(
-                                            0xFFfacc15,
-                                          ).withOpacity(0.4)
+                                        ? const Color(0xFFfacc15).withOpacity(0.4)
                                         : Colors.white.withOpacity(0.1),
                                     width: 1.5,
                                   ),
@@ -172,12 +188,8 @@ class FlashcardDeckScreen extends ConsumerWidget {
                                       height: 36,
                                       decoration: BoxDecoration(
                                         color: isDue
-                                            ? const Color(
-                                                0xFFfacc15,
-                                              ).withOpacity(0.15)
-                                            : const Color(
-                                                0xFF97cad8,
-                                              ).withOpacity(0.1),
+                                            ? const Color(0xFFfacc15).withOpacity(0.15)
+                                            : const Color(0xFF97cad8).withOpacity(0.1),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Icon(
@@ -193,8 +205,7 @@ class FlashcardDeckScreen extends ConsumerWidget {
                                     const SizedBox(width: 14),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             card.front,
@@ -214,9 +225,7 @@ class FlashcardDeckScreen extends ConsumerWidget {
                                             style: TextStyle(
                                               color: isDue
                                                   ? const Color(0xFFfacc15)
-                                                  : Colors.white.withOpacity(
-                                                      0.4,
-                                                    ),
+                                                  : Colors.white.withOpacity(0.4),
                                               fontSize: 12,
                                             ),
                                           ),
@@ -229,8 +238,7 @@ class FlashcardDeckScreen extends ConsumerWidget {
                                         color: Colors.white.withOpacity(0.35),
                                         size: 20,
                                       ),
-                                      onPressed: () =>
-                                          _deleteCard(context, ref, card.id),
+                                      onPressed: () => _deleteCard(context, ref, card.id),
                                     ),
                                   ],
                                 ),
@@ -248,6 +256,13 @@ class FlashcardDeckScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String get _reviewRoute {
+    if (_fromSession) {
+      return AppRoutes.flashcardsReview(sessionId: sessionId);
+    }
+    return AppRoutes.flashcardsReview(documentId: documentId);
   }
 
   Widget _buildEmptyState(BuildContext context, String title) {
@@ -294,10 +309,24 @@ class FlashcardDeckScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 32),
             CustomButton(
-              text: '✨  Generate Cards',
-              onPressed: () => context.pushReplacement(
-                '/flashcards/generate/$documentId?title=${Uri.encodeComponent(title)}',
-              ),
+              text: 'Generate Cards',
+              onPressed: () {
+                if (_fromSession) {
+                  context.pushReplacement(
+                    AppRoutes.flashcardsGenerateSession(
+                      sessionId!,
+                      title: title,
+                    ),
+                  );
+                  return;
+                }
+                context.pushReplacement(
+                  AppRoutes.flashcardsGenerateDocument(
+                    documentId!,
+                    title: title,
+                  ),
+                );
+              },
               height: 52,
               backgroundColor: const Color(0xFF97cad8),
               borderColor: const Color(0xFF97cad8),
@@ -352,9 +381,14 @@ class FlashcardDeckScreen extends ConsumerWidget {
 
     if (confirm == true) {
       try {
-        final service = ref.read(flashcardServiceProvider);
-        await service.deleteCard(cardId);
-        ref.invalidate(flashcardDeckProvider(documentId));
+        final repository = ref.read(flashcardRepositoryProvider);
+        await repository.deleteCard(cardId);
+        if (sessionId != null) {
+          ref.invalidate(sessionFlashcardDeckProvider(sessionId!));
+        }
+        if (documentId != null) {
+          ref.invalidate(flashcardDeckProvider(documentId!));
+        }
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(

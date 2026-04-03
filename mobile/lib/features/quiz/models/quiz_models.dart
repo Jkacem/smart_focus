@@ -30,6 +30,7 @@ class QuizQuestionModel {
 class QuizModel {
   final int id;
   final int documentId;
+  final int? sessionId;
   final String title;
   final int numQuestions;
   final int? score;
@@ -40,6 +41,7 @@ class QuizModel {
   QuizModel({
     required this.id,
     required this.documentId,
+    this.sessionId,
     required this.title,
     required this.numQuestions,
     this.score,
@@ -56,6 +58,7 @@ class QuizModel {
     return QuizModel(
       id: json['id'],
       documentId: json['document_id'],
+      sessionId: json['session_id'] as int?,
       title: json['title'],
       numQuestions: json['num_questions'],
       score: json['score'],

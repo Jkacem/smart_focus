@@ -1,8 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 
 import 'package:smart_focus/features/chatbot/models/chatbot_models.dart';
 import 'package:smart_focus/features/chatbot/providers/document_provider.dart';
@@ -21,39 +20,25 @@ class PlanningScreen extends ConsumerStatefulWidget {
 
 class _PlanningScreenState extends ConsumerState<PlanningScreen> {
   int _selectedIndex = 1;
-  Timer? _autoUnvalidateTimer;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(planningProvider.notifier).autoUnvalidateExpiredSessions();
-    });
-    _autoUnvalidateTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (!mounted) return;
-      ref.read(planningProvider.notifier).autoUnvalidateExpiredSessions();
-    });
-  }
-
-  @override
-  void dispose() {
-    _autoUnvalidateTimer?.cancel();
-    super.dispose();
   }
 
   void _onItemTapped(int index) {
     if (index == 0) {
-      context.go('/dashboard');
+      context.go(AppRoutes.dashboard);
     } else if (index == 1) {
-      context.go('/planning');
+      context.go(AppRoutes.planning);
     } else if (index == 2) {
-      context.go('/chatbot');
+      context.go(AppRoutes.chatbot);
     } else if (index == 3) {
-      context.go('/statistics');
+      context.go(AppRoutes.statistics);
     } else if (index == 4) {
-      context.go('/sleep');
+      context.go(AppRoutes.sleep);
     } else if (index == 5) {
-      context.go('/settings');
+      context.go(AppRoutes.settings);
     } else {
       setState(() {
         _selectedIndex = index;
@@ -201,6 +186,11 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: _AdaptiveSchedulingNotice(),
+                ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: RefreshIndicator(
@@ -265,6 +255,17 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                             statusLabel: session.statusLabel,
                             isCompleted: session.isCompleted,
                             linkedDocumentName: session.documentName,
+                            smartSessionLabel: session.smartSessionLabel,
+                            smartSessionHint: session.smartSessionHint,
+                            smartSessionIcon: _smartSessionIcon(session),
+                            smartSessionAccentColor: _smartSessionAccentColor(session),
+                            primaryActionLabel: _primaryActionLabel(session),
+                            quizActionLabel: _quizActionLabel(session),
+                            flashcardActionLabel: _flashcardActionLabel(session),
+                            quizActionColor: _quizActionColor(session),
+                            flashcardActionColor: _flashcardActionColor(session),
+                            quizActionIcon: _quizActionIcon(session),
+                            flashcardActionIcon: _flashcardActionIcon(session),
                             onDeleteRequested: () async {
                               try {
                                 await planningNotifier.deleteSession(session.id);
@@ -310,25 +311,23 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                                       _showSnackBar(context, e.toString(), isError: true);
                                     }
                                   },
+                            onPrimaryAction: _primaryAction(session, planningNotifier),
+                            onTap: _sessionTapAction(session, planningNotifier),
                             onManageDocument: () => _showSessionDocumentDialog(
                               context,
                               session,
                               planningNotifier,
                             ),
-                            onGenerateQuiz: session.isCompleted && session.hasLinkedDocument
-                                ? () {
-                                    context.push(
-                                      '/quiz/generate/session/${session.id}?title=${Uri.encodeComponent(session.subject)}',
-                                    );
-                                  }
-                                : null,
-                            onGenerateFlashcards:
-                                session.isCompleted && session.hasLinkedDocument
-                                    ? () {
-                                        context.push(
-                                          '/flashcards/generate/session/${session.id}?title=${Uri.encodeComponent(session.subject)}',
-                                        );
-                                      }
+                            onGenerateQuiz: _quizAction(session, planningNotifier),
+                            onGenerateFlashcards: _flashcardAction(
+                              session,
+                              planningNotifier,
+                            ),
+                            onReschedule: _rescheduleAction(session, planningNotifier),
+                            rescheduleLabel: session.isCancelled
+                                ? 'Replanifier'
+                                : session.isMissed
+                                    ? 'Reporter'
                                     : null,
                           );
                         }
@@ -637,6 +636,13 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const _DialogInfoBanner(
+                      icon: Icons.schedule_outlined,
+                      accent: Color(0xFF8B5CF6),
+                      message:
+                          'Les revisions automatiques privilegient vos heures de completion les plus fiables sur les 14 derniers jours. Sans historique, votre plage preferee reste utilisee.',
+                    ),
+                    const SizedBox(height: 16),
                     TextField(
                       controller: preferencesController,
                       decoration: const InputDecoration(
@@ -814,6 +820,230 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     return '${selected.day} ${months[selected.month - 1]}';
   }
 
+  IconData? _smartSessionIcon(PlanningSessionModel session) {
+    if (session.isFlashcardReviewSession) {
+      return Icons.style_outlined;
+    }
+    if (session.isQuizRevisionSession) {
+      return Icons.quiz_outlined;
+    }
+    if (session.isSmartRevisionSession || session.isAiGenerated) {
+      return Icons.auto_awesome;
+    }
+    return null;
+  }
+
+  Color? _smartSessionAccentColor(PlanningSessionModel session) {
+    if (session.isFlashcardReviewSession) {
+      return const Color(0xFF8BD3A8);
+    }
+    if (session.isQuizRevisionSession) {
+      return const Color(0xFFFFC857);
+    }
+    if (session.isAiGenerated) {
+      return const Color(0xFF97CAD8);
+    }
+    return null;
+  }
+
+  String? _primaryActionLabel(PlanningSessionModel session) {
+    if (session.isFlashcardReviewSession && session.documentId != null) {
+      return session.hasSavedFlashcards
+          ? (session.sessionFlashcardsDue > 0 ? 'Reprendre la revision' : 'Voir les cartes')
+          : 'Generer des cartes';
+    }
+    if (session.isQuizRevisionSession && session.documentId != null) {
+      return session.hasSavedQuiz ? 'Ouvrir le quiz' : 'Generer un quiz';
+    }
+    return null;
+  }
+
+  VoidCallback? _primaryAction(
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) {
+    if (session.isFlashcardReviewSession && session.documentId != null) {
+      return _flashcardAction(session, planningNotifier);
+    }
+    if (session.isQuizRevisionSession && session.documentId != null) {
+      return _quizAction(session, planningNotifier);
+    }
+    return null;
+  }
+
+  VoidCallback? _sessionTapAction(
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) {
+    if (session.isFlashcardReviewSession) {
+      return _flashcardAction(session, planningNotifier);
+    }
+    if (session.isQuizRevisionSession) {
+      return _quizAction(session, planningNotifier);
+    }
+    return null;
+  }
+
+  String _quizActionLabel(PlanningSessionModel session) {
+    switch (session.sessionQuizStatus) {
+      case 'completed':
+        return 'Voir quiz';
+      case 'in_progress':
+        return 'Continuer quiz';
+      default:
+        return 'Generer quiz';
+    }
+  }
+
+  String _flashcardActionLabel(PlanningSessionModel session) {
+    switch (session.sessionFlashcardsStatus) {
+      case 'completed':
+        return 'Voir cartes';
+      case 'in_progress':
+        return 'Continuer cartes';
+      case 'generated':
+        return 'Ouvrir cartes';
+      default:
+        return 'Generer cartes';
+    }
+  }
+
+  Color _quizActionColor(PlanningSessionModel session) {
+    switch (session.sessionQuizStatus) {
+      case 'completed':
+        return const Color(0xFF4ADE80);
+      case 'in_progress':
+        return const Color(0xFFFFC857);
+      default:
+        return const Color(0xFF97CAD8);
+    }
+  }
+
+  Color _flashcardActionColor(PlanningSessionModel session) {
+    switch (session.sessionFlashcardsStatus) {
+      case 'completed':
+        return const Color(0xFF4ADE80);
+      case 'in_progress':
+        return const Color(0xFFFFC857);
+      case 'generated':
+        return const Color(0xFF8BD3A8);
+      default:
+        return const Color(0xFF97CAD8);
+    }
+  }
+
+  IconData _quizActionIcon(PlanningSessionModel session) {
+    switch (session.sessionQuizStatus) {
+      case 'completed':
+        return Icons.fact_check_outlined;
+      case 'in_progress':
+        return Icons.play_circle_outline;
+      default:
+        return Icons.quiz_outlined;
+    }
+  }
+
+  IconData _flashcardActionIcon(PlanningSessionModel session) {
+    switch (session.sessionFlashcardsStatus) {
+      case 'completed':
+        return Icons.check_circle_outline;
+      case 'in_progress':
+        return Icons.refresh_outlined;
+      case 'generated':
+        return Icons.style_outlined;
+      default:
+        return Icons.auto_awesome_outlined;
+    }
+  }
+
+  VoidCallback? _quizAction(
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) {
+    if (!session.isCompleted) {
+      return null;
+    }
+    if (session.sessionQuizId != null) {
+      return () {
+        _openRouteAndRefresh(
+          AppRoutes.quizPlay(session.sessionQuizId!),
+          planningNotifier,
+        );
+      };
+    }
+    if (session.hasLinkedDocument) {
+      return () {
+        _openRouteAndRefresh(
+          AppRoutes.quizGenerateSession(session.id, title: session.subject),
+          planningNotifier,
+        );
+      };
+    }
+    return null;
+  }
+
+  VoidCallback? _flashcardAction(
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) {
+    if (!session.isCompleted) {
+      return null;
+    }
+    if (session.hasSavedFlashcards) {
+      final route = session.sessionFlashcardsDue > 0
+          ? AppRoutes.flashcardsReview(sessionId: session.id)
+          : AppRoutes.flashcardsDeckSession(session.id);
+      return () {
+        _openRouteAndRefresh(route, planningNotifier);
+      };
+    }
+    if (session.hasLinkedDocument) {
+      return () {
+        _openRouteAndRefresh(
+          AppRoutes.flashcardsGenerateSession(session.id, title: session.subject),
+          planningNotifier,
+        );
+      };
+    }
+    return null;
+  }
+
+  VoidCallback? _rescheduleAction(
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) {
+    if (!session.canBeRescheduled) {
+      return null;
+    }
+    return () async {
+      try {
+        final newSession = await planningNotifier.rescheduleSession(session.id);
+        if (!context.mounted) return;
+        _showSnackBar(
+          context,
+          'Session replanifiee pour ${_formatRescheduledSlot(newSession)}.',
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        _showSnackBar(context, e.toString(), isError: true);
+      }
+    };
+  }
+
+  void _openRouteAndRefresh(String route, PlanningNotifier planningNotifier) {
+    context.push(route).then((_) {
+      planningNotifier.refresh();
+    });
+  }
+
+  String _formatRescheduledSlot(PlanningSessionModel session) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sessionDay = DateTime(session.start.year, session.start.month, session.start.day);
+    final dayLabel = sessionDay == today ? 'aujourd hui' : _headerTitle(session.start);
+    return '$dayLabel a ${_formatTime(session.start)}';
+  }
+
   String _formatTime(DateTime dateTime) {
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
@@ -887,6 +1117,91 @@ class _PlanningFeedbackCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AdaptiveSchedulingNotice extends StatelessWidget {
+  const _AdaptiveSchedulingNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF8B5CF6).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF8B5CF6).withOpacity(0.28),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.auto_awesome_outlined,
+            color: Color(0xFFD8B4FE),
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Revisions IA adaptees a vos heures les plus fiables.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.88),
+                fontSize: 12,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DialogInfoBanner extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
+  final String message;
+
+  const _DialogInfoBanner({
+    required this.icon,
+    required this.accent,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withOpacity(0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: accent, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.black.withOpacity(0.72),
+                fontSize: 13,
+                height: 1.35,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

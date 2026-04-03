@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/shared/widgets/custom_button.dart';
 
 /// A rounded "Continue" button used on the welcome screen.
@@ -23,7 +24,7 @@ class ContinueButton extends StatelessWidget {
         style: TextStyle(color: Colors.white, fontSize: 18),
       ),
       onPressed: () {
-        context.go('/auth_options');
+        context.go(AppRoutes.authOptions);
       },
     );
   }

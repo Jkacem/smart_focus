@@ -1,17 +1,25 @@
 import 'dart:math';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
+
 import '../models/flashcard_models.dart';
 import '../providers/flashcard_provider.dart';
 
 class FlashcardReviewScreen extends ConsumerStatefulWidget {
   final int? documentId;
+  final int? sessionId;
 
-  const FlashcardReviewScreen({Key? key, this.documentId}) : super(key: key);
+  const FlashcardReviewScreen({
+    Key? key,
+    this.documentId,
+    this.sessionId,
+  }) : super(key: key);
 
   @override
   ConsumerState<FlashcardReviewScreen> createState() =>
@@ -27,6 +35,8 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
   late AnimationController _flipCtrl;
   late Animation<double> _flipAnim;
 
+  bool get _fromSession => widget.sessionId != null;
+
   @override
   void initState() {
     super.initState();
@@ -36,17 +46,13 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
     );
     _flipAnim = TweenSequence([
       TweenSequenceItem(
-        tween: Tween(
-          begin: 0.0,
-          end: pi / 2,
-        ).chain(CurveTween(curve: Curves.easeIn)),
+        tween: Tween(begin: 0.0, end: pi / 2)
+            .chain(CurveTween(curve: Curves.easeIn)),
         weight: 50,
       ),
       TweenSequenceItem(
-        tween: Tween(
-          begin: -pi / 2,
-          end: 0.0,
-        ).chain(CurveTween(curve: Curves.easeOut)),
+        tween: Tween(begin: -pi / 2, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
         weight: 50,
       ),
     ]).animate(_flipCtrl);
@@ -65,9 +71,11 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
 
   @override
   Widget build(BuildContext context) {
-    final asyncValue = widget.documentId != null
-        ? ref.watch(flashcardDeckProvider(widget.documentId!))
-        : ref.watch(dueFlashcardsProvider);
+    final asyncValue = _fromSession
+        ? ref.watch(sessionFlashcardDeckProvider(widget.sessionId!))
+        : widget.documentId != null
+            ? ref.watch(flashcardDeckProvider(widget.documentId!))
+            : ref.watch(dueFlashcardsProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -130,8 +138,6 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const SizedBox(height: 8),
-
-                      // Progress
                       Row(
                         children: [
                           Text(
@@ -157,10 +163,7 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 24),
-
-                      // Flip hint
                       Text(
                         _isFlipped
                             ? 'Tap card to see front'
@@ -171,10 +174,7 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                         ),
                         textAlign: TextAlign.center,
                       ),
-
                       const SizedBox(height: 12),
-
-                      // Flashcard with flip animation
                       Expanded(
                         child: GestureDetector(
                           onTap: _flip,
@@ -190,10 +190,7 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 24),
-
-                      // Action area
                       if (!_isFlipped)
                         CustomButton(
                           text: 'Show Answer',
@@ -222,7 +219,7 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                             Row(
                               children: [
                                 _buildRatingBtn(
-                                  '✗',
+                                  'X',
                                   'Again',
                                   const Color(0xFFf87171),
                                   0,
@@ -238,7 +235,7 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 _buildRatingBtn(
-                                  '✓',
+                                  'OK',
                                   'Good',
                                   const Color(0xFF4ade80),
                                   4,
@@ -246,7 +243,7 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 _buildRatingBtn(
-                                  '★',
+                                  '*',
                                   'Easy',
                                   const Color(0xFF97cad8),
                                   5,
@@ -256,7 +253,6 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
                             ),
                           ],
                         ),
-
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -333,6 +329,13 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
         onTap: () async {
           try {
             await ref.read(reviewFlashcardProvider)(card.id, quality);
+            await ref.read(planningProvider.notifier).refresh();
+            if (widget.documentId != null) {
+              ref.invalidate(flashcardDeckProvider(widget.documentId!));
+            }
+            if (widget.sessionId != null) {
+              ref.invalidate(sessionFlashcardDeckProvider(widget.sessionId!));
+            }
             if (mounted) {
               setState(() {
                 _isFlipped = false;
@@ -413,7 +416,7 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
             ),
             const SizedBox(height: 24),
             const Text(
-              'Session Complete! 🎉',
+              'Session Complete',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -431,12 +434,17 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
             ),
             const SizedBox(height: 36),
             CustomButton(
-              text: '← Back to Deck',
-              onPressed: () {
+              text: 'Back to Deck',
+              onPressed: () async {
                 if (widget.documentId != null) {
                   ref.invalidate(flashcardDeckProvider(widget.documentId!));
-                } else {
-                  ref.invalidate(dueFlashcardsProvider);
+                }
+                if (widget.sessionId != null) {
+                  ref.invalidate(sessionFlashcardDeckProvider(widget.sessionId!));
+                }
+                await ref.read(planningProvider.notifier).refresh();
+                if (!context.mounted) {
+                  return;
                 }
                 context.pop();
               },

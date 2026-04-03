@@ -3,9 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 
+import '../data/quiz_repository.dart';
 import '../models/quiz_models.dart';
 import '../providers/quiz_provider.dart';
 
@@ -32,9 +34,9 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
     setState(() => _isRetrying = true);
 
     try {
-      final service = ref.read(quizServiceProvider);
-      final originalQuiz = await service.getQuiz(widget.quizId);
-      final retriedQuiz = await service.generateQuiz(
+      final repository = ref.read(quizRepositoryProvider);
+      final originalQuiz = await repository.getQuiz(widget.quizId);
+      final retriedQuiz = await repository.generateQuiz(
         originalQuiz.documentId,
         numQuestions: originalQuiz.numQuestions,
       );
@@ -42,7 +44,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
       ref.invalidate(quizzesProvider);
 
       if (!mounted) return;
-      context.pushReplacement('/quiz/play/${retriedQuiz.id}');
+      context.pushReplacement(AppRoutes.quizPlay(retriedQuiz.id));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -71,7 +73,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
       appBar: CustomAppBar(
         title: 'Results',
         leadingIcon: Icons.home_outlined,
-        onLeadingPressed: () => context.go('/dashboard'),
+        onLeadingPressed: () => context.go(AppRoutes.dashboard),
       ),
       body: Stack(
         children: [

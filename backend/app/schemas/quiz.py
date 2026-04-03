@@ -59,6 +59,7 @@ class QuizOut(BaseModel):
 
     id: int
     document_id: int
+    session_id: Optional[int] = None
     title: str
     num_questions: int
     score: Optional[int] = None
