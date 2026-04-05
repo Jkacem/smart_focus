@@ -41,6 +41,24 @@ class QuizGeneratorNotifier extends StateNotifier<AsyncValue<QuizModel?>> {
     }
   }
 
+  Future<QuizModel?> generateQuizForDocuments(
+    List<int> documentIds,
+    int numQuestions,
+  ) async {
+    state = const AsyncValue.loading();
+    try {
+      final quiz = await _repository.generateQuizForDocuments(
+        documentIds,
+        numQuestions: numQuestions,
+      );
+      state = AsyncValue.data(quiz);
+      return quiz;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
   Future<QuizModel?> generateQuizFromSession(int sessionId, int numQuestions) async {
     state = const AsyncValue.loading();
     try {

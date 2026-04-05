@@ -15,6 +15,7 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
   static const double _maxExpandedHeight = 260;
 
   bool _isExpanded = true;
+  bool _isUploading = false;
   late final ScrollController _documentsScrollController;
 
   @override
@@ -140,6 +141,47 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
     );
   }
 
+  Future<void> _handleUpload() async {
+    if (_isUploading) {
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      final message = await ref.read(documentProvider.notifier).uploadDocument();
+      if (!mounted || message == null) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message.replaceFirst('✅ ', '')),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
+  }
+
   Widget _buildDocItem(DocumentInfo doc, List<int> selectedDocs) {
     final isSelected = selectedDocs.contains(doc.id);
 
@@ -196,21 +238,28 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
 
   Widget _buildAddDocButton() {
     return InkWell(
-      onTap: () {
-        ref.read(documentProvider.notifier).uploadDocument();
-      },
+      onTap: _isUploading ? null : _handleUpload,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            const Icon(
-              Icons.add_circle_outline,
-              color: Colors.blueAccent,
-              size: 20,
-            ),
+            _isUploading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+                    ),
+                  )
+                : const Icon(
+                    Icons.add_circle_outline,
+                    color: Colors.blueAccent,
+                    size: 20,
+                  ),
             const SizedBox(width: 8),
             Text(
-              'Uploader PDF ou CSV',
+              _isUploading ? 'Upload en cours...' : 'Uploader PDF ou CSV',
               style: TextStyle(
                 color: Colors.blueAccent.withOpacity(0.9),
                 fontSize: 14,

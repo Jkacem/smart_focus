@@ -1,3 +1,54 @@
+class PlanningExamModel {
+  final int id;
+  final int userId;
+  final String title;
+  final DateTime examDate;
+  final int? documentId;
+  final String? documentName;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const PlanningExamModel({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.examDate,
+    required this.documentId,
+    required this.documentName,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory PlanningExamModel.fromJson(Map<String, dynamic> json) {
+    return PlanningExamModel(
+      id: json['id'] as int,
+      userId: json['user_id'] as int,
+      title: json['title']?.toString() ?? '',
+      examDate: _parseDate(json['exam_date']?.toString()),
+      documentId: json['document_id'] as int?,
+      documentName: json['document_name']?.toString(),
+      createdAt: _parseDateTime(json['created_at']?.toString()),
+      updatedAt: _parseDateTime(json['updated_at']?.toString()),
+    );
+  }
+
+  int get daysUntilExam {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return examDate.difference(today).inDays;
+  }
+
+  String get countdownLabel {
+    if (daysUntilExam <= 0) {
+      return 'Aujourd hui';
+    }
+    if (daysUntilExam == 1) {
+      return 'Demain';
+    }
+    return 'Dans $daysUntilExam jours';
+  }
+}
+
 class PlanningDayModel {
   final DateTime date;
   final List<PlanningSessionModel> sessions;
@@ -117,6 +168,8 @@ class PlanningSessionModel {
   final String? notes;
   final int? documentId;
   final String? documentName;
+  final List<int> documentIds;
+  final List<String> documentNames;
   final int? sessionQuizId;
   final String sessionQuizStatus;
   final int sessionFlashcardsTotal;
@@ -140,6 +193,8 @@ class PlanningSessionModel {
     required this.notes,
     required this.documentId,
     required this.documentName,
+    required this.documentIds,
+    required this.documentNames,
     required this.sessionQuizId,
     required this.sessionQuizStatus,
     required this.sessionFlashcardsTotal,
@@ -165,6 +220,8 @@ class PlanningSessionModel {
       notes: json['notes']?.toString(),
       documentId: json['document_id'] as int?,
       documentName: json['document_name']?.toString(),
+      documentIds: List<int>.from(json['document_ids'] ?? const []),
+      documentNames: List<String>.from(json['document_names'] ?? const []),
       sessionQuizId: json['session_quiz_id'] as int?,
       sessionQuizStatus: json['session_quiz_status']?.toString() ?? 'not_started',
       sessionFlashcardsTotal: json['session_flashcards_total'] as int? ?? 0,
@@ -194,7 +251,25 @@ class PlanningSessionModel {
 
   bool get canBeRescheduled => isCancelled || isMissed;
 
-  bool get hasLinkedDocument => documentId != null;
+  bool get hasLinkedDocument =>
+      documentIds.isNotEmpty || documentId != null;
+
+  int get linkedDocumentCount {
+    if (documentIds.isNotEmpty) {
+      return documentIds.length;
+    }
+    return documentId == null ? 0 : 1;
+  }
+
+  String? get linkedDocumentSummary {
+    if (documentNames.isNotEmpty) {
+      if (documentNames.length == 1) {
+        return documentNames.first;
+      }
+      return '${documentNames.first} +${documentNames.length - 1} docs';
+    }
+    return documentName;
+  }
 
   bool get hasSavedQuiz => sessionQuizId != null;
 
@@ -220,8 +295,11 @@ class PlanningSessionModel {
   bool get isQuizRevisionSession =>
       _normalizedSubject.startsWith('revision quiz:');
 
+  bool get isExamCountdownSession =>
+      _normalizedSubject.startsWith('revision examen:');
+
   bool get isSmartRevisionSession =>
-      isFlashcardReviewSession || isQuizRevisionSession;
+      isFlashcardReviewSession || isQuizRevisionSession || isExamCountdownSession;
 
   String? get smartSessionLabel {
     if (isFlashcardReviewSession) {
@@ -229,6 +307,9 @@ class PlanningSessionModel {
     }
     if (isQuizRevisionSession) {
       return 'Quiz cible';
+    }
+    if (isExamCountdownSession) {
+      return 'Compte a rebours';
     }
     if (isAiGenerated && _normalizedSubject.startsWith('revision:')) {
       return 'Revision IA';
@@ -246,6 +327,11 @@ class PlanningSessionModel {
       return hasLinkedDocument
           ? 'Ce document a ete priorise a cause de recents scores plus faibles.'
           : 'Cette session a ete priorisee a partir des performances recentes.';
+    }
+    if (isExamCountdownSession) {
+      return hasLinkedDocument
+          ? 'Cette revision est renforcee automatiquement a mesure que l examen approche.'
+          : 'Le planificateur intensifie cette revision a l approche de l examen.';
     }
     if (isAiGenerated && _normalizedSubject.startsWith('revision:')) {
       return 'Session de revision ajoutee automatiquement par le planificateur.';

@@ -12,15 +12,21 @@ import '../providers/quiz_provider.dart';
 
 class QuizGenerateScreen extends ConsumerStatefulWidget {
   final int? documentId;
+  final List<int>? documentIds;
   final int? sessionId;
   final String documentTitle;
 
-  const QuizGenerateScreen({
+  QuizGenerateScreen({
     Key? key,
     this.documentId,
+    this.documentIds,
     this.sessionId,
     required this.documentTitle,
-  }) : assert(documentId != null || sessionId != null),
+  }) : assert(
+         documentId != null ||
+             sessionId != null ||
+             (documentIds != null && documentIds.isNotEmpty),
+       ),
        super(key: key);
 
   @override
@@ -31,6 +37,7 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
   int _numQuestions = 10;
 
   bool get _fromSession => widget.sessionId != null;
+  bool get _fromMultipleDocuments => (widget.documentIds?.length ?? 0) > 1;
 
   @override
   void initState() {
@@ -46,7 +53,12 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
       final notifier = ref.read(quizGeneratorProvider.notifier);
       final newQuiz = _fromSession
           ? await notifier.generateQuizFromSession(widget.sessionId!, _numQuestions)
-          : await notifier.generateQuiz(widget.documentId!, _numQuestions);
+          : _fromMultipleDocuments
+              ? await notifier.generateQuizForDocuments(
+                  widget.documentIds!,
+                  _numQuestions,
+                )
+              : await notifier.generateQuiz(widget.documentId!, _numQuestions);
 
       if (newQuiz != null && mounted) {
         ref.invalidate(quizzesProvider);
@@ -138,7 +150,11 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _fromSession ? 'Source: completed session' : 'Source: document',
+                          _fromSession
+                              ? 'Source: completed session'
+                              : _fromMultipleDocuments
+                                  ? 'Source: selected documents'
+                                  : 'Source: document',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.55),
                             fontSize: 13,

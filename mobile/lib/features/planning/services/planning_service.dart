@@ -27,9 +27,39 @@ class PlanningService {
     return PlanningInsightsModel.fromJson(response.data as Map<String, dynamic>);
   }
 
+  Future<List<PlanningExamModel>> getExams() async {
+    final response = await _dio.get('/api/v1/planning/exams');
+    final items = response.data as List? ?? const [];
+    return items
+        .map((item) => PlanningExamModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<PlanningExamModel> createExam({
+    required String title,
+    required DateTime examDate,
+    int? documentId,
+  }) async {
+    final response = await _dio.post(
+      '/api/v1/planning/exams',
+      data: {
+        'title': title,
+        'exam_date': _formatDay(examDate),
+        if (documentId != null) 'document_id': documentId,
+      },
+      options: Options(contentType: Headers.jsonContentType),
+    );
+    return PlanningExamModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteExam(int examId) async {
+    await _dio.delete('/api/v1/planning/exams/$examId');
+  }
+
   Future<PlanningDayModel> generatePlanning({
     required DateTime date,
     int? documentId,
+    List<int>? examIds,
     String? weekType,
     Map<String, dynamic>? preferences,
   }) async {
@@ -39,6 +69,7 @@ class PlanningService {
         'date': _formatDay(date),
         if (preferences != null && preferences.isNotEmpty) 'preferences': preferences,
         if (documentId != null) 'document_id': documentId,
+        if (examIds != null) 'exam_ids': examIds,
         if (weekType != null) 'week_type': weekType,
       },
       options: Options(contentType: Headers.jsonContentType),
@@ -50,6 +81,7 @@ class PlanningService {
   Future<void> generatePlanningWeek({
     required DateTime date,
     int? documentId,
+    List<int>? examIds,
     String? weekType,
     Map<String, dynamic>? preferences,
   }) async {
@@ -59,6 +91,7 @@ class PlanningService {
         'date': _formatDay(date),
         if (preferences != null && preferences.isNotEmpty) 'preferences': preferences,
         if (documentId != null) 'document_id': documentId,
+        if (examIds != null) 'exam_ids': examIds,
         if (weekType != null) 'week_type': weekType,
       },
       options: Options(contentType: Headers.jsonContentType),
@@ -71,6 +104,7 @@ class PlanningService {
     required DateTime end,
     required String priority,
     int? documentId,
+    List<int>? documentIds,
   }) async {
     final response = await _dio.post(
       '/api/v1/planning/sessions',
@@ -80,6 +114,7 @@ class PlanningService {
         'end': end.toIso8601String(),
         'priority': priority,
         if (documentId != null) 'document_id': documentId,
+        if (documentIds != null) 'document_ids': documentIds,
       },
       options: Options(contentType: Headers.jsonContentType),
     );
@@ -106,14 +141,15 @@ class PlanningService {
     return PlanningSessionModel.fromJson(response.data as Map<String, dynamic>);
   }
 
-  Future<PlanningSessionModel> updateSessionDocument(
+  Future<PlanningSessionModel> updateSessionDocuments(
     int sessionId,
-    int? documentId,
+    List<int> documentIds,
   ) async {
     final response = await _dio.patch(
       '/api/v1/planning/sessions/$sessionId',
       data: {
-        'document_id': documentId,
+        'document_id': documentIds.isEmpty ? null : documentIds.first,
+        'document_ids': documentIds,
       },
       options: Options(contentType: Headers.jsonContentType),
     );

@@ -16,6 +16,7 @@ class AppRoutes {
   static const alarmRing = '/alarm-ring';
 
   static const quizGenerateDocumentPattern = '/quiz/generate/:docId';
+  static const quizGenerateMultiPattern = '/quiz/generate';
   static const quizGenerateSessionPattern = '/quiz/generate/session/:sessionId';
   static const quizPlayPattern = '/quiz/play/:quizId';
   static const quizResultPattern = '/quiz/result/:quizId';
@@ -30,6 +31,13 @@ class AppRoutes {
 
   static String quizGenerateDocument(int documentId, {String? title}) {
     return _withQuery('/quiz/generate/$documentId', {'title': title});
+  }
+
+  static String quizGenerateDocuments(List<int> documentIds, {String? title}) {
+    return _withQuery('/quiz/generate', {
+      'title': title,
+      'docIds': documentIds.join(','),
+    });
   }
 
   static String quizGenerateSession(int sessionId, {String? title}) {

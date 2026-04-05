@@ -3,7 +3,7 @@ from datetime import datetime, date
 from enum import Enum
 from sqlalchemy import (
     Column, Integer, String, DateTime, Date, Boolean,
-    ForeignKey, JSON, Float,
+    ForeignKey, JSON, Float, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -49,6 +49,7 @@ class User(Base):
                                    uselist=False, cascade="all, delete-orphan")
     study_sessions = relationship("StudySession", back_populates="user",
                                    cascade="all, delete-orphan")
+    exams = relationship("Exam", back_populates="user", cascade="all, delete-orphan")
 
 
 class UserProfile(Base):
@@ -94,6 +95,17 @@ class ChatDocument(Base):
     flashcards = relationship("Flashcard",   back_populates="document",
                               cascade="all, delete-orphan")
     study_sessions = relationship("StudySession", back_populates="document")
+    study_session_links = relationship(
+        "StudySessionDocumentLink",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+    quiz_links = relationship(
+        "QuizDocumentLink",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+    exams = relationship("Exam", back_populates="document")
 
 
 class ChatMessage(Base):
@@ -111,6 +123,57 @@ class ChatMessage(Base):
     # relationships
     user     = relationship("User",         back_populates="chat_messages")
     document = relationship("ChatDocument", back_populates="messages")
+
+
+class QuizDocumentLink(Base):
+    """Associates a quiz with every source document used to generate it."""
+    __tablename__ = "quiz_documents"
+    __table_args__ = (
+        UniqueConstraint("quiz_id", "document_id", name="uq_quiz_documents_quiz_document"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    quiz_id = Column(Integer, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_id = Column(
+        Integer,
+        ForeignKey("chat_documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    quiz = relationship("Quiz", back_populates="quiz_document_links")
+    document = relationship("ChatDocument", back_populates="quiz_links")
+
+
+class StudySessionDocumentLink(Base):
+    """Associates a study session with every document studied during it."""
+    __tablename__ = "study_session_documents"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "document_id",
+            name="uq_study_session_documents_session_document",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(
+        Integer,
+        ForeignKey("study_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_id = Column(
+        Integer,
+        ForeignKey("chat_documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    session = relationship("StudySession", back_populates="session_document_links")
+    document = relationship("ChatDocument", back_populates="study_session_links")
 
 
 # ══════════════════════════════════════════════
@@ -137,10 +200,39 @@ class Quiz(Base):
     # relationships
     user      = relationship("User",         back_populates="quizzes")
     document  = relationship("ChatDocument", back_populates="quizzes")
+    quiz_document_links = relationship(
+        "QuizDocumentLink",
+        back_populates="quiz",
+        cascade="all, delete-orphan",
+    )
     session   = relationship("StudySession", back_populates="generated_quiz",
                              foreign_keys=[session_id])
     questions = relationship("QuizQuestion", back_populates="quiz",
                              cascade="all, delete-orphan")
+
+    @property
+    def document_ids(self) -> list[int]:
+        ids: list[int] = []
+        if self.document_id is not None:
+            ids.append(self.document_id)
+        ids.extend(
+            link.document_id
+            for link in self.quiz_document_links
+            if link.document_id is not None
+        )
+        return list(dict.fromkeys(ids))
+
+    @property
+    def document_names(self) -> list[str]:
+        names: list[str] = []
+        if self.document is not None:
+            names.append(self.document.filename)
+        names.extend(
+            link.document.filename
+            for link in self.quiz_document_links
+            if link.document is not None
+        )
+        return list(dict.fromkeys(names))
 
 
 class QuizQuestion(Base):
@@ -231,6 +323,36 @@ class SmartAlarm(Base):
     user = relationship("User", back_populates="smart_alarm")
 
 
+class Exam(Base):
+    """User-defined exam target that can intensify revision planning."""
+    __tablename__ = "exams"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_id = Column(
+        Integer,
+        ForeignKey("chat_documents.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    title = Column(String(255), nullable=False)
+    exam_date = Column(Date, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", back_populates="exams")
+    document = relationship("ChatDocument", back_populates="exams")
+
+    @property
+    def document_name(self) -> str | None:
+        return self.document.filename if self.document else None
+
+
 # ══════════════════════════════════════════════
 # PLANNING SESSIONS
 # ══════════════════════════════════════════════
@@ -271,6 +393,11 @@ class StudySession(Base):
 
     user = relationship("User", back_populates="study_sessions")
     document = relationship("ChatDocument", back_populates="study_sessions")
+    session_document_links = relationship(
+        "StudySessionDocumentLink",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
     generated_quiz = relationship(
         "Quiz",
         back_populates="session",
@@ -285,7 +412,34 @@ class StudySession(Base):
 
     @property
     def document_name(self) -> str | None:
-        return self.document.filename if self.document else None
+        if self.document is not None:
+            return self.document.filename
+        names = self.document_names
+        return names[0] if names else None
+
+    @property
+    def document_ids(self) -> list[int]:
+        ids: list[int] = []
+        if self.document_id is not None:
+            ids.append(self.document_id)
+        ids.extend(
+            link.document_id
+            for link in self.session_document_links
+            if link.document_id is not None
+        )
+        return list(dict.fromkeys(ids))
+
+    @property
+    def document_names(self) -> list[str]:
+        names: list[str] = []
+        if self.document is not None:
+            names.append(self.document.filename)
+        names.extend(
+            link.document.filename
+            for link in self.session_document_links
+            if link.document is not None
+        )
+        return list(dict.fromkeys(names))
 
     @property
     def session_quiz_id(self) -> int | None:

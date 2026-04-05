@@ -311,6 +311,67 @@ def generate_quiz(collection_name: str, num_questions: int = 10) -> List[Dict]:
     return validated[:num_questions]
 
 
+def generate_quiz_from_collections(
+    collection_names: List[str],
+    num_questions: int = 10,
+) -> List[Dict]:
+    """Generate one quiz from multiple document collections."""
+    unique_collections = list(dict.fromkeys(collection_names))
+    if not unique_collections:
+        raise ValueError("No document collections provided for quiz generation.")
+
+    if len(unique_collections) == 1:
+        return generate_quiz(unique_collections[0], num_questions=num_questions)
+
+    embeddings = _get_embeddings()
+    all_chunks: List[Document] = []
+
+    for collection_name in unique_collections:
+        vectorstore = Chroma(
+            collection_name=collection_name,
+            embedding_function=embeddings,
+            persist_directory=_chroma_path(),
+        )
+        all_chunks.extend(
+            vectorstore.similarity_search("resume du contenu principal", k=12)
+        )
+
+    if not all_chunks:
+        raise ValueError("No chunks found for the selected documents.")
+
+    sample_size = min(len(all_chunks), max(num_questions * 2, 18))
+    sampled = random.sample(all_chunks, sample_size)
+    context = "\n\n---\n\n".join(chunk.page_content for chunk in sampled)
+
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    llm = genai.GenerativeModel('gemini-2.5-flash')
+    prompt_text = _QUIZ_PROMPT.format(context=context, num_questions=num_questions)
+    response = llm.generate_content(prompt_text)
+
+    raw_text = response.text.strip()
+    match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
+    if match:
+        raw_text = match.group(0)
+
+    try:
+        questions = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"Gemini returned invalid JSON (quiz): {e}\nRaw output: {raw_text}"
+        )
+
+    validated = []
+    for q in questions:
+        if "question" in q and "options" in q and "correct_index" in q:
+            if len(q["options"]) == 4 and 0 <= q["correct_index"] <= 3:
+                validated.append(q)
+
+    if not validated:
+        raise ValueError("Failed to generate valid quiz questions from the selected documents.")
+
+    return validated[:num_questions]
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # FLASHCARD GENERATION
 # ══════════════════════════════════════════════════════════════════════════════
@@ -405,4 +466,3 @@ def delete_collection(collection_name: str) -> None:
         client.delete_collection(name=collection_name)
     except Exception:
         pass  # Collection may not exist; that's fine
-

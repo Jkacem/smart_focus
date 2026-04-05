@@ -16,11 +16,7 @@ void main() async {
   await Hive.initFlutter();
   await Hive.openBox('auth');
 
-  runApp(
-    const ProviderScope(
-      child: KaranApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: KaranApp()));
 }
 
 class KaranApp extends ConsumerStatefulWidget {
@@ -64,4 +60,3 @@ class _KaranAppState extends ConsumerState<KaranApp> {
     );
   }
 }
-

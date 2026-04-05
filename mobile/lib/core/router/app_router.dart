@@ -74,6 +74,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SessionActiveScreen(),
       ),
       GoRoute(
+        path: AppRoutes.quizGenerateMultiPattern,
+        builder: (context, state) {
+          final title = state.uri.queryParameters['title'] ?? 'Documents';
+          final rawDocIds = state.uri.queryParameters['docIds'] ?? '';
+          final documentIds = rawDocIds
+              .split(',')
+              .where((item) => item.isNotEmpty)
+              .map(int.parse)
+              .toList();
+          return QuizGenerateScreen(
+            documentIds: documentIds,
+            documentTitle: title,
+          );
+        },
+      ),
+      GoRoute(
         path: AppRoutes.quizGenerateDocumentPattern,
         builder: (context, state) {
           final docId = int.parse(state.pathParameters['docId']!);

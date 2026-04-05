@@ -10,10 +10,18 @@ class QuizService {
   final Dio _dio;
 
   Future<QuizModel> generateQuiz(int documentId, {int numQuestions = 10}) async {
+    return generateQuizForDocuments([documentId], numQuestions: numQuestions);
+  }
+
+  Future<QuizModel> generateQuizForDocuments(
+    List<int> documentIds, {
+    int numQuestions = 10,
+  }) async {
     final response = await _dio.post(
       '/quiz/generate',
       data: {
-        'document_id': documentId,
+        if (documentIds.length == 1) 'document_id': documentIds.first,
+        'document_ids': documentIds,
         'num_questions': numQuestions,
       },
     );

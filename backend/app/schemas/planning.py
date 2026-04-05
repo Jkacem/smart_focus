@@ -11,10 +11,31 @@ from pydantic import BaseModel, Field
 PlanningPreferences = dict[str, Any]
 
 
+class ExamCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    exam_date: date
+    document_id: Optional[int] = None
+
+
+class ExamOut(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    exam_date: date
+    document_id: Optional[int] = None
+    document_name: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PlanningGenerateRequest(BaseModel):
     date: date
     preferences: Optional[PlanningPreferences] = None
     document_id: Optional[int] = None
+    exam_ids: Optional[list[int]] = None
     week_type: Optional[Literal["A", "B"]] = None  # For Week A/B alternation; auto-detected if omitted
 
 
@@ -28,12 +49,14 @@ class StudySessionCreate(BaseModel):
     end: datetime
     priority: StudySessionPriority = "medium"
     document_id: Optional[int] = None
+    document_ids: Optional[list[int]] = None
 
 
 class StudySessionUpdate(BaseModel):
     status: Optional[StudySessionStatus] = None
     notes: Optional[str] = Field(default=None, max_length=2000)
     document_id: Optional[int] = None
+    document_ids: Optional[list[int]] = None
 
 
 class PlanningOut(BaseModel):
@@ -54,6 +77,8 @@ class StudySessionOut(BaseModel):
     completed_at: Optional[datetime]
     document_id: Optional[int] = None
     document_name: Optional[str] = None
+    document_ids: list[int] = []
+    document_names: list[str] = []
     session_quiz_id: Optional[int] = None
     session_quiz_status: str = "not_started"
     session_flashcards_total: int = 0

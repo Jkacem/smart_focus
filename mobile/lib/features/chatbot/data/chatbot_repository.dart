@@ -1,10 +1,11 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/chatbot_models.dart';
 import '../services/chatbot_service.dart';
 
 abstract class ChatbotRepository {
-  Future<Map<String, dynamic>> uploadDocument(String filePath, String fileName);
+  Future<Map<String, dynamic>> uploadDocument(PlatformFile file);
   Future<List<DocumentInfo>> getDocuments();
   Future<void> deleteDocument(int documentId);
   Future<Map<String, dynamic>> chat(String question, List<int> documentIds);
@@ -17,8 +18,8 @@ class ChatbotRepositoryImpl implements ChatbotRepository {
   final ChatbotService _service;
 
   @override
-  Future<Map<String, dynamic>> uploadDocument(String filePath, String fileName) {
-    return _service.uploadDocument(filePath, fileName);
+  Future<Map<String, dynamic>> uploadDocument(PlatformFile file) {
+    return _service.uploadDocument(file);
   }
 
   @override

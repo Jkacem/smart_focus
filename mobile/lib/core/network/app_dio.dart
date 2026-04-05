@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+typedef RetryDataFactory = Future<dynamic> Function();
+
 final authBoxProvider = Provider<Box<dynamic>>((ref) {
   return Hive.box('auth');
 });
@@ -55,8 +57,14 @@ class ApiClient {
 
           if (!retried && fallbackBaseUrl != null && _isConnectionRefused(error)) {
             final requestOptions = error.requestOptions;
+            final retryData = await _rebuildRetryData(requestOptions);
+            if (requestOptions.data is FormData && retryData == null) {
+              return handler.next(error);
+            }
+
             final retryRequest = requestOptions.copyWith(
               baseUrl: fallbackBaseUrl,
+              data: retryData ?? requestOptions.data,
               extra: {
                 ...requestOptions.extra,
                 'retried_with_alt_host': true,
@@ -103,6 +111,14 @@ class ApiClient {
       return currentBaseUrl.replaceFirst('localhost', '10.0.2.2');
     }
 
+    return null;
+  }
+
+  Future<dynamic> _rebuildRetryData(RequestOptions requestOptions) async {
+    final factory = requestOptions.extra['retry_data_factory'];
+    if (factory is RetryDataFactory) {
+      return factory();
+    }
     return null;
   }
 }

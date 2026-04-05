@@ -12,6 +12,51 @@ from . import models, schemas
 from .utils.security import hash_password
 
 
+def _resolve_document_ids(
+    document_id: int | None,
+    document_ids: list[int] | None,
+) -> list[int]:
+    ordered_ids: list[int] = []
+    if document_id is not None:
+        ordered_ids.append(document_id)
+    if document_ids:
+        ordered_ids.extend(document_ids)
+
+    unique_ids: list[int] = []
+    seen: set[int] = set()
+    for item in ordered_ids:
+        if item in seen:
+            continue
+        seen.add(item)
+        unique_ids.append(item)
+    return unique_ids
+
+
+def _sync_session_document_links(
+    session_obj: models.StudySession,
+    document_ids: list[int],
+) -> None:
+    target_ids = set(document_ids)
+
+    session_obj.session_document_links = [
+        link
+        for link in session_obj.session_document_links
+        if link.document_id in target_ids
+    ]
+
+    current_ids = {
+        link.document_id
+        for link in session_obj.session_document_links
+        if link.document_id is not None
+    }
+    for document_id in document_ids:
+        if document_id in current_ids:
+            continue
+        session_obj.session_document_links.append(
+            models.StudySessionDocumentLink(document_id=document_id)
+        )
+
+
 # ══════════════════════════════════════════════
 # USER
 # ══════════════════════════════════════════════
@@ -333,6 +378,63 @@ def get_recent_quiz_performance(
     return results
 
 
+def get_upcoming_exams(
+    db: Session,
+    user_id: int,
+    *,
+    on_or_after: date | None = None,
+    exam_ids: list[int] | None = None,
+) -> list[models.Exam]:
+    """Return upcoming exams ordered by closest deadline first."""
+    query = db.query(models.Exam).filter(models.Exam.user_id == user_id)
+
+    if on_or_after is not None:
+        query = query.filter(models.Exam.exam_date >= on_or_after)
+
+    if exam_ids is not None:
+        if not exam_ids:
+            return []
+        query = query.filter(models.Exam.id.in_(exam_ids))
+
+    return (
+        query.order_by(models.Exam.exam_date.asc(), models.Exam.title.asc())
+        .all()
+    )
+
+
+def get_exam(db: Session, user_id: int, exam_id: int) -> Optional[models.Exam]:
+    """Return a single exam if it belongs to the user."""
+    return (
+        db.query(models.Exam)
+        .filter(models.Exam.user_id == user_id, models.Exam.id == exam_id)
+        .first()
+    )
+
+
+def create_exam(
+    db: Session,
+    user_id: int,
+    data: "schemas.ExamCreate",
+) -> models.Exam:
+    """Create a saved exam target for planning."""
+    exam = models.Exam(
+        user_id=user_id,
+        title=data.title.strip(),
+        exam_date=data.exam_date,
+        document_id=data.document_id,
+    )
+    db.add(exam)
+    db.commit()
+    db.refresh(exam)
+    return exam
+
+
+def delete_exam(db: Session, exam: models.Exam) -> None:
+    """Delete a saved exam."""
+    db.delete(exam)
+    db.commit()
+
+
 # ══════════════════════════════════════════════
 # SMART ALARM
 # ══════════════════════════════════════════════
@@ -478,6 +580,7 @@ def create_study_session(
     session_day = data.start.date()
     if data.end.date() != session_day:
         raise ValueError("end must be on the same day as start")
+    resolved_document_ids = _resolve_document_ids(data.document_id, data.document_ids)
 
     session = models.StudySession(
         user_id=user_id,
@@ -490,9 +593,10 @@ def create_study_session(
         notes=None,
         is_ai_generated=is_ai_generated,
         completed_at=None,
-        document_id=data.document_id,
+        document_id=resolved_document_ids[0] if resolved_document_ids else None,
     )
     db.add(session)
+    _sync_session_document_links(session, resolved_document_ids)
     db.commit()
     db.refresh(session)
     return session
@@ -516,8 +620,13 @@ def update_study_session(
     if "notes" in payload:
         session_obj.notes = payload["notes"]
 
-    if "document_id" in payload:
-        session_obj.document_id = payload["document_id"]
+    if "document_id" in payload or "document_ids" in payload:
+        resolved_document_ids = _resolve_document_ids(
+            payload.get("document_id"),
+            payload.get("document_ids"),
+        )
+        session_obj.document_id = resolved_document_ids[0] if resolved_document_ids else None
+        _sync_session_document_links(session_obj, resolved_document_ids)
 
     db.commit()
     db.refresh(session_obj)

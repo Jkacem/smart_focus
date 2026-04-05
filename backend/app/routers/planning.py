@@ -3,6 +3,7 @@ Planning Router - intelligent planning endpoints.
 """
 
 import logging
+import math
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
@@ -11,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app import crud, schemas
 from app.deps import get_current_user, get_db
-from app.models.models import ChatDocument, SleepRecord, StudySession, User
+from app.models.models import ChatDocument, Exam, SleepRecord, StudySession, User
 from app.services.planning_service import generate_daily_schedule
 from app.services.schedule_parser import is_csv_schedule, parse_csv_schedule
 
@@ -275,6 +276,50 @@ def _get_owned_document(
     return doc
 
 
+def _get_owned_documents(
+    db: Session,
+    current_user: User,
+    document_ids: list[int] | None,
+) -> list[ChatDocument]:
+    if not document_ids:
+        return []
+
+    docs = (
+        db.query(ChatDocument)
+        .filter(
+            ChatDocument.id.in_(document_ids),
+            ChatDocument.user_id == current_user.id,
+        )
+        .all()
+    )
+    docs_by_id = {doc.id: doc for doc in docs}
+    ordered_docs = [docs_by_id[document_id] for document_id in document_ids if document_id in docs_by_id]
+    if len(ordered_docs) != len(document_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    return ordered_docs
+
+
+def _get_owned_exam(db: Session, current_user: User, exam_id: int) -> Exam:
+    exam = crud.get_exam(db, current_user.id, exam_id)
+    if not exam:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found.")
+    return exam
+
+
+def _get_selected_exams(
+    db: Session,
+    current_user: User,
+    target_day: date,
+    exam_ids: list[int] | None,
+) -> list[Exam]:
+    return crud.get_upcoming_exams(
+        db,
+        current_user.id,
+        on_or_after=target_day,
+        exam_ids=exam_ids,
+    )
+
+
 def _get_owned_session(db: Session, current_user: User, session_id: int) -> StudySession:
     session_obj = (
         db.query(StudySession)
@@ -508,6 +553,7 @@ def _reschedule_study_session(
         end=new_end,
         priority=session_obj.priority,
         document_id=session_obj.document_id,
+        document_ids=session_obj.document_ids,
     )
     new_session = crud.create_study_session(
         db,
@@ -561,9 +607,8 @@ def _build_weighted_rotation(
     return rotation
 
 
-def _build_revision_targets(
+def _build_class_revision_targets(
     class_sessions: list[dict[str, Any]],
-    quiz_performance: list[dict[str, Any]],
     default_priority: str,
     session_duration_min: int,
 ) -> list[dict[str, Any]]:
@@ -572,16 +617,25 @@ def _build_revision_targets(
         subject = session["subject"]
         subject_counts[subject] = subject_counts.get(subject, 0) + 1
 
-    targets: list[dict[str, Any]] = [
+    return [
         {
             "subject": f"Revision: {subject}",
             "priority": default_priority,
             "duration_min": session_duration_min,
+            "min_duration_min": min(session_duration_min, 25),
             "document_id": None,
             "weight": float(count),
         }
         for subject, count in subject_counts.items()
     ]
+
+
+def _build_quiz_revision_targets(
+    quiz_performance: list[dict[str, Any]],
+    default_priority: str,
+    session_duration_min: int,
+) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
 
     for item in quiz_performance:
         weakness = item["weakness_score"]
@@ -593,6 +647,7 @@ def _build_revision_targets(
                 "subject": f"Revision quiz: {item['document_name']}",
                 "priority": "high" if weakness >= 0.6 else default_priority,
                 "duration_min": session_duration_min,
+                "min_duration_min": min(session_duration_min, 25),
                 "document_id": item["document_id"],
                 "weight": 1.0 + (weakness * 3.0),
             }
@@ -601,20 +656,213 @@ def _build_revision_targets(
     return targets
 
 
+def _collect_recent_schedule_subjects(
+    *,
+    file_path: str,
+    target_day: date,
+    week_type: str | None,
+) -> list[dict[str, Any]]:
+    """Reuse subjects already studied earlier in the week for weekend revisions."""
+    start_of_week = target_day - timedelta(days=target_day.weekday())
+    collected: list[dict[str, Any]] = []
+
+    for offset in range((target_day - start_of_week).days):
+        history_day = start_of_week + timedelta(days=offset)
+        collected.extend(
+            parse_csv_schedule(
+                file_path=file_path,
+                target_date=history_day,
+                week_type=week_type,
+            )
+        )
+
+    return collected
+
+
+def _should_schedule_exam_revision(target_day: date, exam_date: date) -> bool:
+    days_until = (exam_date - target_day).days
+    if days_until < 0:
+        return False
+    if days_until > 14:
+        return target_day.weekday() == exam_date.weekday()
+    if days_until >= 7:
+        return days_until in {7, 10, 13}
+    return True
+
+
+def _build_exam_targets(
+    target_day: date,
+    exams: list[Exam],
+    default_duration_min: int,
+) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    for exam in exams:
+        days_until = (exam.exam_date - target_day).days
+        if not _should_schedule_exam_revision(target_day, exam.exam_date):
+            continue
+
+        if days_until <= 2:
+            duration_min = max(default_duration_min + 20, 60)
+            priority = "high"
+        elif days_until <= 6:
+            duration_min = max(default_duration_min, 50)
+            priority = "high"
+        elif days_until <= 14:
+            duration_min = max(default_duration_min, 45)
+            priority = "high" if days_until <= 10 else "medium"
+        else:
+            duration_min = max(default_duration_min, 35)
+            priority = "medium"
+
+        targets.append(
+            {
+                "subject": f"Revision examen: {exam.title}",
+                "priority": priority,
+                "duration_min": duration_min,
+                "min_duration_min": min(duration_min, 30),
+                "document_id": exam.document_id,
+            }
+        )
+
+    return targets
+
+
+def _prioritize_revision_free_slots(
+    free_slots: list[tuple[datetime, datetime]],
+    class_sessions: list[dict[str, Any]],
+) -> list[tuple[datetime, datetime]]:
+    if not free_slots or not class_sessions:
+        return free_slots
+
+    first_class_start = min(session["start"] for session in class_sessions)
+    return sorted(
+        free_slots,
+        key=lambda slot: (
+            0 if slot[0] >= first_class_start else 1,
+            slot[0],
+        ),
+    )
+
+
+def _allocate_revision_budgets(
+    max_sessions: int,
+    *,
+    has_class_day: bool,
+    course_count: int,
+    exam_count: int,
+    flashcard_count: int,
+    quiz_count: int,
+) -> dict[str, int]:
+    budgets = {
+        "course": 0,
+        "exam": 0,
+        "flashcard": 0,
+        "quiz": 0,
+    }
+    if max_sessions <= 0:
+        return budgets
+
+    remaining = max_sessions
+
+    if course_count:
+        if has_class_day:
+            min_course = 2 if max_sessions >= 2 else 1
+            side_categories = sum(
+                1 for count in (exam_count, flashcard_count, quiz_count) if count > 0
+            )
+            reserved_side_slots = min(max(0, max_sessions - min_course), min(2, side_categories))
+            course_target = max(min_course, max_sessions - reserved_side_slots)
+        else:
+            course_target = max(1, math.ceil(max_sessions * 0.5))
+        budgets["course"] = min(course_target, remaining)
+        remaining -= budgets["course"]
+
+    for category, count in (
+        ("exam", exam_count),
+        ("flashcard", flashcard_count),
+        ("quiz", quiz_count),
+    ):
+        if remaining <= 0:
+            break
+        if count > 0:
+            budgets[category] = 1
+            remaining -= 1
+
+    if remaining > 0:
+        if course_count:
+            budgets["course"] += remaining
+            remaining = 0
+        else:
+            for category, count in (
+                ("exam", exam_count),
+                ("flashcard", flashcard_count),
+                ("quiz", quiz_count),
+            ):
+                while remaining > 0 and budgets[category] < count:
+                    budgets[category] += 1
+                    remaining -= 1
+                    if remaining <= 0:
+                        break
+
+    return budgets
+
+
+def _take_unique_targets(
+    targets: list[dict[str, Any]],
+    count: int,
+    *,
+    used_subjects: set[str],
+) -> list[dict[str, Any]]:
+    if count <= 0 or not targets:
+        return []
+
+    ranked_targets = sorted(
+        enumerate(targets),
+        key=lambda item: (-float(item[1].get("weight", 1.0)), item[0]),
+    )
+
+    selected: list[dict[str, Any]] = []
+    for _, target in ranked_targets:
+        subject = target["subject"]
+        if subject in used_subjects:
+            continue
+        selected.append(target)
+        used_subjects.add(subject)
+        if len(selected) >= count:
+            break
+
+    return selected
+
+
+def _target_min_duration(target: dict[str, Any]) -> timedelta:
+    min_duration = int(target.get("min_duration_min", target["duration_min"]))
+    return timedelta(minutes=min_duration)
+
+
 def _build_revision_sessions(
     target_day: date,
     class_sessions: list[dict[str, Any]],
     sleep_profile: dict[str, Any],
+    revision_source_sessions: list[dict[str, Any]] | None = None,
+    exams: list[Exam] | None = None,
     due_flashcard_subjects: list[dict[str, Any]] | None = None,
     quiz_performance: list[dict[str, Any]] | None = None,
     completion_rate_by_hour: dict[int, dict[str, float | int]] | None = None,
     preferred_schedule: str | None = None,
 ) -> list[dict[str, Any]]:
     """Generate adaptive revision sessions in the free slots for the day."""
+    revision_source_sessions = revision_source_sessions or class_sessions
+    exams = exams or []
     due_flashcard_subjects = due_flashcard_subjects or []
     quiz_performance = quiz_performance or []
 
-    if not class_sessions and not due_flashcard_subjects and not quiz_performance:
+    if (
+        not class_sessions
+        and not revision_source_sessions
+        and not exams
+        and not due_flashcard_subjects
+        and not quiz_performance
+    ):
         return []
 
     max_min = sleep_profile["max_session_min"]
@@ -627,45 +875,129 @@ def _build_revision_sessions(
         completion_rate_by_hour,
         preferred_schedule,
     )
-    free_slots = _filter_free_slots_by_allowed_hours(target_day, free_slots, allowed_hours)
+    if class_sessions:
+        # On timetable days, preserve the real gaps around classes.
+        # Restrictive hour filtering was preventing revisions from appearing
+        # after courses, unlike the original planner behavior.
+        free_slots = _prioritize_revision_free_slots(free_slots, class_sessions)
+    else:
+        free_slots = _filter_free_slots_by_allowed_hours(target_day, free_slots, allowed_hours)
 
-    revision_targets = _build_revision_targets(
-        class_sessions,
+    class_revision_targets = _build_class_revision_targets(
+        revision_source_sessions,
+        priority,
+        max_min,
+    )
+    quiz_revision_targets = _build_quiz_revision_targets(
         quiz_performance,
         priority,
         max_min,
     )
+    exam_targets = _build_exam_targets(target_day, exams, max_min)
     flashcard_duration_min = max(15, min(25, max_min - 15))
-    planned_targets: list[dict[str, Any]] = [
+    flashcard_targets = [
         {
             "subject": f"Revision flashcards: {item['document_name']}",
             "priority": priority,
             "duration_min": flashcard_duration_min,
+            "min_duration_min": 15,
             "document_id": item["document_id"],
         }
         for item in due_flashcard_subjects
-    ][:max_sessions]
+    ]
 
-    remaining_capacity = max_sessions - len(planned_targets)
-    planned_targets.extend(_build_weighted_rotation(revision_targets, remaining_capacity))
+    planned_targets: list[dict[str, Any]] = []
+    used_subjects: set[str] = set()
+    remaining_capacity = max_sessions
+    budgets = _allocate_revision_budgets(
+        max_sessions,
+        has_class_day=bool(class_sessions),
+        course_count=len(class_revision_targets),
+        exam_count=len(exam_targets),
+        flashcard_count=len(flashcard_targets),
+        quiz_count=len(quiz_revision_targets),
+    )
+
+    for targets, budget in (
+        (class_revision_targets, budgets["course"]),
+        (exam_targets, budgets["exam"]),
+        (flashcard_targets, budgets["flashcard"]),
+        (quiz_revision_targets, budgets["quiz"]),
+    ):
+        selected = _take_unique_targets(
+            targets,
+            budget,
+            used_subjects=used_subjects,
+        )
+        planned_targets.extend(selected)
+        remaining_capacity = max_sessions - len(planned_targets)
+        if remaining_capacity <= 0:
+            break
+
+    if remaining_capacity > 0 and class_sessions:
+        selected = _take_unique_targets(
+            class_revision_targets,
+            remaining_capacity,
+            used_subjects=used_subjects,
+        )
+        planned_targets.extend(selected)
+        remaining_capacity = max_sessions - len(planned_targets)
+
+        if class_revision_targets and remaining_capacity > 0:
+            # On class days, spare capacity should keep reinforcing the
+            # studied courses before expanding into extra quiz/flashcard work.
+            planned_targets.extend(_build_weighted_rotation(class_revision_targets, remaining_capacity))
+            remaining_capacity = max_sessions - len(planned_targets)
+
+    if remaining_capacity > 0:
+        for targets in (
+            class_revision_targets,
+            exam_targets,
+            flashcard_targets,
+            quiz_revision_targets,
+        ):
+            selected = _take_unique_targets(
+                targets,
+                remaining_capacity,
+                used_subjects=used_subjects,
+            )
+            planned_targets.extend(selected)
+            remaining_capacity = max_sessions - len(planned_targets)
+            if remaining_capacity <= 0:
+                break
+
+    if class_revision_targets and remaining_capacity > 0:
+        # Duplicate course revisions are only allowed as a true fallback once
+        # every unique target for the day has already been used.
+        planned_targets.extend(_build_weighted_rotation(class_revision_targets, remaining_capacity))
 
     if not planned_targets:
         return []
 
     revision_sessions: list[dict[str, Any]] = []
-    target_idx = 0
+    pending_targets = list(planned_targets)
 
     for slot_start_dt, slot_end_dt in free_slots:
-        if target_idx >= len(planned_targets):
+        if not pending_targets:
             break
 
         cursor = slot_start_dt
-        while target_idx < len(planned_targets):
-            target = planned_targets[target_idx]
-            session_duration = timedelta(minutes=target["duration_min"])
-            if cursor + session_duration > slot_end_dt:
+        while pending_targets:
+            available = slot_end_dt - cursor
+            fitting_index = next(
+                (
+                    idx
+                    for idx, candidate in enumerate(pending_targets)
+                    if available >= _target_min_duration(candidate)
+                ),
+                None,
+            )
+            if fitting_index is None:
                 break
 
+            target = pending_targets.pop(fitting_index)
+            desired_duration = timedelta(minutes=target["duration_min"])
+            session_duration = min(desired_duration, available)
             revision_sessions.append(
                 {
                     "subject": target["subject"],
@@ -682,7 +1014,6 @@ def _build_revision_sessions(
                 (cursor + session_duration).strftime("%H:%M"),
                 target["priority"],
             )
-            target_idx += 1
             cursor = cursor + session_duration + break_delta
 
     logger.info(
@@ -702,6 +1033,7 @@ def _generate_sessions_for_day(
     preferences: schemas.PlanningPreferences | None,
     collection_name: str | None,
     doc_file_path: str | None,
+    exams: list[Exam] | None,
     week_type: str | None,
     allow_empty_csv: bool = False,
 ) -> list[dict]:
@@ -725,7 +1057,14 @@ def _generate_sessions_for_day(
             target_date=target_day,
             week_type=week_type,
         )
-        if not class_sessions and not allow_empty_csv:
+        revision_source_sessions = class_sessions or _collect_recent_schedule_subjects(
+            file_path=doc_file_path,
+            target_day=target_day,
+            week_type=week_type,
+        )
+        if not class_sessions and not allow_empty_csv and not (
+            revision_source_sessions or exams or due_flashcard_subjects or quiz_performance
+        ):
             from app.services.schedule_parser import _DAY_TO_WEEKDAY
 
             day_name = {v: k for k, v in _DAY_TO_WEEKDAY.items()}.get(target_day.weekday(), "?")
@@ -737,12 +1076,14 @@ def _generate_sessions_for_day(
                 f"Verifiez votre fichier CSV."
             )
 
-        if class_sessions or due_flashcard_subjects or quiz_performance:
+        if revision_source_sessions or exams or due_flashcard_subjects or quiz_performance:
             sleep_profile = _get_sleep_profile(db, current_user.id, target_day)
             revision_sessions = _build_revision_sessions(
                 target_day,
                 class_sessions,
                 sleep_profile,
+                revision_source_sessions=revision_source_sessions,
+                exams=exams,
                 due_flashcard_subjects=due_flashcard_subjects,
                 quiz_performance=quiz_performance,
                 completion_rate_by_hour=completion_rate_by_hour,
@@ -778,6 +1119,7 @@ def _create_ai_sessions_for_day(
             end=item["end"],
             priority=item.get("priority", "medium"),
             document_id=item.get("document_id"),
+            document_ids=item.get("document_ids"),
         )
         created.append(
             crud.create_study_session(db, current_user.id, payload, is_ai_generated=True)
@@ -807,6 +1149,7 @@ def generate_planning(
         current_user,
         body.document_id,
     )
+    selected_exams = _get_selected_exams(db, current_user, body.date, body.exam_ids)
 
     try:
         generated_sessions = _generate_sessions_for_day(
@@ -816,6 +1159,7 @@ def generate_planning(
             preferences=body.preferences,
             collection_name=collection_name,
             doc_file_path=doc_file_path,
+            exams=selected_exams,
             week_type=body.week_type,
         )
         return _create_ai_sessions_for_day(
@@ -848,6 +1192,12 @@ def generate_week_planning(
     )
     target_days = _week_days(body.date)
     days_out: list[schemas.PlanningDayOut] = []
+    selected_exams = _get_selected_exams(
+        db,
+        current_user,
+        target_days[0],
+        body.exam_ids,
+    )
 
     try:
         for target_day in target_days:
@@ -858,6 +1208,7 @@ def generate_week_planning(
                 preferences=body.preferences,
                 collection_name=collection_name,
                 doc_file_path=doc_file_path,
+                exams=selected_exams,
                 week_type=body.week_type,
                 allow_empty_csv=True,
             )
@@ -899,6 +1250,35 @@ def get_planning_insights(
     )
 
 
+@router.get("/exams", response_model=list[schemas.ExamOut])
+def list_exams(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return crud.get_upcoming_exams(db, current_user.id)
+
+
+@router.post("/exams", response_model=schemas.ExamOut, status_code=status.HTTP_201_CREATED)
+def create_exam(
+    body: schemas.ExamCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_owned_document(db, current_user, body.document_id)
+    return crud.create_exam(db, current_user.id, body)
+
+
+@router.delete("/exams/{exam_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_exam(
+    exam_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    exam = _get_owned_exam(db, current_user, exam_id)
+    crud.delete_exam(db, exam)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/reschedule/{session_id}", response_model=schemas.StudySessionOut)
 def reschedule_session(
     session_id: int,
@@ -926,6 +1306,7 @@ def create_session(
     current_user: User = Depends(get_current_user),
 ):
     _get_owned_document(db, current_user, body.document_id)
+    _get_owned_documents(db, current_user, body.document_ids)
     try:
         session_obj = crud.create_study_session(db, current_user.id, body, is_ai_generated=False)
     except ValueError as e:
@@ -942,6 +1323,7 @@ def patch_session(
 ):
     session_obj = _get_owned_session(db, current_user, id)
     _get_owned_document(db, current_user, body.document_id)
+    _get_owned_documents(db, current_user, body.document_ids)
 
     session_obj = crud.update_study_session(db, session_obj, body)
     return session_obj

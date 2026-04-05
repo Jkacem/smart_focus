@@ -36,10 +36,21 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
     try {
       final repository = ref.read(quizRepositoryProvider);
       final originalQuiz = await repository.getQuiz(widget.quizId);
-      final retriedQuiz = await repository.generateQuiz(
-        originalQuiz.documentId,
-        numQuestions: originalQuiz.numQuestions,
-      );
+      final documentIds = originalQuiz.documentIds.isNotEmpty
+          ? originalQuiz.documentIds
+          : (originalQuiz.documentId == null ? <int>[] : [originalQuiz.documentId!]);
+      if (documentIds.isEmpty) {
+        throw Exception('Quiz source documents are missing.');
+      }
+      final retriedQuiz = documentIds.length == 1
+          ? await repository.generateQuiz(
+              documentIds.first,
+              numQuestions: originalQuiz.numQuestions,
+            )
+          : await repository.generateQuizForDocuments(
+              documentIds,
+              numQuestions: originalQuiz.numQuestions,
+            );
 
       ref.invalidate(quizzesProvider);
 

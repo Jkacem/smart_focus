@@ -5,6 +5,10 @@ import '../services/quiz_service.dart';
 
 abstract class QuizRepository {
   Future<QuizModel> generateQuiz(int documentId, {int numQuestions = 10});
+  Future<QuizModel> generateQuizForDocuments(
+    List<int> documentIds, {
+    int numQuestions = 10,
+  });
   Future<QuizModel> generateQuizFromSession(
     int sessionId, {
     int numQuestions = 10,
@@ -22,6 +26,17 @@ class QuizRepositoryImpl implements QuizRepository {
   @override
   Future<QuizModel> generateQuiz(int documentId, {int numQuestions = 10}) {
     return _service.generateQuiz(documentId, numQuestions: numQuestions);
+  }
+
+  @override
+  Future<QuizModel> generateQuizForDocuments(
+    List<int> documentIds, {
+    int numQuestions = 10,
+  }) {
+    return _service.generateQuizForDocuments(
+      documentIds,
+      numQuestions: numQuestions,
+    );
   }
 
   @override

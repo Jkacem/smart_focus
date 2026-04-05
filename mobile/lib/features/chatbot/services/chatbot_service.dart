@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smart_focus/core/network/app_dio.dart';
 
-import '../../../core/network/app_dio.dart';
 import '../models/chatbot_models.dart';
 
 class ChatbotService {
@@ -9,16 +10,37 @@ class ChatbotService {
 
   final Dio _dio;
 
-  Future<Map<String, dynamic>> uploadDocument(
-    String filePath,
-    String fileName,
-  ) async {
-    final formData = FormData.fromMap({
-      'file': await MultipartFile.fromFile(filePath, filename: fileName),
-    });
+  Future<Map<String, dynamic>> uploadDocument(PlatformFile file) async {
+    final formData = await _buildUploadFormData(file);
 
-    final response = await _dio.post('/chatbot/upload', data: formData);
+    final response = await _dio.post(
+      '/chatbot/upload',
+      data: formData,
+      options: Options(
+        extra: {'retry_data_factory': () => _buildUploadFormData(file)},
+      ),
+    );
     return response.data;
+  }
+
+  Future<FormData> _buildUploadFormData(PlatformFile file) async {
+    final multipartFile = await _buildMultipartFile(file);
+    return FormData.fromMap({'file': multipartFile});
+  }
+
+  Future<MultipartFile> _buildMultipartFile(PlatformFile file) async {
+    if (file.bytes != null) {
+      return MultipartFile.fromBytes(file.bytes!, filename: file.name);
+    }
+
+    if (file.path != null) {
+      return MultipartFile.fromFile(file.path!, filename: file.name);
+    }
+
+    throw Exception(
+      'Impossible de lire ce fichier depuis votre appareil. '
+      'Reessayez avec un autre document ou emplacement.',
+    );
   }
 
   Future<List<DocumentInfo>> getDocuments() async {
@@ -31,13 +53,13 @@ class ChatbotService {
     await _dio.delete('/chatbot/documents/$documentId');
   }
 
-  Future<Map<String, dynamic>> chat(String question, List<int> documentIds) async {
+  Future<Map<String, dynamic>> chat(
+    String question,
+    List<int> documentIds,
+  ) async {
     final response = await _dio.post(
       '/chatbot/chat',
-      data: {
-        'question': question,
-        'document_ids': documentIds,
-      },
+      data: {'question': question, 'document_ids': documentIds},
       options: Options(contentType: Headers.jsonContentType),
     );
     return response.data;

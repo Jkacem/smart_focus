@@ -9,6 +9,8 @@ from .sleep import (
     AlarmConfigUpdate, AlarmConfigResponse,
 )
 from .planning import (
+    ExamCreate,
+    ExamOut,
     PlanningPreferences,
     PlanningGenerateRequest,
     PlanningInsightsPeriod,

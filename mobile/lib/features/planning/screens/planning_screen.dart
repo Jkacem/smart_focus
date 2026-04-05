@@ -5,6 +5,7 @@ import 'package:smart_focus/core/router/app_routes.dart';
 
 import 'package:smart_focus/features/chatbot/models/chatbot_models.dart';
 import 'package:smart_focus/features/chatbot/providers/document_provider.dart';
+import 'package:smart_focus/features/planning/data/planning_repository.dart';
 import 'package:smart_focus/features/planning/models/planning_models.dart';
 import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/features/planning/widgets/mini_date_picker.dart';
@@ -50,7 +51,6 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
   Widget build(BuildContext context) {
     final planningState = ref.watch(planningProvider);
     final planningNotifier = ref.read(planningProvider.notifier);
-    final docsState = ref.watch(documentProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -87,7 +87,6 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                   ? null
                   : () => _showGeneratePlanningDialog(
                         context,
-                        docsState,
                         planningNotifier,
                       ),
               child: const Padding(
@@ -232,7 +231,6 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                                   ? null
                                   : () => _showGeneratePlanningDialog(
                                         context,
-                                        docsState,
                                         planningNotifier,
                                       ),
                             );
@@ -254,7 +252,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                             priorityIcon: session.priorityIcon,
                             statusLabel: session.statusLabel,
                             isCompleted: session.isCompleted,
-                            linkedDocumentName: session.documentName,
+                            linkedDocumentName: session.linkedDocumentSummary,
                             smartSessionLabel: session.smartSessionLabel,
                             smartSessionHint: session.smartSessionHint,
                             smartSessionIcon: _smartSessionIcon(session),
@@ -395,7 +393,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0);
     TimeOfDay endTime = const TimeOfDay(hour: 10, minute: 0);
     String priority = 'medium';
-    int? selectedDocumentId;
+    List<int> selectedDocumentIds = [];
 
     await showDialog<void>(
       context: context,
@@ -471,12 +469,12 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                     Consumer(
                       builder: (context, ref, _) {
                         final liveDocsState = ref.watch(documentProvider);
-                        return _DocumentPickerSection(
+                        return _DocumentMultiPickerSection(
                           docsState: liveDocsState,
-                          selectedDocumentId: selectedDocumentId,
-                          label: 'Document etudie',
+                          selectedDocumentIds: selectedDocumentIds,
+                          label: 'Documents etudies',
                           onChanged: (value) {
-                            setDialogState(() => selectedDocumentId = value);
+                            setDialogState(() => selectedDocumentIds = value);
                           },
                           onUpload: () async {
                             await ref.read(documentProvider.notifier).uploadDocument();
@@ -530,7 +528,10 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                         start: start,
                         end: end,
                         priority: priority,
-                        documentId: selectedDocumentId,
+                        documentId: selectedDocumentIds.isEmpty
+                            ? null
+                            : selectedDocumentIds.first,
+                        documentIds: selectedDocumentIds,
                       );
                       if (!context.mounted) return;
                       Navigator.of(dialogContext).pop();
@@ -555,7 +556,10 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     PlanningSessionModel session,
     PlanningNotifier planningNotifier,
   ) async {
-    int? selectedDocumentId = session.documentId;
+    List<int> selectedDocumentIds = List<int>.from(session.documentIds);
+    if (selectedDocumentIds.isEmpty && session.documentId != null) {
+      selectedDocumentIds = [session.documentId!];
+    }
 
     await showDialog<void>(
       context: context,
@@ -564,21 +568,23 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
               title: Text('Document pour ${session.subject}'),
-              content: Consumer(
-                builder: (context, ref, _) {
-                  final docsState = ref.watch(documentProvider);
-                  return _DocumentPickerSection(
-                    docsState: docsState,
-                    selectedDocumentId: selectedDocumentId,
-                    label: 'Document lie',
-                    onChanged: (value) {
-                      setDialogState(() => selectedDocumentId = value);
-                    },
-                    onUpload: () async {
-                      await ref.read(documentProvider.notifier).uploadDocument();
-                    },
-                  );
-                },
+              content: SingleChildScrollView(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final docsState = ref.watch(documentProvider);
+                    return _DocumentMultiPickerSection(
+                      docsState: docsState,
+                      selectedDocumentIds: selectedDocumentIds,
+                      label: 'Documents lies',
+                      onChanged: (value) {
+                        setDialogState(() => selectedDocumentIds = value);
+                      },
+                      onUpload: () async {
+                        await ref.read(documentProvider.notifier).uploadDocument();
+                      },
+                    );
+                  },
+                ),
               ),
               actions: [
                 TextButton(
@@ -588,17 +594,19 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                 FilledButton(
                   onPressed: () async {
                     try {
-                      await planningNotifier.updateSessionDocument(
+                      await planningNotifier.updateSessionDocuments(
                         session.id,
-                        selectedDocumentId,
+                        selectedDocumentIds,
                       );
                       if (!context.mounted) return;
                       Navigator.of(dialogContext).pop();
                       _showSnackBar(
                         context,
-                        selectedDocumentId == null
-                            ? 'Document retire de la session.'
-                            : 'Document lie a la session.',
+                        selectedDocumentIds.isEmpty
+                            ? 'Documents retires de la session.'
+                            : selectedDocumentIds.length == 1
+                                ? 'Document lie a la session.'
+                                : '${selectedDocumentIds.length} documents lies a la session.',
                       );
                     } catch (e) {
                       if (!context.mounted) return;
@@ -617,20 +625,26 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
 
   Future<void> _showGeneratePlanningDialog(
     BuildContext context,
-    AsyncValue<List<DocumentInfo>> docsState,
     PlanningNotifier planningNotifier,
   ) async {
     int? selectedDocumentId;
     String? weekType;
     bool generateWholeWeek = true;
+    final selectedExamIds = <int>{};
+    bool didSeedExamSelection = false;
     final preferencesController = TextEditingController();
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
+        return Consumer(
+          builder: (consumerContext, dialogRef, _) {
+            final examsState = dialogRef.watch(planningExamsProvider);
+            final liveDocsState = dialogRef.watch(documentProvider);
+
+            return StatefulBuilder(
+              builder: (dialogContext, setDialogState) {
+                return AlertDialog(
               title: const Text('Generer avec IA'),
               content: SingleChildScrollView(
                 child: Column(
@@ -641,6 +655,13 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                       accent: Color(0xFF8B5CF6),
                       message:
                           'Les revisions automatiques privilegient vos heures de completion les plus fiables sur les 14 derniers jours. Sans historique, votre plage preferee reste utilisee.',
+                    ),
+                    const SizedBox(height: 12),
+                    const _DialogInfoBanner(
+                      icon: Icons.flag_outlined,
+                      accent: Color(0xFF97CAD8),
+                      message:
+                          'Les examens proches augmentent automatiquement la frequence et l intensite des revisions ciblees.',
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -686,7 +707,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    docsState.when(
+                    liveDocsState.when(
                       data: (docs) {
                         final items = <DropdownMenuItem<int?>>[
                           const DropdownMenuItem<int?>(
@@ -740,6 +761,77 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                         style: const TextStyle(color: Colors.redAccent),
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    examsState.when(
+                      data: (exams) {
+                        if (!didSeedExamSelection) {
+                          selectedExamIds.addAll(
+                            exams
+                                .where((exam) => exam.daysUntilExam >= 0)
+                                .map((exam) => exam.id),
+                          );
+                          didSeedExamSelection = true;
+                        }
+
+                        return _ExamSelectionSection(
+                          exams: exams,
+                          selectedExamIds: selectedExamIds,
+                          onToggleExam: (examId, isSelected) {
+                            setDialogState(() {
+                              if (isSelected) {
+                                selectedExamIds.add(examId);
+                              } else {
+                                selectedExamIds.remove(examId);
+                              }
+                            });
+                          },
+                          onCreateExam: () async {
+                            final created = await _showCreateExamDialog(context);
+                            if (created == null) {
+                              return;
+                            }
+                            dialogRef.invalidate(planningExamsProvider);
+                            setDialogState(() {
+                              selectedExamIds.add(created.id);
+                              didSeedExamSelection = true;
+                            });
+                          },
+                          onDeleteExam: (exam) async {
+                            try {
+                              await dialogRef
+                                  .read(planningRepositoryProvider)
+                                  .deleteExam(exam.id);
+                              dialogRef.invalidate(planningExamsProvider);
+                              setDialogState(() {
+                                selectedExamIds.remove(exam.id);
+                                didSeedExamSelection = true;
+                              });
+                              if (!context.mounted) return;
+                              _showSnackBar(context, 'Examen supprime.');
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              _showSnackBar(context, e.toString(), isError: true);
+                            }
+                          },
+                        );
+                      },
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                      error: (error, stackTrace) => Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Examens indisponibles: $error',
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -756,6 +848,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                       if (generateWholeWeek) {
                         await planningNotifier.generatePlanningForWeek(
                           documentId: selectedDocumentId,
+                          examIds: selectedExamIds.toList(),
                           weekType: weekType,
                           preferences: preferences.isEmpty
                               ? null
@@ -764,6 +857,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                       } else {
                         await planningNotifier.generatePlanning(
                           documentId: selectedDocumentId,
+                          examIds: selectedExamIds.toList(),
                           weekType: weekType,
                           preferences: preferences.isEmpty
                               ? null
@@ -786,11 +880,141 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                   child: Text(generateWholeWeek ? 'Generer la semaine' : 'Generer le jour'),
                 ),
               ],
+                );
+              },
             );
           },
         );
       },
     );
+  }
+
+  Future<PlanningExamModel?> _showCreateExamDialog(
+    BuildContext context,
+  ) async {
+    final titleController = TextEditingController();
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 7));
+    int? selectedDocumentId;
+    PlanningExamModel? createdExam;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Consumer(
+          builder: (consumerContext, dialogRef, _) {
+            final liveDocsState = dialogRef.watch(documentProvider);
+
+            return StatefulBuilder(
+              builder: (dialogContext, setDialogState) {
+                return AlertDialog(
+              title: const Text('Nouvel examen'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Titre de l examen',
+                        hintText: 'Ex: Examen Physique',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+                        );
+                        if (picked == null) {
+                          return;
+                        }
+                        setDialogState(() {
+                          selectedDate = picked;
+                        });
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.black26),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.event_outlined),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Date: ${selectedDate.day.toString().padLeft(2, '0')}/${selectedDate.month.toString().padLeft(2, '0')}/${selectedDate.year}',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _DocumentPickerSection(
+                      docsState: liveDocsState,
+                      selectedDocumentId: selectedDocumentId,
+                      label: 'Document cible',
+                      onChanged: (value) {
+                        setDialogState(() => selectedDocumentId = value);
+                      },
+                      onUpload: () async {
+                        await dialogRef.read(documentProvider.notifier).uploadDocument();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    if (title.isEmpty) {
+                      _showSnackBar(context, 'Le titre de l examen est requis.', isError: true);
+                      return;
+                    }
+
+                    try {
+                      createdExam = await dialogRef.read(planningRepositoryProvider).createExam(
+                            title: title,
+                            examDate: selectedDate,
+                            documentId: selectedDocumentId,
+                          );
+                      if (!context.mounted) return;
+                      Navigator.of(dialogContext).pop();
+                      _showSnackBar(context, 'Examen ajoute.');
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      _showSnackBar(context, e.toString(), isError: true);
+                    }
+                  },
+                  child: const Text('Ajouter'),
+                ),
+              ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+
+    return createdExam;
   }
 
   String _headerTitle(DateTime date) {
@@ -827,6 +1051,9 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     if (session.isQuizRevisionSession) {
       return Icons.quiz_outlined;
     }
+    if (session.isExamCountdownSession) {
+      return Icons.flag_outlined;
+    }
     if (session.isSmartRevisionSession || session.isAiGenerated) {
       return Icons.auto_awesome;
     }
@@ -839,6 +1066,9 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     }
     if (session.isQuizRevisionSession) {
       return const Color(0xFFFFC857);
+    }
+    if (session.isExamCountdownSession) {
+      return const Color(0xFF97CAD8);
     }
     if (session.isAiGenerated) {
       return const Color(0xFF97CAD8);
@@ -1207,6 +1437,96 @@ class _DialogInfoBanner extends StatelessWidget {
   }
 }
 
+class _ExamSelectionSection extends StatelessWidget {
+  final List<PlanningExamModel> exams;
+  final Set<int> selectedExamIds;
+  final void Function(int examId, bool isSelected) onToggleExam;
+  final Future<void> Function() onCreateExam;
+  final Future<void> Function(PlanningExamModel exam) onDeleteExam;
+
+  const _ExamSelectionSection({
+    required this.exams,
+    required this.selectedExamIds,
+    required this.onToggleExam,
+    required this.onCreateExam,
+    required this.onDeleteExam,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final upcomingExams = exams.where((exam) => exam.daysUntilExam >= 0).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.black12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Examens a prendre en compte',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () async {
+                  await onCreateExam();
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Ajouter'),
+              ),
+            ],
+          ),
+          if (upcomingExams.isEmpty)
+            const Text(
+              'Aucun examen enregistre. Ajoutez-en un pour activer le compte a rebours.',
+              style: TextStyle(fontSize: 13, color: Colors.black54),
+            )
+          else
+            ...upcomingExams.map(
+              (exam) => CheckboxListTile(
+                value: selectedExamIds.contains(exam.id),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: (value) => onToggleExam(exam.id, value ?? false),
+                title: Text(
+                  exam.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  exam.documentName == null
+                      ? '${exam.countdownLabel} - Sans document'
+                      : '${exam.countdownLabel} - ${exam.documentName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                secondary: IconButton(
+                  onPressed: () async {
+                    await onDeleteExam(exam);
+                  },
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Supprimer',
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DocumentPickerSection extends StatelessWidget {
   final AsyncValue<List<DocumentInfo>> docsState;
   final int? selectedDocumentId;
@@ -1272,6 +1592,122 @@ class _DocumentPickerSection extends StatelessWidget {
             onPressed: onUpload,
             icon: const Icon(Icons.upload_file),
             label: const Text('Uploader un document'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DocumentMultiPickerSection extends StatelessWidget {
+  final AsyncValue<List<DocumentInfo>> docsState;
+  final List<int> selectedDocumentIds;
+  final String label;
+  final ValueChanged<List<int>> onChanged;
+  final Future<void> Function() onUpload;
+
+  const _DocumentMultiPickerSection({
+    required this.docsState,
+    required this.selectedDocumentIds,
+    required this.label,
+    required this.onChanged,
+    required this.onUpload,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        docsState.when(
+          data: (docs) {
+            if (docs.isEmpty) {
+              return const Text('Aucun document disponible.');
+            }
+
+            return Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black26),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    child: SingleChildScrollView(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: docs.map((doc) {
+                          final isSelected = selectedDocumentIds.contains(doc.id);
+                          return FilterChip(
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            label: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 160),
+                              child: Text(
+                                doc.filename,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              final next = [...selectedDocumentIds];
+                              if (selected) {
+                                if (!next.contains(doc.id)) {
+                                  next.add(doc.id);
+                                }
+                              } else {
+                                next.remove(doc.id);
+                              }
+                              onChanged(next);
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  if (selectedDocumentIds.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      '${selectedDocumentIds.length} document${selectedDocumentIds.length > 1 ? 's' : ''} selectionne${selectedDocumentIds.length > 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: CircularProgressIndicator(),
+          ),
+          error: (error, stackTrace) => Text(
+            'Documents indisponibles: $error',
+            style: const TextStyle(color: Colors.redAccent),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: onUpload,
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Ajouter un doc'),
           ),
         ),
       ],

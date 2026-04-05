@@ -11,13 +11,30 @@ from pydantic import BaseModel, Field
 class QuizGenerateRequest(BaseModel):
     """Request body for POST /quiz/generate."""
 
-    document_id: int
+    document_id: Optional[int] = None
+    document_ids: List[int] = Field(default_factory=list)
     num_questions: int = Field(
         default=10,
         ge=3,
         le=30,
         description="Number of MCQ questions to generate (3-30)",
     )
+
+    @property
+    def resolved_document_ids(self) -> List[int]:
+        ids: List[int] = []
+        if self.document_id is not None:
+            ids.append(self.document_id)
+        ids.extend(self.document_ids)
+
+        unique_ids: List[int] = []
+        seen: set[int] = set()
+        for document_id in ids:
+            if document_id in seen:
+                continue
+            seen.add(document_id)
+            unique_ids.append(document_id)
+        return unique_ids
 
 
 class SessionQuizGenerateRequest(BaseModel):
@@ -58,7 +75,9 @@ class QuizOut(BaseModel):
     """A quiz with its questions."""
 
     id: int
-    document_id: int
+    document_id: Optional[int] = None
+    document_ids: List[int] = []
+    document_names: List[str] = []
     session_id: Optional[int] = None
     title: str
     num_questions: int

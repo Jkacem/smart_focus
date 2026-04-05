@@ -27,19 +27,21 @@ class DocumentNotifier extends StateNotifier<AsyncValue<List<DocumentInfo>>> {
     }
   }
 
-  Future<void> uploadDocument() async {
+  Future<String?> uploadDocument() async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'csv'],
+        withData: true,
       );
 
-      if (result != null && result.files.single.path != null) {
-        final path = result.files.single.path!;
-        final name = result.files.single.name;
-        await _repository.uploadDocument(path, name);
+      if (result != null) {
+        final file = result.files.single;
+        final response = await _repository.uploadDocument(file);
         await fetchDocuments();
+        return response['message'] as String? ?? 'Document ajoute.';
       }
+      return null;
     } catch (e) {
       rethrow;
     }

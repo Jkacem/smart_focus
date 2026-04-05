@@ -29,7 +29,9 @@ class QuizQuestionModel {
 
 class QuizModel {
   final int id;
-  final int documentId;
+  final int? documentId;
+  final List<int> documentIds;
+  final List<String> documentNames;
   final int? sessionId;
   final String title;
   final int numQuestions;
@@ -41,6 +43,8 @@ class QuizModel {
   QuizModel({
     required this.id,
     required this.documentId,
+    required this.documentIds,
+    required this.documentNames,
     this.sessionId,
     required this.title,
     required this.numQuestions,
@@ -58,6 +62,8 @@ class QuizModel {
     return QuizModel(
       id: json['id'],
       documentId: json['document_id'],
+      documentIds: List<int>.from(json['document_ids'] ?? const []),
+      documentNames: List<String>.from(json['document_names'] ?? const []),
       sessionId: json['session_id'] as int?,
       title: json['title'],
       numQuestions: json['num_questions'],
@@ -68,6 +74,16 @@ class QuizModel {
       createdAt: DateTime.parse(json['created_at']),
       questions: questionsList,
     );
+  }
+
+  String get sourceLabel {
+    if (documentNames.isEmpty) {
+      return 'Document';
+    }
+    if (documentNames.length == 1) {
+      return documentNames.first;
+    }
+    return '${documentNames.first} +${documentNames.length - 1} docs';
   }
 }
 

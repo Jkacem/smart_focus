@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user, get_db
-from app.models.models import ChatDocument, Quiz, QuizQuestion, StudySession, User
+from app.models.models import ChatDocument, Quiz, QuizDocumentLink, QuizQuestion, StudySession, User
 from app.schemas.quiz import (
     QuizAnswerRequest,
     QuizGenerateRequest,
@@ -40,11 +40,40 @@ def _get_owned_document(db: Session, current_user: User, document_id: int) -> Ch
     return doc
 
 
-def _get_completed_session_with_document(
+def _get_owned_documents(
+    db: Session,
+    current_user: User,
+    document_ids: list[int],
+) -> list[ChatDocument]:
+    if not document_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one document must be selected.",
+        )
+
+    docs = (
+        db.query(ChatDocument)
+        .filter(
+            ChatDocument.id.in_(document_ids),
+            ChatDocument.user_id == current_user.id,
+        )
+        .all()
+    )
+    docs_by_id = {doc.id: doc for doc in docs}
+    ordered_docs = [docs_by_id[document_id] for document_id in document_ids if document_id in docs_by_id]
+    if len(ordered_docs) != len(document_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more documents were not found.",
+        )
+    return ordered_docs
+
+
+def _get_completed_session_with_documents(
     db: Session,
     current_user: User,
     session_id: int,
-) -> tuple[StudySession, ChatDocument]:
+) -> tuple[StudySession, list[ChatDocument]]:
     session_obj = (
         db.query(StudySession)
         .filter(
@@ -63,27 +92,27 @@ def _get_completed_session_with_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Complete the session before generating a quiz from it.",
         )
-    if session_obj.document_id is None:
+    if not session_obj.document_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This session has no linked document.",
+            detail="This session has no linked documents.",
         )
 
-    return session_obj, _get_owned_document(db, current_user, session_obj.document_id)
+    return session_obj, _get_owned_documents(db, current_user, session_obj.document_ids)
 
 
-def _create_quiz_from_document(
+def _create_quiz_from_documents(
     *,
     db: Session,
     current_user: User,
-    doc: ChatDocument,
+    docs: list[ChatDocument],
     num_questions: int,
     title_prefix: str = "Quiz",
     session_obj: StudySession | None = None,
 ) -> QuizOut:
     try:
-        raw_questions = rag_service.generate_quiz(
-            collection_name=doc.chroma_collection,
+        raw_questions = rag_service.generate_quiz_from_collections(
+            collection_names=[doc.chroma_collection for doc in docs],
             num_questions=num_questions,
         )
     except ValueError as exc:
@@ -97,15 +126,29 @@ def _create_quiz_from_document(
             detail=f"Quiz generation failed: {exc}",
         ) from exc
 
+    primary_doc = docs[0]
+    if len(docs) == 1:
+        title_suffix = primary_doc.filename
+    else:
+        title_suffix = f"{primary_doc.filename} +{len(docs) - 1} docs"
+
     quiz = Quiz(
         user_id=current_user.id,
-        document_id=doc.id,
+        document_id=primary_doc.id,
         session_id=session_obj.id if session_obj is not None else None,
-        title=f"{title_prefix} - {doc.filename}",
+        title=f"{title_prefix} - {title_suffix}",
         num_questions=len(raw_questions),
     )
     db.add(quiz)
     db.flush()
+
+    for doc in docs:
+        db.add(
+            QuizDocumentLink(
+                quiz_id=quiz.id,
+                document_id=doc.id,
+            )
+        )
 
     for q in raw_questions:
         db.add(
@@ -143,6 +186,8 @@ def _serialize_quiz(quiz: Quiz) -> QuizOut:
     return QuizOut(
         id=quiz.id,
         document_id=quiz.document_id,
+        document_ids=quiz.document_ids,
+        document_names=quiz.document_names,
         session_id=quiz.session_id,
         title=quiz.title,
         num_questions=quiz.num_questions,
@@ -164,12 +209,13 @@ def generate_quiz(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Generate quiz questions from one document."""
-    doc = _get_owned_document(db, current_user, request.document_id)
-    return _create_quiz_from_document(
+    """Generate quiz questions from one or more documents."""
+    document_ids = request.resolved_document_ids
+    docs = _get_owned_documents(db, current_user, document_ids)
+    return _create_quiz_from_documents(
         db=db,
         current_user=current_user,
-        doc=doc,
+        docs=docs,
         num_questions=request.num_questions,
         title_prefix="Quiz",
     )
@@ -187,8 +233,8 @@ def generate_quiz_from_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Generate quiz questions from the document linked to a completed session."""
-    session_obj, doc = _get_completed_session_with_document(db, current_user, session_id)
+    """Generate quiz questions from the documents linked to a completed session."""
+    session_obj, docs = _get_completed_session_with_documents(db, current_user, session_id)
     existing_quiz = (
         db.query(Quiz)
         .filter(
@@ -201,10 +247,10 @@ def generate_quiz_from_session(
     if existing_quiz is not None:
         return _serialize_quiz(existing_quiz)
 
-    return _create_quiz_from_document(
+    return _create_quiz_from_documents(
         db=db,
         current_user=current_user,
-        doc=doc,
+        docs=docs,
         num_questions=request.num_questions,
         title_prefix=f"Session Quiz - {session_obj.subject}",
         session_obj=session_obj,

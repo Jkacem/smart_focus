@@ -840,11 +840,11 @@ class _DashboardPlanningItem extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
-                      if (session.documentName != null &&
-                          session.documentName!.isNotEmpty) ...[
+                      if (session.linkedDocumentSummary != null &&
+                          session.linkedDocumentSummary!.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          session.documentName!,
+                          session.linkedDocumentSummary!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1036,11 +1036,12 @@ class _DashboardFeaturedSessionCard extends StatelessWidget {
                   fontSize: 13,
                 ),
               ),
-              if (session.documentName != null && session.documentName!.isNotEmpty)
+              if (session.linkedDocumentSummary != null &&
+                  session.linkedDocumentSummary!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    session.documentName!,
+                    session.linkedDocumentSummary!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

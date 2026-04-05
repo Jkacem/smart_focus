@@ -195,7 +195,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       );
       return;
     }
-    if (selectedDocs.length > 1) {
+    if (type == 'flashcards' && selectedDocs.length > 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez sélectionner un seul document.')),
       );
@@ -207,27 +207,37 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     // or look it up if we have access to it, but 'Document' works as fallback.
 
     if (type == 'quiz') {
-      try {
-        final quizzes = await ref.read(quizRepositoryProvider).getQuizzes();
-        QuizModel? latestQuiz;
-        for (final quiz in quizzes) {
-          if (quiz.documentId == docId) {
-            latestQuiz = quiz;
-            break;
+      if (selectedDocs.length == 1) {
+        try {
+          final quizzes = await ref.read(quizRepositoryProvider).getQuizzes();
+          QuizModel? latestQuiz;
+          for (final quiz in quizzes) {
+            if (quiz.documentId == docId) {
+              latestQuiz = quiz;
+              break;
+            }
           }
+
+          if (!mounted) return;
+
+          if (latestQuiz != null) {
+            context.push(AppRoutes.quizPlay(latestQuiz.id));
+            return;
+          }
+        } catch (_) {
+          if (!mounted) return;
         }
 
-        if (!mounted) return;
-
-        if (latestQuiz != null) {
-          context.push(AppRoutes.quizPlay(latestQuiz.id));
-          return;
-        }
-      } catch (_) {
-        if (!mounted) return;
+        context.push(AppRoutes.quizGenerateDocument(docId, title: 'Document'));
+        return;
       }
 
-      context.push(AppRoutes.quizGenerateDocument(docId, title: 'Document'));
+      context.push(
+        AppRoutes.quizGenerateDocuments(
+          selectedDocs,
+          title: 'Documents selectionnes',
+        ),
+      );
     } else {
       context.push(AppRoutes.flashcardsDeckDocument(docId));
     }

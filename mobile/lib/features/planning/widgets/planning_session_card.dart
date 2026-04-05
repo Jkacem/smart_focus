@@ -275,13 +275,19 @@ class PlanningSessionCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                ],
+                if (onManageDocument != null) ...[
                   const SizedBox(height: 10),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
                       onPressed: onManageDocument,
                       icon: const Icon(Icons.link, size: 18),
-                      label: const Text('Changer le document'),
+                      label: Text(
+                        linkedDocumentName != null && linkedDocumentName!.isNotEmpty
+                            ? 'Gerer les documents'
+                            : 'Lier des documents',
+                      ),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.zero,

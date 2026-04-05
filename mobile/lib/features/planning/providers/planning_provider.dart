@@ -88,6 +88,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     required DateTime end,
     required String priority,
     int? documentId,
+    List<int>? documentIds,
   }) async {
     state = state.copyWith(isMutating: true, clearError: true);
 
@@ -98,6 +99,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
         end: end,
         priority: priority,
         documentId: documentId,
+        documentIds: documentIds,
       );
 
       state = state.copyWith(
@@ -162,11 +164,11 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     }
   }
 
-  Future<void> updateSessionDocument(int sessionId, int? documentId) async {
+  Future<void> updateSessionDocuments(int sessionId, List<int> documentIds) async {
     state = state.copyWith(isMutating: true, clearError: true);
 
     try {
-      final updated = await _repository.updateSessionDocument(sessionId, documentId);
+      final updated = await _repository.updateSessionDocuments(sessionId, documentIds);
       final sessions = state.sessions
           .map((session) => session.id == sessionId ? updated : session)
           .toList();
@@ -211,6 +213,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
 
   Future<void> generatePlanning({
     int? documentId,
+    List<int>? examIds,
     String? weekType,
     Map<String, dynamic>? preferences,
   }) async {
@@ -220,6 +223,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
       final result = await _repository.generatePlanning(
         date: state.selectedDate,
         documentId: documentId,
+        examIds: examIds,
         weekType: weekType,
         preferences: preferences,
       );
@@ -240,6 +244,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
 
   Future<void> generatePlanningForWeek({
     int? documentId,
+    List<int>? examIds,
     String? weekType,
     Map<String, dynamic>? preferences,
   }) async {
@@ -249,6 +254,7 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
       await _repository.generatePlanningWeek(
         date: state.selectedDate,
         documentId: documentId,
+        examIds: examIds,
         weekType: weekType,
         preferences: preferences,
       );
@@ -292,6 +298,13 @@ final planningInsightsProvider = FutureProvider.family
       final repository = ref.watch(planningRepositoryProvider);
       return repository.getInsights(period: period);
     });
+
+final planningExamsProvider = FutureProvider.autoDispose<List<PlanningExamModel>>((
+  ref,
+) async {
+  final repository = ref.watch(planningRepositoryProvider);
+  return repository.getExams();
+});
 
 final todayPlanningProvider = FutureProvider.autoDispose<PlanningDayModel>((ref) async {
   final repository = ref.watch(planningRepositoryProvider);
