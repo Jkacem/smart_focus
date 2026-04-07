@@ -91,13 +91,13 @@ class FlashcardDeckScreen extends ConsumerWidget {
                             if (_fromSession) ...[
                               const SizedBox(height: 6),
                               Text(
-                                deck.documentName,
+                                deck.sourceLabel,
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.55),
                                   fontSize: 12,
                                 ),
                                 textAlign: TextAlign.center,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ],

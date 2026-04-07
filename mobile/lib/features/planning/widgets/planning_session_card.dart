@@ -263,7 +263,7 @@ class PlanningSessionCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             linkedDocumentName!,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.92),

@@ -123,7 +123,7 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
                 },
                 loading: () => const Padding(
                   padding: EdgeInsets.all(16),
-                  child: CircularProgressIndicator(),
+                  child: CircularProgressIndicator(color: Colors.white),
                 ),
                 error: (err, st) => Padding(
                   padding: const EdgeInsets.all(8),
@@ -158,7 +158,7 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message.replaceFirst('✅ ', '')),
+          content: Text(_sanitizeFeedbackMessage(message)),
           backgroundColor: Colors.green,
         ),
       );
@@ -169,7 +169,7 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          content: Text(_sanitizeFeedbackMessage(e.toString())),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -194,7 +194,7 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
             onChanged: (val) {
               final notifier = ref.read(selectedDocumentsProvider.notifier);
               if (val == true) {
-                notifier.state = [...selectedDocs, doc.id];
+                notifier.state = {...selectedDocs, doc.id}.toList();
               } else {
                 notifier.state = selectedDocs.where((id) => id != doc.id).toList();
               }
@@ -221,11 +221,32 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
               color: Colors.white54,
               size: 18,
             ),
-            onPressed: () {
-              ref.read(documentProvider.notifier).deleteDocument(doc.id);
-              if (isSelected) {
-                ref.read(selectedDocumentsProvider.notifier).state =
-                    selectedDocs.where((id) => id != doc.id).toList();
+            onPressed: () async {
+              try {
+                await ref.read(documentProvider.notifier).deleteDocument(doc.id);
+                if (!mounted) {
+                  return;
+                }
+                if (isSelected) {
+                  ref.read(selectedDocumentsProvider.notifier).state =
+                      selectedDocs.where((id) => id != doc.id).toList();
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${doc.filename} supprime.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(_sanitizeFeedbackMessage(e.toString())),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
               }
             },
             padding: EdgeInsets.zero,
@@ -270,6 +291,12 @@ class _DocumentSectionState extends ConsumerState<DocumentSection> {
         ),
       ),
     );
+  }
+
+  String _sanitizeFeedbackMessage(String rawMessage) {
+    var message = rawMessage.replaceFirst('Exception: ', '').trim();
+    message = message.replaceFirst('✅ ', '').replaceFirst('❌ ', '').trim();
+    return message;
   }
 }
 

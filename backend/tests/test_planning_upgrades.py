@@ -23,11 +23,15 @@ from app.routers.planning import (
     _build_planning_insights,
     _build_revision_sessions,
     _create_ai_sessions_for_day,
+    _collect_postponed_course_signals,
+    _planned_course_revision_counts,
+    _recently_planned_course_subjects,
     _reschedule_study_session,
 )
 from app.routers.quiz import generate_quiz, generate_quiz_from_session
 from app.schemas.flashcard import SessionFlashcardGenerateRequest
 from app.schemas.quiz import SessionQuizGenerateRequest
+from app.utils.datetime_utils import utc_now_naive
 
 
 def make_db_session():
@@ -240,9 +244,13 @@ class PlanningUpgradeTests(unittest.TestCase):
         quiz_revision_count = sum(
             1 for subject in subjects if subject.startswith("Revision quiz:")
         )
+        course_subjects = [
+            subject for subject in subjects if subject.startswith("Revision: ")
+        ]
 
         self.assertEqual(subjects[0], "Revision: Algorithms")
-        self.assertGreaterEqual(class_revision_count, 2)
+        self.assertGreaterEqual(class_revision_count, 1)
+        self.assertEqual(len(course_subjects), len(set(course_subjects)))
         self.assertEqual(subjects.count(f"Revision flashcards: {weak_doc.filename}"), 1)
         self.assertLessEqual(quiz_revision_count, 1)
 
@@ -480,6 +488,39 @@ class PlanningUpgradeTests(unittest.TestCase):
         ]
         self.assertEqual(len(course_subjects), len(set(course_subjects)))
 
+    def test_revision_builder_does_not_repeat_same_course_when_no_other_targets_exist(self):
+        target_day = date(2026, 4, 2)
+        sleep_profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 4,
+            "priority": "medium",
+            "label": "Sommeil moyen",
+        }
+        class_sessions = [
+            {
+                "subject": "Algorithms",
+                "start": datetime(2026, 4, 2, 10, 0, 0),
+                "end": datetime(2026, 4, 2, 12, 0, 0),
+                "priority": "high",
+            }
+        ]
+
+        generated = _build_revision_sessions(
+            target_day,
+            class_sessions,
+            sleep_profile,
+            due_flashcard_subjects=[],
+            quiz_performance=[],
+            completion_rate_by_hour={},
+            preferred_schedule="afternoon",
+        )
+
+        course_subjects = [
+            item["subject"] for item in generated if item["subject"].startswith("Revision: ")
+        ]
+        self.assertEqual(course_subjects, ["Revision: Algorithms"])
+
     def test_get_completion_rate_by_hour_tracks_recent_success_patterns(self):
         db = make_db_session()
         user = create_user(db)
@@ -628,6 +669,45 @@ class PlanningUpgradeTests(unittest.TestCase):
         self.assertTrue(generated)
         self.assertTrue(any(session["start"].hour >= 10 for session in generated))
 
+    def test_revision_builder_prefers_allowed_hours_inside_class_day_when_gap_exists(self):
+        target_day = date(2026, 4, 3)
+        sleep_profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 1,
+            "priority": "medium",
+            "label": "Sommeil moyen",
+        }
+        class_sessions = [
+            {
+                "subject": "Physique",
+                "start": datetime(2026, 4, 3, 8, 0, 0),
+                "end": datetime(2026, 4, 3, 10, 0, 0),
+                "priority": "high",
+            },
+            {
+                "subject": "Maths",
+                "start": datetime(2026, 4, 3, 12, 0, 0),
+                "end": datetime(2026, 4, 3, 14, 0, 0),
+                "priority": "high",
+            },
+        ]
+
+        generated = _build_revision_sessions(
+            target_day,
+            class_sessions,
+            sleep_profile,
+            due_flashcard_subjects=[],
+            quiz_performance=[],
+            completion_rate_by_hour={
+                18: {"completed": 3, "total": 3, "completion_rate": 1.0},
+            },
+            preferred_schedule="night",
+        )
+
+        self.assertTrue(generated)
+        self.assertEqual(generated[0]["start"], datetime(2026, 4, 3, 18, 0, 0))
+
     def test_revision_builder_falls_back_to_preferred_schedule_without_history(self):
         target_day = date(2026, 4, 3)
         sleep_profile = {
@@ -697,6 +777,544 @@ class PlanningUpgradeTests(unittest.TestCase):
         subjects = [session["subject"] for session in generated]
         self.assertTrue(any(subject.startswith("Revision: Physique") for subject in subjects))
         self.assertTrue(any(subject.startswith("Revision: Maths") for subject in subjects))
+
+    def test_revision_builder_prefers_older_weekday_subjects_on_weekend_sweep(self):
+        target_day = date(2026, 4, 4)  # Saturday
+        sleep_profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 1,
+            "priority": "medium",
+            "label": "Sommeil moyen",
+        }
+
+        generated = _build_revision_sessions(
+            target_day,
+            class_sessions=[],
+            sleep_profile=sleep_profile,
+            revision_source_sessions=[
+                {
+                    "subject": "Histoire",
+                    "start": datetime(2026, 3, 30, 10, 0, 0),
+                    "end": datetime(2026, 3, 30, 12, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Physique",
+                    "start": datetime(2026, 4, 3, 8, 0, 0),
+                    "end": datetime(2026, 4, 3, 10, 0, 0),
+                    "priority": "high",
+                },
+            ],
+            due_flashcard_subjects=[],
+            quiz_performance=[],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+        )
+
+        self.assertTrue(generated)
+        self.assertEqual(generated[0]["subject"], "Revision: Histoire")
+
+    def test_weekend_revision_builder_expands_capacity_for_full_weekly_sweep(self):
+        target_day = date(2026, 4, 4)  # Saturday
+        sleep_profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 4,
+            "priority": "medium",
+            "label": "Sommeil moyen",
+        }
+
+        generated = _build_revision_sessions(
+            target_day,
+            class_sessions=[],
+            sleep_profile=sleep_profile,
+            revision_source_sessions=[
+                {
+                    "subject": "Maths",
+                    "start": datetime(2026, 3, 31, 8, 0, 0),
+                    "end": datetime(2026, 3, 31, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Physique",
+                    "start": datetime(2026, 4, 1, 8, 0, 0),
+                    "end": datetime(2026, 4, 1, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Chimie",
+                    "start": datetime(2026, 4, 1, 10, 0, 0),
+                    "end": datetime(2026, 4, 1, 12, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Big Data",
+                    "start": datetime(2026, 4, 2, 8, 0, 0),
+                    "end": datetime(2026, 4, 2, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "IoT",
+                    "start": datetime(2026, 4, 3, 8, 0, 0),
+                    "end": datetime(2026, 4, 3, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Reseaux",
+                    "start": datetime(2026, 4, 3, 10, 0, 0),
+                    "end": datetime(2026, 4, 3, 12, 0, 0),
+                    "priority": "high",
+                },
+            ],
+            due_flashcard_subjects=[],
+            quiz_performance=[],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+        )
+
+        course_subjects = [
+            session["subject"] for session in generated if session["subject"].startswith("Revision:")
+        ]
+        self.assertEqual(len(course_subjects), 6)
+
+    def test_weekend_course_revisions_are_slightly_longer_than_weekday_sessions(self):
+        target_day = date(2026, 4, 4)  # Saturday
+        sleep_profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 2,
+            "priority": "medium",
+            "label": "Sommeil moyen",
+        }
+
+        generated = _build_revision_sessions(
+            target_day,
+            class_sessions=[],
+            sleep_profile=sleep_profile,
+            revision_source_sessions=[
+                {
+                    "subject": "Maths",
+                    "start": datetime(2026, 4, 1, 8, 0, 0),
+                    "end": datetime(2026, 4, 1, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Physique",
+                    "start": datetime(2026, 4, 2, 8, 0, 0),
+                    "end": datetime(2026, 4, 2, 10, 0, 0),
+                    "priority": "high",
+                },
+            ],
+            due_flashcard_subjects=[],
+            quiz_performance=[],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+        )
+
+        self.assertTrue(generated)
+        first_duration = int((generated[0]["end"] - generated[0]["start"]).total_seconds() // 60)
+        self.assertEqual(first_duration, 45)
+
+    def test_weekend_builder_uses_all_slots_for_courses_when_week_is_not_fully_covered(self):
+        target_day = date(2026, 4, 5)  # Sunday
+        sleep_profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 4,
+            "priority": "medium",
+            "label": "Sommeil moyen",
+        }
+
+        generated = _build_revision_sessions(
+            target_day,
+            class_sessions=[],
+            sleep_profile=sleep_profile,
+            revision_source_sessions=[
+                {
+                    "subject": f"Matiere {index}",
+                    "start": datetime.combine(
+                        date(2026, 3, 31) + timedelta(days=min(index, 4)),
+                        datetime.min.time(),
+                    ).replace(hour=8),
+                    "end": datetime.combine(
+                        date(2026, 3, 31) + timedelta(days=min(index, 4)),
+                        datetime.min.time(),
+                    ).replace(hour=10),
+                    "priority": "high",
+                }
+                for index in range(1, 9)
+            ],
+            due_flashcard_subjects=[
+                {
+                    "document_id": 2,
+                    "document_name": "math.pdf",
+                    "due_count": 2,
+                    "avg_ease_factor": 2.2,
+                    "priority_score": 3.0,
+                }
+            ],
+            quiz_performance=[
+                {
+                    "document_id": 3,
+                    "document_name": "physics-quiz.pdf",
+                    "attempt_count": 2,
+                    "weakness_score": 0.8,
+                }
+            ],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+        )
+
+        subjects = [session["subject"] for session in generated]
+        self.assertEqual(len(subjects), 8)
+        self.assertTrue(all(subject.startswith("Revision: ") for subject in subjects))
+
+    def test_weekend_generation_deprioritizes_subjects_already_planned_previous_day(self):
+        db = make_db_session()
+        user = create_user(db)
+        saturday = date(2026, 4, 11)
+        sunday = date(2026, 4, 12)
+
+        saturday_subjects = [
+            "Revision: Big Data",
+            "Revision: Cloud",
+            "Revision: IoT",
+        ]
+        for index, subject in enumerate(saturday_subjects):
+            db.add(
+                StudySession(
+                    user_id=user.id,
+                    date=saturday,
+                    subject=subject,
+                    start=datetime(2026, 4, 11, 8 + index, 0, 0),
+                    end=datetime(2026, 4, 11, 8 + index, 35, 0),
+                    priority="medium",
+                    status="pending",
+                    is_ai_generated=True,
+                )
+            )
+        db.commit()
+
+        recent_subjects = _recently_planned_course_subjects(
+            db,
+            user.id,
+            target_day=sunday,
+        )
+        generated = _build_revision_sessions(
+            sunday,
+            class_sessions=[],
+            sleep_profile={
+                "max_session_min": 35,
+                "break_min": 15,
+                "max_sessions": 2,
+                "priority": "medium",
+                "label": "Sommeil moyen",
+            },
+            revision_source_sessions=[
+                {
+                    "subject": "Big Data",
+                    "start": datetime(2026, 4, 10, 8, 0, 0),
+                    "end": datetime(2026, 4, 10, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Cloud",
+                    "start": datetime(2026, 4, 10, 10, 0, 0),
+                    "end": datetime(2026, 4, 10, 12, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "IoT",
+                    "start": datetime(2026, 4, 10, 12, 0, 0),
+                    "end": datetime(2026, 4, 10, 14, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Maths",
+                    "start": datetime(2026, 4, 9, 8, 0, 0),
+                    "end": datetime(2026, 4, 9, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Physique",
+                    "start": datetime(2026, 4, 8, 8, 0, 0),
+                    "end": datetime(2026, 4, 8, 10, 0, 0),
+                    "priority": "high",
+                },
+            ],
+            due_flashcard_subjects=[],
+            quiz_performance=[],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+            recently_planned_course_subjects=recent_subjects,
+        )
+
+        subjects = [item["subject"] for item in generated]
+        self.assertIn("Revision: Maths", subjects)
+        self.assertIn("Revision: Physique", subjects)
+
+    def test_weekend_generation_continues_weekly_sweep_before_repeating_courses(self):
+        db = make_db_session()
+        user = create_user(db)
+        friday = date(2026, 4, 10)
+        saturday = date(2026, 4, 11)
+        sunday = date(2026, 4, 12)
+
+        for index, subject in enumerate(("Big Data", "Cloud", "IoT", "Reseaux")):
+            db.add(
+                StudySession(
+                    user_id=user.id,
+                    date=friday,
+                    subject=f"Revision: {subject}",
+                    start=datetime(2026, 4, 10, 8 + index, 0, 0),
+                    end=datetime(2026, 4, 10, 8 + index, 35, 0),
+                    priority="medium",
+                    status="completed",
+                    is_ai_generated=True,
+                )
+            )
+
+        for index, subject in enumerate(("Big Data", "Cloud")):
+            db.add(
+                StudySession(
+                    user_id=user.id,
+                    date=saturday,
+                    subject=f"Revision: {subject}",
+                    start=datetime(2026, 4, 11, 9 + index, 0, 0),
+                    end=datetime(2026, 4, 11, 9 + index, 35, 0),
+                    priority="medium",
+                    status="pending",
+                    is_ai_generated=True,
+                )
+            )
+        db.commit()
+
+        planned_counts = _planned_course_revision_counts(
+            db,
+            user.id,
+            start_day=date(2026, 4, 6),
+            end_day=sunday - timedelta(days=1),
+        )
+        generated = _build_revision_sessions(
+            sunday,
+            class_sessions=[],
+            sleep_profile={
+                "max_session_min": 35,
+                "break_min": 15,
+                "max_sessions": 2,
+                "priority": "medium",
+                "label": "Sommeil moyen",
+            },
+            revision_source_sessions=[
+                {
+                    "subject": "Big Data",
+                    "start": datetime(2026, 4, 10, 8, 0, 0),
+                    "end": datetime(2026, 4, 10, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Cloud",
+                    "start": datetime(2026, 4, 10, 10, 0, 0),
+                    "end": datetime(2026, 4, 10, 12, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "IoT",
+                    "start": datetime(2026, 4, 9, 8, 0, 0),
+                    "end": datetime(2026, 4, 9, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Reseaux",
+                    "start": datetime(2026, 4, 8, 8, 0, 0),
+                    "end": datetime(2026, 4, 8, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Maths",
+                    "start": datetime(2026, 4, 7, 8, 0, 0),
+                    "end": datetime(2026, 4, 7, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Physique",
+                    "start": datetime(2026, 4, 6, 8, 0, 0),
+                    "end": datetime(2026, 4, 6, 10, 0, 0),
+                    "priority": "high",
+                },
+            ],
+            due_flashcard_subjects=[],
+            quiz_performance=[],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+            planned_course_revision_counts=planned_counts,
+        )
+
+        subjects = [item["subject"] for item in generated]
+        self.assertEqual(subjects, ["Revision: Physique", "Revision: Maths"])
+
+    def test_weekend_generation_does_not_restart_first_subject_when_unseen_courses_exist(self):
+        target_day = date(2026, 4, 12)  # Sunday
+        sleep_profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 8,
+            "priority": "medium",
+            "label": "Sommeil moyen",
+        }
+
+        generated = _build_revision_sessions(
+            target_day,
+            class_sessions=[],
+            sleep_profile=sleep_profile,
+            revision_source_sessions=[
+                {
+                    "subject": "Cours lundi",
+                    "start": datetime(2026, 4, 6, 8, 0, 0),
+                    "end": datetime(2026, 4, 6, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Cours mardi",
+                    "start": datetime(2026, 4, 7, 8, 0, 0),
+                    "end": datetime(2026, 4, 7, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Cours mercredi",
+                    "start": datetime(2026, 4, 8, 8, 0, 0),
+                    "end": datetime(2026, 4, 8, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Cours jeudi",
+                    "start": datetime(2026, 4, 9, 8, 0, 0),
+                    "end": datetime(2026, 4, 9, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Cours vendredi",
+                    "start": datetime(2026, 4, 10, 8, 0, 0),
+                    "end": datetime(2026, 4, 10, 10, 0, 0),
+                    "priority": "high",
+                },
+            ],
+            planned_course_revision_counts={
+                "Cours lundi": 1,
+                "Cours mardi": 1,
+            },
+            due_flashcard_subjects=[
+                {
+                    "document_id": 2,
+                    "document_name": "weak.pdf",
+                    "due_count": 2,
+                    "avg_ease_factor": 2.1,
+                    "priority_score": 2.0,
+                }
+            ],
+            quiz_performance=[],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+        )
+
+        subjects = [item["subject"] for item in generated]
+        self.assertIn("Revision: Cours mercredi", subjects)
+        self.assertIn("Revision: Cours jeudi", subjects)
+        self.assertIn("Revision: Cours vendredi", subjects)
+        self.assertNotIn("Revision: Cours lundi", subjects)
+
+    def test_postponed_courses_boost_matching_course_and_weak_doc_targets(self):
+        db = make_db_session()
+        user = create_user(db)
+        sunday = date(2026, 4, 12)
+        math_doc = create_document(db, user.id, "math")
+        physics_doc = create_document(db, user.id, "physics")
+
+        db.add(
+            StudySession(
+                user_id=user.id,
+                date=date(2026, 4, 9),
+                subject="Revision: Physique",
+                start=datetime(2026, 4, 9, 18, 0, 0),
+                end=datetime(2026, 4, 9, 18, 35, 0),
+                priority="medium",
+                status="cancelled",
+                is_ai_generated=True,
+                document_id=physics_doc.id,
+            )
+        )
+        db.commit()
+
+        postponed_counts, preferred_document_ids = _collect_postponed_course_signals(
+            db,
+            user.id,
+            target_day=sunday,
+        )
+        generated = _build_revision_sessions(
+            sunday,
+            class_sessions=[],
+            sleep_profile={
+                "max_session_min": 35,
+                "break_min": 15,
+                "max_sessions": 4,
+                "priority": "medium",
+                "label": "Sommeil moyen",
+            },
+            revision_source_sessions=[
+                {
+                    "subject": "Maths",
+                    "start": datetime(2026, 4, 10, 8, 0, 0),
+                    "end": datetime(2026, 4, 10, 10, 0, 0),
+                    "priority": "high",
+                },
+                {
+                    "subject": "Physique",
+                    "start": datetime(2026, 4, 8, 8, 0, 0),
+                    "end": datetime(2026, 4, 8, 10, 0, 0),
+                    "priority": "high",
+                },
+            ],
+            due_flashcard_subjects=[
+                {
+                    "document_id": math_doc.id,
+                    "document_name": math_doc.filename,
+                    "due_count": 2,
+                    "avg_ease_factor": 2.1,
+                    "priority_score": 2.0,
+                },
+                {
+                    "document_id": physics_doc.id,
+                    "document_name": physics_doc.filename,
+                    "due_count": 1,
+                    "avg_ease_factor": 2.4,
+                    "priority_score": 1.0,
+                },
+            ],
+            quiz_performance=[
+                {
+                    "document_id": math_doc.id,
+                    "document_name": math_doc.filename,
+                    "attempt_count": 2,
+                    "weakness_score": 0.6,
+                },
+                {
+                    "document_id": physics_doc.id,
+                    "document_name": physics_doc.filename,
+                    "attempt_count": 1,
+                    "weakness_score": 0.3,
+                },
+            ],
+            completion_rate_by_hour={},
+            preferred_schedule="morning",
+            postponed_course_counts=postponed_counts,
+            preferred_document_ids=preferred_document_ids,
+        )
+
+        subjects = [item["subject"] for item in generated]
+        self.assertIn("Revision: Physique", subjects)
+        self.assertIn(f"Revision flashcards: {physics_doc.filename}", subjects)
+        self.assertIn(f"Revision quiz: {physics_doc.filename}", subjects)
 
     def test_revision_builder_mixes_weekend_courses_flashcards_and_quiz(self):
         target_day = date(2026, 4, 4)  # Saturday
@@ -897,6 +1515,42 @@ class PlanningUpgradeTests(unittest.TestCase):
         )
         self.assertEqual(mock_generate_flashcards.call_count, 1)
 
+    @patch("app.routers.flashcard.rag_service.generate_flashcards_from_collections")
+    def test_session_flashcard_generation_uses_all_linked_documents(self, mock_generate_flashcards):
+        db = make_db_session()
+        user = create_user(db)
+        first_doc = create_document(db, user.id, "biology")
+        second_doc = create_document(db, user.id, "chemistry")
+        session = create_completed_session(db, user.id, first_doc.id, "Science review")
+        db.add(
+            StudySessionDocumentLink(
+                session_id=session.id,
+                document_id=second_doc.id,
+            )
+        )
+        db.commit()
+        db.refresh(session)
+        mock_generate_flashcards.return_value = [
+            {"front": "Cell", "back": "Basic unit of life"},
+            {"front": "Molecule", "back": "Atoms bonded together"},
+        ]
+
+        deck = generate_flashcards_from_session(
+            session.id,
+            SessionFlashcardGenerateRequest(num_cards=12),
+            db=db,
+            current_user=user,
+        )
+
+        self.assertEqual(deck.session_id, session.id)
+        self.assertEqual(deck.document_id, first_doc.id)
+        self.assertEqual(deck.document_ids, [first_doc.id, second_doc.id])
+        self.assertEqual(deck.document_names, [first_doc.filename, second_doc.filename])
+        mock_generate_flashcards.assert_called_once_with(
+            collection_names=[first_doc.chroma_collection, second_doc.chroma_collection],
+            num_cards=12,
+        )
+
     def test_study_session_out_exposes_saved_quiz_and_flashcard_state(self):
         db = make_db_session()
         user = create_user(db)
@@ -910,7 +1564,7 @@ class PlanningUpgradeTests(unittest.TestCase):
             title="Session Quiz - Chemistry review",
             num_questions=5,
             score=4,
-            completed_at=datetime.utcnow(),
+            completed_at=utc_now_naive(),
         )
         flashcards = [
             Flashcard(
@@ -922,7 +1576,7 @@ class PlanningUpgradeTests(unittest.TestCase):
                 ease_factor=2.5,
                 interval=2,
                 repetitions=1,
-                next_review=datetime.utcnow() + timedelta(days=2),
+            next_review=utc_now_naive() + timedelta(days=2),
             ),
             Flashcard(
                 user_id=user.id,
@@ -933,7 +1587,7 @@ class PlanningUpgradeTests(unittest.TestCase):
                 ease_factor=2.3,
                 interval=1,
                 repetitions=1,
-                next_review=datetime.utcnow() + timedelta(days=1),
+            next_review=utc_now_naive() + timedelta(days=1),
             ),
         ]
         db.add(quiz)

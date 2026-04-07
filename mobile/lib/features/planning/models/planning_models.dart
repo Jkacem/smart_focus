@@ -1,3 +1,5 @@
+import 'package:smart_focus/shared/utils/document_link_utils.dart';
+
 class PlanningExamModel {
   final int id;
   final int userId;
@@ -252,23 +254,23 @@ class PlanningSessionModel {
   bool get canBeRescheduled => isCancelled || isMissed;
 
   bool get hasLinkedDocument =>
-      documentIds.isNotEmpty || documentId != null;
+      resolvedDocumentIds.isNotEmpty;
+
+  List<int> get resolvedDocumentIds =>
+      resolveDocumentIds(documentIds, primaryDocumentId: documentId);
 
   int get linkedDocumentCount {
-    if (documentIds.isNotEmpty) {
-      return documentIds.length;
-    }
-    return documentId == null ? 0 : 1;
+    return resolvedDocumentIds.length;
   }
 
   String? get linkedDocumentSummary {
-    if (documentNames.isNotEmpty) {
-      if (documentNames.length == 1) {
-        return documentNames.first;
-      }
-      return '${documentNames.first} +${documentNames.length - 1} docs';
+    if (!hasLinkedDocument && documentName == null) {
+      return null;
     }
-    return documentName;
+    return summarizeDocumentNames(
+      documentNames,
+      fallbackName: documentName,
+    );
   }
 
   bool get hasSavedQuiz => sessionQuizId != null;

@@ -3,7 +3,7 @@ Pydantic schemas for flashcard generation and review.
 """
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -11,13 +11,30 @@ from pydantic import BaseModel, Field
 class FlashcardGenerateRequest(BaseModel):
     """Request body for POST /flashcards/generate."""
 
-    document_id: int
+    document_id: Optional[int] = None
+    document_ids: List[int] = Field(default_factory=list)
     num_cards: int = Field(
         default=15,
         ge=5,
         le=50,
         description="Number of flashcards to generate (5-50)",
     )
+
+    @property
+    def resolved_document_ids(self) -> List[int]:
+        ids: List[int] = []
+        if self.document_id is not None:
+            ids.append(self.document_id)
+        ids.extend(self.document_ids)
+
+        unique_ids: List[int] = []
+        seen: set[int] = set()
+        for document_id in ids:
+            if document_id in seen:
+                continue
+            seen.add(document_id)
+            unique_ids.append(document_id)
+        return unique_ids
 
 
 class SessionFlashcardGenerateRequest(BaseModel):
@@ -62,8 +79,10 @@ class FlashcardOut(BaseModel):
 class FlashcardDeckOut(BaseModel):
     """A deck of flashcards for one document."""
 
-    document_id: int
+    document_id: Optional[int] = None
     document_name: str
+    document_ids: List[int] = []
+    document_names: List[str] = []
     session_id: int | None = None
     session_subject: str | None = None
     total_cards: int

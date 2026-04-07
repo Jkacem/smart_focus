@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:state_notifier/state_notifier.dart';
 
 import '../../../core/network/app_exception.dart';
 import '../data/planning_repository.dart';
@@ -90,51 +93,36 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     int? documentId,
     List<int>? documentIds,
   }) async {
-    state = state.copyWith(isMutating: true, clearError: true);
-
-    try {
-      final created = await _repository.createSession(
+    await _runMutation(
+      () => _repository.createSession(
         subject: subject,
         start: start,
         end: end,
         priority: priority,
         documentId: documentId,
         documentIds: documentIds,
-      );
-
-      state = state.copyWith(
-        sessions: _sortSessions([...state.sessions, created]),
-        isMutating: false,
-        clearError: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isMutating: false,
-        errorMessage: _extractError(e),
-      );
-      rethrow;
-    }
+      ),
+      onSuccess: (created) {
+        state = state.copyWith(
+          sessions: _sortSessions([...state.sessions, created]),
+          isMutating: false,
+          clearError: true,
+        );
+      },
+    );
   }
 
   Future<void> deleteSession(int sessionId) async {
-    state = state.copyWith(isMutating: true, clearError: true);
-
-    try {
-      await _repository.deleteSession(sessionId);
-      state = state.copyWith(
-        sessions: state.sessions
-            .where((session) => session.id != sessionId)
-            .toList(),
-        isMutating: false,
-        clearError: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isMutating: false,
-        errorMessage: _extractError(e),
-      );
-      rethrow;
-    }
+    await _runMutation(
+      () => _repository.deleteSession(sessionId),
+      onSuccess: (_) {
+        state = state.copyWith(
+          sessions: state.sessions.where((session) => session.id != sessionId).toList(),
+          isMutating: false,
+          clearError: true,
+        );
+      },
+    );
   }
 
   Future<void> completeSession(int sessionId) async {
@@ -142,73 +130,42 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
   }
 
   Future<void> updateSessionStatus(int sessionId, String status) async {
-    state = state.copyWith(isMutating: true, clearError: true);
-
-    try {
-      final updated = await _repository.updateSessionStatus(sessionId, status);
-      final sessions = state.sessions
-          .map((session) => session.id == sessionId ? updated : session)
-          .toList();
-
-      state = state.copyWith(
-        sessions: _sortSessions(sessions),
-        isMutating: false,
-        clearError: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isMutating: false,
-        errorMessage: _extractError(e),
-      );
-      rethrow;
-    }
+    await _runMutation(
+      () => _repository.updateSessionStatus(sessionId, status),
+      onSuccess: (updated) {
+        state = state.copyWith(
+          sessions: _replaceSessionInList(updated),
+          isMutating: false,
+          clearError: true,
+        );
+      },
+    );
   }
 
   Future<void> updateSessionDocuments(int sessionId, List<int> documentIds) async {
-    state = state.copyWith(isMutating: true, clearError: true);
-
-    try {
-      final updated = await _repository.updateSessionDocuments(sessionId, documentIds);
-      final sessions = state.sessions
-          .map((session) => session.id == sessionId ? updated : session)
-          .toList();
-
-      state = state.copyWith(
-        sessions: _sortSessions(sessions),
-        isMutating: false,
-        clearError: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isMutating: false,
-        errorMessage: _extractError(e),
-      );
-      rethrow;
-    }
+    await _runMutation(
+      () => _repository.updateSessionDocuments(sessionId, documentIds),
+      onSuccess: (updated) {
+        state = state.copyWith(
+          sessions: _replaceSessionInList(updated),
+          isMutating: false,
+          clearError: true,
+        );
+      },
+    );
   }
 
   Future<PlanningSessionModel> rescheduleSession(int sessionId) async {
-    state = state.copyWith(isMutating: true, clearError: true);
-
-    try {
-      final rescheduled = await _repository.rescheduleSession(sessionId);
-      await loadDay(state.selectedDate, showLoading: false);
-      return rescheduled;
-    } catch (e) {
-      state = state.copyWith(
-        isMutating: false,
-        errorMessage: _extractError(e),
-      );
-      rethrow;
-    }
+    return _runMutation(
+      () => _repository.rescheduleSession(sessionId),
+      onSuccess: (_) async {
+        await loadDay(state.selectedDate, showLoading: false);
+      },
+    );
   }
 
   Future<void> toggleSessionCompletion(int sessionId, bool isCompleted) async {
     await updateSessionStatus(sessionId, isCompleted ? 'pending' : 'completed');
-  }
-
-  Future<void> autoUnvalidateExpiredSessions() async {
-    return;
   }
 
   Future<void> generatePlanning({
@@ -217,29 +174,22 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     String? weekType,
     Map<String, dynamic>? preferences,
   }) async {
-    state = state.copyWith(isMutating: true, clearError: true);
-
-    try {
-      final result = await _repository.generatePlanning(
+    await _runMutation(
+      () => _repository.generatePlanning(
         date: state.selectedDate,
         documentId: documentId,
         examIds: examIds,
         weekType: weekType,
         preferences: preferences,
-      );
-
-      state = state.copyWith(
-        sessions: _sortSessions(result.sessions),
-        isMutating: false,
-        clearError: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isMutating: false,
-        errorMessage: _extractError(e),
-      );
-      rethrow;
-    }
+      ),
+      onSuccess: (result) {
+        state = state.copyWith(
+          sessions: _sortSessions(result.sessions),
+          isMutating: false,
+          clearError: true,
+        );
+      },
+    );
   }
 
   Future<void> generatePlanningForWeek({
@@ -248,30 +198,25 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
     String? weekType,
     Map<String, dynamic>? preferences,
   }) async {
-    state = state.copyWith(isMutating: true, clearError: true);
-
-    try {
-      await _repository.generatePlanningWeek(
-        date: state.selectedDate,
-        documentId: documentId,
-        examIds: examIds,
-        weekType: weekType,
-        preferences: preferences,
-      );
-
-      final result = await _repository.getDay(state.selectedDate);
-      state = state.copyWith(
-        sessions: _sortSessions(result.sessions),
-        isMutating: false,
-        clearError: true,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isMutating: false,
-        errorMessage: _extractError(e),
-      );
-      rethrow;
-    }
+    await _runMutation(
+      () async {
+        await _repository.generatePlanningWeek(
+          date: state.selectedDate,
+          documentId: documentId,
+          examIds: examIds,
+          weekType: weekType,
+          preferences: preferences,
+        );
+        return _repository.getDay(state.selectedDate);
+      },
+      onSuccess: (result) {
+        state = state.copyWith(
+          sessions: _sortSessions(result.sessions),
+          isMutating: false,
+          clearError: true,
+        );
+      },
+    );
   }
 
   List<PlanningSessionModel> _sortSessions(List<PlanningSessionModel> sessions) {
@@ -286,6 +231,32 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
 
   String _extractError(Object error) {
     return AppExceptionMapper.message(error);
+  }
+
+  List<PlanningSessionModel> _replaceSessionInList(PlanningSessionModel updated) {
+    final sessions = state.sessions
+        .map((session) => session.id == updated.id ? updated : session)
+        .toList();
+    return _sortSessions(sessions);
+  }
+
+  Future<T> _runMutation<T>(
+    Future<T> Function() action, {
+    FutureOr<void> Function(T result)? onSuccess,
+  }) async {
+    state = state.copyWith(isMutating: true, clearError: true);
+
+    try {
+      final result = await action();
+      await onSuccess?.call(result);
+      return result;
+    } catch (e) {
+      state = state.copyWith(
+        isMutating: false,
+        errorMessage: _extractError(e),
+      );
+      rethrow;
+    }
   }
 }
 

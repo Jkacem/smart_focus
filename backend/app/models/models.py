@@ -1,11 +1,13 @@
 # backend/models/models.py
-from datetime import datetime, date
+from datetime import date
 from enum import Enum
 from sqlalchemy import (
     Column, Integer, String, DateTime, Date, Boolean,
     ForeignKey, JSON, Float, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship, declarative_base
+
+from app.utils.datetime_utils import utc_now_naive
 
 Base = declarative_base()
 
@@ -29,7 +31,7 @@ class User(Base):
     full_name       = Column(String(100), nullable=False)
     role            = Column(String(20), nullable=False, default="student")
     is_active       = Column(Boolean, nullable=False, default=True)
-    created_at      = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at      = Column(DateTime, nullable=False, default=utc_now_naive)
     last_login      = Column(DateTime, nullable=True)
 
     # relationships
@@ -62,8 +64,8 @@ class UserProfile(Base):
     preferred_schedule = Column(String(50), nullable=False, default="morning")
     notif_enabled      = Column(Boolean, nullable=False, default=True)
     notif_preferences  = Column(JSON, nullable=True)
-    updated_at         = Column(DateTime, nullable=False, default=datetime.utcnow,
-                                onupdate=datetime.utcnow)
+    updated_at         = Column(DateTime, nullable=False, default=utc_now_naive,
+                                onupdate=utc_now_naive)
 
     # relationships
     user = relationship("User", back_populates="profile")
@@ -84,7 +86,7 @@ class ChatDocument(Base):
     file_path         = Column(String(512), nullable=False)           # path on disk
     chroma_collection = Column(String(255), nullable=False, unique=True)  # ChromaDB collection id
     page_count        = Column(Integer, nullable=True)                # number of PDF pages
-    created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at        = Column(DateTime, nullable=False, default=utc_now_naive)
 
     # relationships
     user       = relationship("User", back_populates="chat_documents")
@@ -118,7 +120,7 @@ class ChatMessage(Base):
     question    = Column(String(2000), nullable=False)
     answer      = Column(String(8000), nullable=False)
     sources     = Column(JSON, nullable=True)   # [{"filename": ..., "page": ..., "chunk": ...}]
-    created_at  = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at  = Column(DateTime, nullable=False, default=utc_now_naive)
 
     # relationships
     user     = relationship("User",         back_populates="chat_messages")
@@ -140,7 +142,7 @@ class QuizDocumentLink(Base):
         nullable=False,
         index=True,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
 
     quiz = relationship("Quiz", back_populates="quiz_document_links")
     document = relationship("ChatDocument", back_populates="quiz_links")
@@ -170,7 +172,7 @@ class StudySessionDocumentLink(Base):
         nullable=False,
         index=True,
     )
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
 
     session = relationship("StudySession", back_populates="session_document_links")
     document = relationship("ChatDocument", back_populates="study_session_links")
@@ -195,7 +197,7 @@ class Quiz(Base):
     num_questions = Column(Integer, nullable=False, default=10)
     score         = Column(Integer, nullable=True)          # filled after submission
     completed_at  = Column(DateTime, nullable=True)
-    created_at    = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at    = Column(DateTime, nullable=False, default=utc_now_naive)
 
     # relationships
     user      = relationship("User",         back_populates="quizzes")
@@ -274,8 +276,8 @@ class Flashcard(Base):
     ease_factor = Column(Float, nullable=False, default=2.5)
     interval    = Column(Integer, nullable=False, default=1)  # days until next review
     repetitions = Column(Integer, nullable=False, default=0)
-    next_review = Column(DateTime, nullable=False, default=datetime.utcnow)
-    created_at  = Column(DateTime, nullable=False, default=datetime.utcnow)
+    next_review = Column(DateTime, nullable=False, default=utc_now_naive)
+    created_at  = Column(DateTime, nullable=False, default=utc_now_naive)
 
     # relationships
     user     = relationship("User",         back_populates="flashcards")
@@ -302,7 +304,7 @@ class SleepRecord(Base):
     light_sleep_hours = Column(Float, nullable=True)
     sleep_score       = Column(Integer, nullable=True)   # 0-100
     raw_sensor_data   = Column(JSON, nullable=True)
-    created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at        = Column(DateTime, nullable=False, default=utc_now_naive)
 
     user = relationship("User", back_populates="sleep_records")
 
@@ -342,8 +344,8 @@ class Exam(Base):
     )
     title = Column(String(255), nullable=False)
     exam_date = Column(Date, nullable=False, index=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     user = relationship("User", back_populates="exams")
     document = relationship("ChatDocument", back_populates="exams")
@@ -388,8 +390,8 @@ class StudySession(Base):
         index=True,
     )
 
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     user = relationship("User", back_populates="study_sessions")
     document = relationship("ChatDocument", back_populates="study_sessions")
@@ -459,7 +461,7 @@ class StudySession(Base):
 
     @property
     def session_flashcards_due(self) -> int:
-        now = datetime.utcnow()
+        now = utc_now_naive()
         return sum(1 for card in self.generated_flashcards if card.next_review <= now)
 
     @property

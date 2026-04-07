@@ -40,7 +40,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
           ? originalQuiz.documentIds
           : (originalQuiz.documentId == null ? <int>[] : [originalQuiz.documentId!]);
       if (documentIds.isEmpty) {
-        throw Exception('Quiz source documents are missing.');
+        throw Exception('Les documents sources du quiz sont introuvables.');
       }
       final retriedQuiz = documentIds.length == 1
           ? await repository.generateQuiz(
@@ -60,7 +60,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to retry quiz: $e'),
+          content: Text('Impossible de relancer le quiz: $e'),
           backgroundColor: Colors.redAccent.withOpacity(0.9),
         ),
       );
@@ -82,7 +82,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: CustomAppBar(
-        title: 'Results',
+        title: 'Resultats',
         leadingIcon: Icons.home_outlined,
         onLeadingPressed: () => context.go(AppRoutes.dashboard),
       ),
@@ -136,7 +136,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isPassed ? 'Well done!' : 'Keep going!',
+                                isPassed ? 'Bien joue !' : 'Continue !',
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.6),
                                   fontSize: 13,
@@ -233,14 +233,14 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
                                 ),
                                 const SizedBox(height: 12),
                                 _AnswerRow(
-                                  label: 'Your answer',
+                                  label: 'Ta reponse',
                                   text:
                                       (q.userAnswerIndex != null &&
                                           q.userAnswerIndex! >= 0 &&
                                           q.userAnswerIndex! <
                                               q.options.length)
                                       ? q.options[q.userAnswerIndex!]
-                                      : 'No answer',
+                                      : 'Aucune reponse',
                                   color: isCorrect
                                       ? const Color(0xFF4ade80)
                                       : const Color(0xFFf87171),
@@ -248,7 +248,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
                                 if (!isCorrect && q.correctIndex != null) ...[
                                   const SizedBox(height: 6),
                                   _AnswerRow(
-                                    label: 'Correct answer',
+                                    label: 'Bonne reponse',
                                     text: q.options[q.correctIndex!],
                                     color: const Color(0xFF4ade80),
                                   ),
@@ -312,7 +312,7 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
                           ),
                         )
                       : CustomButton(
-                          text: 'Retry Quiz',
+                          text: 'Refaire le quiz',
                           onPressed: _retryQuiz,
                           width: double.infinity,
                           height: 54,

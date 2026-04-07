@@ -1,3 +1,5 @@
+import 'package:smart_focus/shared/utils/document_link_utils.dart';
+
 class QuizQuestionModel {
   final int id;
   final String questionText;
@@ -77,13 +79,7 @@ class QuizModel {
   }
 
   String get sourceLabel {
-    if (documentNames.isEmpty) {
-      return 'Document';
-    }
-    if (documentNames.length == 1) {
-      return documentNames.first;
-    }
-    return '${documentNames.first} +${documentNames.length - 1} docs';
+    return summarizeDocumentNames(documentNames);
   }
 }
 

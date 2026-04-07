@@ -49,7 +49,9 @@ class _FlashcardGenerateScreenState extends ConsumerState<FlashcardGenerateScree
           : await notifier.generateFlashcards(widget.documentId!, _numCards);
 
       if (deck != null && mounted) {
-        ref.invalidate(flashcardDeckProvider(deck.documentId));
+        if (deck.documentId != null) {
+          ref.invalidate(flashcardDeckProvider(deck.documentId!));
+        }
         if (deck.sessionId != null) {
           ref.invalidate(sessionFlashcardDeckProvider(deck.sessionId!));
         }

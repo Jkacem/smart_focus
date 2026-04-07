@@ -454,6 +454,66 @@ def generate_flashcards(collection_name: str, num_cards: int = 15) -> List[Dict]
     return validated[:num_cards]
 
 
+def generate_flashcards_from_collections(
+    collection_names: List[str],
+    num_cards: int = 15,
+) -> List[Dict]:
+    """Generate one flashcard deck from multiple document collections."""
+    unique_collections = list(dict.fromkeys(collection_names))
+    if not unique_collections:
+        raise ValueError("No document collections provided for flashcard generation.")
+
+    if len(unique_collections) == 1:
+        return generate_flashcards(unique_collections[0], num_cards=num_cards)
+
+    embeddings = _get_embeddings()
+    all_chunks: List[Document] = []
+
+    for collection_name in unique_collections:
+        vectorstore = Chroma(
+            collection_name=collection_name,
+            embedding_function=embeddings,
+            persist_directory=_chroma_path(),
+        )
+        all_chunks.extend(
+            vectorstore.similarity_search("concepts et definitions importants", k=12)
+        )
+
+    if not all_chunks:
+        raise ValueError("No chunks found for the selected documents.")
+
+    sample_size = min(len(all_chunks), max(num_cards * 2, 18))
+    sampled = random.sample(all_chunks, sample_size)
+    context = "\n\n---\n\n".join(chunk.page_content for chunk in sampled)
+
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    llm = genai.GenerativeModel('gemini-2.5-flash')
+    prompt_text = _FLASHCARD_PROMPT.format(context=context, num_cards=num_cards)
+    response = llm.generate_content(prompt_text)
+
+    raw_text = response.text.strip()
+    match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
+    if match:
+        raw_text = match.group(0)
+
+    try:
+        cards = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"Gemini returned invalid JSON (flashcards): {e}\nRaw output: {raw_text}"
+        )
+
+    validated = []
+    for card in cards:
+        if "front" in card and "back" in card:
+            validated.append(card)
+
+    if not validated:
+        raise ValueError("Failed to generate valid flashcards from the selected documents.")
+
+    return validated[:num_cards]
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # CLEANUP
 # ══════════════════════════════════════════════════════════════════════════════

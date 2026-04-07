@@ -14,6 +14,8 @@ Quality ratings:
 """
 
 from datetime import datetime, timedelta
+
+from app.utils.datetime_utils import utc_now_naive
 from typing import Tuple
 
 
@@ -53,6 +55,6 @@ def sm2_update(
     new_ease_factor = ease_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
     new_ease_factor = max(1.3, new_ease_factor)  # never drop below 1.3
 
-    next_review = datetime.utcnow() + timedelta(days=new_interval)
+    next_review = utc_now_naive() + timedelta(days=new_interval)
 
     return new_repetitions, new_ease_factor, new_interval, next_review

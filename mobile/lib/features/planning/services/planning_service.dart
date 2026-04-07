@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/app_dio.dart';
+import '../../../shared/utils/document_link_utils.dart';
 import '../models/planning_models.dart';
 
 class PlanningService {
@@ -65,13 +66,13 @@ class PlanningService {
   }) async {
     final response = await _dio.post(
       '/api/v1/planning/generate',
-      data: {
-        'date': _formatDay(date),
-        if (preferences != null && preferences.isNotEmpty) 'preferences': preferences,
-        if (documentId != null) 'document_id': documentId,
-        if (examIds != null) 'exam_ids': examIds,
-        if (weekType != null) 'week_type': weekType,
-      },
+      data: _buildGeneratePayload(
+        date: date,
+        documentId: documentId,
+        examIds: examIds,
+        weekType: weekType,
+        preferences: preferences,
+      ),
       options: Options(contentType: Headers.jsonContentType),
     );
 
@@ -87,13 +88,13 @@ class PlanningService {
   }) async {
     await _dio.post(
       '/api/v1/planning/generate/week',
-      data: {
-        'date': _formatDay(date),
-        if (preferences != null && preferences.isNotEmpty) 'preferences': preferences,
-        if (documentId != null) 'document_id': documentId,
-        if (examIds != null) 'exam_ids': examIds,
-        if (weekType != null) 'week_type': weekType,
-      },
+      data: _buildGeneratePayload(
+        date: date,
+        documentId: documentId,
+        examIds: examIds,
+        weekType: weekType,
+        preferences: preferences,
+      ),
       options: Options(contentType: Headers.jsonContentType),
     );
   }
@@ -113,8 +114,13 @@ class PlanningService {
         'start': start.toIso8601String(),
         'end': end.toIso8601String(),
         'priority': priority,
-        if (documentId != null) 'document_id': documentId,
-        if (documentIds != null) 'document_ids': documentIds,
+        if (documentId != null || documentIds != null)
+          ...buildLinkedDocumentPayload(
+            resolveDocumentIds(
+              documentIds ?? const [],
+              primaryDocumentId: documentId,
+            ),
+          ),
       },
       options: Options(contentType: Headers.jsonContentType),
     );
@@ -147,10 +153,7 @@ class PlanningService {
   ) async {
     final response = await _dio.patch(
       '/api/v1/planning/sessions/$sessionId',
-      data: {
-        'document_id': documentIds.isEmpty ? null : documentIds.first,
-        'document_ids': documentIds,
-      },
+      data: buildLinkedDocumentPayload(documentIds),
       options: Options(contentType: Headers.jsonContentType),
     );
     return PlanningSessionModel.fromJson(response.data as Map<String, dynamic>);
@@ -170,6 +173,22 @@ class PlanningService {
     final month = normalized.month.toString().padLeft(2, '0');
     final date = normalized.day.toString().padLeft(2, '0');
     return '${normalized.year}-$month-$date';
+  }
+
+  Map<String, dynamic> _buildGeneratePayload({
+    required DateTime date,
+    int? documentId,
+    List<int>? examIds,
+    String? weekType,
+    Map<String, dynamic>? preferences,
+  }) {
+    return {
+      'date': _formatDay(date),
+      if (preferences != null && preferences.isNotEmpty) 'preferences': preferences,
+      if (documentId != null) 'document_id': documentId,
+      if (examIds != null) 'exam_ids': examIds,
+      if (weekType != null) 'week_type': weekType,
+    };
   }
 }
 

@@ -197,7 +197,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     }
     if (type == 'flashcards' && selectedDocs.length > 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez sélectionner un seul document.')),
+        const SnackBar(
+          content: Text(
+            'Les flashcards multi-doc passent pour l instant par les sessions de revision multi-doc. Selectionnez un seul document ici.',
+          ),
+        ),
       );
       return;
     }

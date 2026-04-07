@@ -1,0 +1,27 @@
+week,day,start,end,subject
+B,Lundi,8:15,10:00,"C_Atelier Robotique
+ Abbassi Amphi C "
+B,Lundi,10:00,11:40,"TP_Co-design  Abbassi <LEOT3A> Groupe 1 Labo Lang 2 
+ SB 
+TP_Atelier Robotique  Belhadj Mohamed <LEOT3A> Groupe 2 Labo  Lang 1 "
+B,Lundi,13:20,15:00,C_Co-design Sfar Amphi B
+B,Lundi,15:00,16:45,
+B,Lundi,16:45,18:15,
+B,Mardi,8:15,10:00,TP_Co-design Abbassi <LEOT3B> Groupe 1 Labo Lang 2
+B,Mardi,10:00,11:40,
+B,Mardi,11:40,13:20,_Scurit IoT Abdelhafidh Amphi B
+B,Mardi,13:20,15:00,C_Cloud et virtualisation Ben Daoud Amphi A
+B,Mardi,15:00,16:45,TP_Architectture IoT Gharsellaoui <LEOT3B> Groupe 2 salle Internet
+B,Mardi,16:45,18:15,
+B,Mercredi,8:15,10:00,C_IA & Machine Learning Boutayeb Amphi B
+B,Mercredi,10:00,11:40,
+B,Mercredi,11:40,13:20,C_Techno des rs sans fil IoT Achoura Amphi C
+B,Jeudi,8:15,10:00,C_Architecture IoT Ammar Amphi A
+B,Jeudi,11:40,13:20,TP_Cloud et Virtualisation Ghammem <LEOT3B> Groupe 1 info B1 OR TP_Techno des rs sans fil IoT Raddaoui <LEOT3B> Groupe 2 info A4
+B,Jeudi,13:20,15:00,TP_IA & Machine Learning Khenissi <LEOT3B> Groupe 1 info A1 OR TP_Industrie 4.0 Ben Amor <LEOT3B> Groupe 2 info A3
+B,Jeudi,15:00,16:45,TP_IA & Machine Learning Khenissi <LEOT3B> Groupe 2 info A1
+B,Jeudi,16:45,18:15,
+B,Vendredi,8:15,10:00,C_Big Data Ben Aycha Amphi C
+B,Vendredi,10:00,11:40,TP_Big Data Ben Aycha <LEOT3B> Groupe 1 info C1 OR TP_Systmes temps rel Kacem <LEOT3B> Groupe 2 info B4
+B,Vendredi,11:40,13:20,
+B,Vendredi,15:00,16:45,

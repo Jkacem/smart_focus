@@ -1,3 +1,5 @@
+import 'package:smart_focus/shared/utils/document_link_utils.dart';
+
 class FlashcardModel {
   final int id;
   final String front;
@@ -37,8 +39,10 @@ class FlashcardModel {
 }
 
 class FlashcardDeckModel {
-  final int documentId;
+  final int? documentId;
   final String documentName;
+  final List<int> documentIds;
+  final List<String> documentNames;
   final int? sessionId;
   final String? sessionSubject;
   final int totalCards;
@@ -49,6 +53,8 @@ class FlashcardDeckModel {
   FlashcardDeckModel({
     required this.documentId,
     required this.documentName,
+    required this.documentIds,
+    required this.documentNames,
     this.sessionId,
     this.sessionSubject,
     required this.totalCards,
@@ -65,12 +71,22 @@ class FlashcardDeckModel {
     return FlashcardDeckModel(
       documentId: json['document_id'],
       documentName: json['document_name'],
+      documentIds: List<int>.from(json['document_ids'] ?? const []),
+      documentNames: List<String>.from(json['document_names'] ?? const []),
       sessionId: json['session_id'] as int?,
       sessionSubject: json['session_subject']?.toString(),
       totalCards: json['total_cards'],
       dueCards: json['due_cards'],
       reviewedCards: json['reviewed_cards'] ?? 0,
       cards: cardsList,
+    );
+  }
+
+  String get sourceLabel {
+    return summarizeDocumentNames(
+      documentNames,
+      fallbackName: documentName,
+      fallbackLabel: 'Documents',
     );
   }
 }

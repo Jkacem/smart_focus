@@ -264,51 +264,10 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                             flashcardActionColor: _flashcardActionColor(session),
                             quizActionIcon: _quizActionIcon(session),
                             flashcardActionIcon: _flashcardActionIcon(session),
-                            onDeleteRequested: () async {
-                              try {
-                                await planningNotifier.deleteSession(session.id);
-                                if (!context.mounted) return true;
-                                _showSnackBar(context, '${session.subject} supprime');
-                                return true;
-                              } catch (e) {
-                                if (!context.mounted) return false;
-                                _showSnackBar(context, e.toString(), isError: true);
-                                return false;
-                              }
-                            },
-                            onComplete: session.isCompleted
-                                ? () async {
-                                    try {
-                                      await planningNotifier.toggleSessionCompletion(
-                                        session.id,
-                                        session.isCompleted,
-                                      );
-                                      if (!context.mounted) return;
-                                      _showSnackBar(
-                                        context,
-                                        '${session.subject} marquee comme non terminee',
-                                      );
-                                    } catch (e) {
-                                      if (!context.mounted) return;
-                                      _showSnackBar(context, e.toString(), isError: true);
-                                    }
-                                  }
-                                : () async {
-                                    try {
-                                      await planningNotifier.toggleSessionCompletion(
-                                        session.id,
-                                        session.isCompleted,
-                                      );
-                                      if (!context.mounted) return;
-                                      _showSnackBar(
-                                        context,
-                                        '${session.subject} marquee comme terminee',
-                                      );
-                                    } catch (e) {
-                                      if (!context.mounted) return;
-                                      _showSnackBar(context, e.toString(), isError: true);
-                                    }
-                                  },
+                            onDeleteRequested: () =>
+                                _deleteSession(session, planningNotifier),
+                            onComplete: () =>
+                                _toggleSessionCompletion(session, planningNotifier),
                             onPrimaryAction: _primaryAction(session, planningNotifier),
                             onTap: _sessionTapAction(session, planningNotifier),
                             onManageDocument: () => _showSessionDocumentDialog(
@@ -322,11 +281,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                               planningNotifier,
                             ),
                             onReschedule: _rescheduleAction(session, planningNotifier),
-                            rescheduleLabel: session.isCancelled
-                                ? 'Replanifier'
-                                : session.isMissed
-                                    ? 'Reporter'
-                                    : null,
+                            rescheduleLabel: _rescheduleLabel(session),
                           );
                         }
 
@@ -556,10 +511,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     PlanningSessionModel session,
     PlanningNotifier planningNotifier,
   ) async {
-    List<int> selectedDocumentIds = List<int>.from(session.documentIds);
-    if (selectedDocumentIds.isEmpty && session.documentId != null) {
-      selectedDocumentIds = [session.documentId!];
-    }
+    List<int> selectedDocumentIds = List<int>.from(session.resolvedDocumentIds);
 
     await showDialog<void>(
       context: context,
@@ -1077,12 +1029,12 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
   }
 
   String? _primaryActionLabel(PlanningSessionModel session) {
-    if (session.isFlashcardReviewSession && session.documentId != null) {
+    if (session.isFlashcardReviewSession && session.hasLinkedDocument) {
       return session.hasSavedFlashcards
           ? (session.sessionFlashcardsDue > 0 ? 'Reprendre la revision' : 'Voir les cartes')
           : 'Generer des cartes';
     }
-    if (session.isQuizRevisionSession && session.documentId != null) {
+    if (session.isQuizRevisionSession && session.hasLinkedDocument) {
       return session.hasSavedQuiz ? 'Ouvrir le quiz' : 'Generer un quiz';
     }
     return null;
@@ -1092,10 +1044,10 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     PlanningSessionModel session,
     PlanningNotifier planningNotifier,
   ) {
-    if (session.isFlashcardReviewSession && session.documentId != null) {
+    if (session.isFlashcardReviewSession && session.hasLinkedDocument) {
       return _flashcardAction(session, planningNotifier);
     }
-    if (session.isQuizRevisionSession && session.documentId != null) {
+    if (session.isQuizRevisionSession && session.hasLinkedDocument) {
       return _quizAction(session, planningNotifier);
     }
     return null;
@@ -1258,6 +1210,52 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
         _showSnackBar(context, e.toString(), isError: true);
       }
     };
+  }
+
+  String? _rescheduleLabel(PlanningSessionModel session) {
+    if (session.isCancelled) {
+      return 'Replanifier';
+    }
+    if (session.isMissed) {
+      return 'Reporter';
+    }
+    return null;
+  }
+
+  Future<bool> _deleteSession(
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) async {
+    try {
+      await planningNotifier.deleteSession(session.id);
+      if (!context.mounted) return true;
+      _showSnackBar(context, '${session.subject} supprime');
+      return true;
+    } catch (e) {
+      if (!context.mounted) return false;
+      _showSnackBar(context, e.toString(), isError: true);
+      return false;
+    }
+  }
+
+  Future<void> _toggleSessionCompletion(
+    PlanningSessionModel session,
+    PlanningNotifier planningNotifier,
+  ) async {
+    try {
+      await planningNotifier.toggleSessionCompletion(session.id, session.isCompleted);
+      if (!context.mounted) return;
+      _showSnackBar(context, _completionToggleMessage(session));
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnackBar(context, e.toString(), isError: true);
+    }
+  }
+
+  String _completionToggleMessage(PlanningSessionModel session) {
+    return session.isCompleted
+        ? '${session.subject} marquee comme non terminee'
+        : '${session.subject} marquee comme terminee';
   }
 
   void _openRouteAndRefresh(String route, PlanningNotifier planningNotifier) {

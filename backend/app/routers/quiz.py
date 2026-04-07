@@ -1,8 +1,6 @@
 """
 Quiz router: quiz generation and submission endpoints.
 """
-
-from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +17,7 @@ from app.schemas.quiz import (
     SessionQuizGenerateRequest,
 )
 from app.services import rag_service
+from app.utils.datetime_utils import utc_now_naive
 
 router = APIRouter(prefix="/quiz", tags=["Quiz"])
 
@@ -338,7 +337,7 @@ def submit_quiz(
             score += 1
 
     quiz.score = score
-    quiz.completed_at = datetime.utcnow()
+    quiz.completed_at = utc_now_naive()
     db.commit()
     db.refresh(quiz)
 
