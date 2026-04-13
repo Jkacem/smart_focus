@@ -1,6 +1,11 @@
 """
 Planning Service — Generate daily sessions using Gemini, respecting user blocks.
 Optionally uses RAG (Chroma + Gemini) to extract timetable constraints from a PDF.
+
+Architecture: Deterministic slot computation + AI-powered subject assignment.
+- Free slots, session durations, and conflict avoidance are computed in Python.
+- Gemini is used for subject naming, personalization, and priority suggestions.
+- A deterministic fallback ensures valid output even when AI fails.
 """
 
 from __future__ import annotations
@@ -8,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import google.generativeai as genai
@@ -16,10 +21,17 @@ from langchain_community.vectorstores import Chroma
 
 from app.config import settings
 from app.models.models import StudySession, UserProfile
-from app.services import rag_service
 from app.services.rag_service import _get_embeddings, _chroma_path
 
 logger = logging.getLogger(__name__)
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+_DAY_START_HOUR = 8
+_DAY_END_HOUR = 22
+_BUFFER_MINUTES = 15
+_MIN_SESSION_MINUTES = 25
+_MAX_SESSION_MINUTES = 90
+_DEFAULT_SESSION_MINUTES = 50
 
 # ── French day-of-week mapping ────────────────────────────────────────────────
 _FRENCH_DAYS = {
@@ -32,36 +44,45 @@ _FRENCH_DAYS = {
     6: "Dimanche",
 }
 
+# ── Preferred schedule → hour ranges ──────────────────────────────────────────
+_SCHEDULE_HOURS = {
+    "morning": (8, 12),
+    "afternoon": (12, 18),
+    "noon": (12, 18),
+    "evening": (18, 22),
+    "night": (18, 22),
+    "late": (18, 22),
+}
 
-_PLANNING_PROMPT = """Tu es un expert en gestion du temps et en pédagogie. 
-Ton objectif est de générer un planning de révision/travail optimal pour l'utilisateur pour la date du {date_str}.
+# ── AI prompt: Gemini only assigns subjects to pre-computed slots ─────────────
+_PLANNING_PROMPT = """Tu es un expert en gestion du temps et en pédagogie.
+L'utilisateur a {num_slots} créneaux de révision disponibles pour la date du {date_str}.
 
-CONTRAINTES UTILISATEUR:
+PROFIL UTILISATEUR:
 - Objectif de concentration quotidien: {daily_focus_goal} minutes
-- Préférence de moment de la journée: {preferred_schedule} (ex: morning, afternoon, night)
-- Préférences de session spécifiques fournies (ex. matières) : {preferences}
+- Préférence de moment: {preferred_schedule}
+- Préférences spécifiques: {preferences}
 
-BLOCS DÉJÀ EXISTANTS (À NE SURTOUT PAS CHEVAUCHER):
-{existing_blocks}
+COURS DU JOUR (contexte pour choisir les matières de révision):
+{class_context}
 
-INSTRUCTIONS DE GÉNÉRATION:
-1. Tu dois générer des sessions de révision ou de travail (ex: "Focus Session", "Révision Math", "Lecture").
-2. Les nouvelles sessions NE DOIVENT STRICTEMENT PAS chevaucher les "Blocs déjà existants" mentionnés ci-dessus. Laisse un peu de temps (ex: 10-15 min) entre les blocs.
-3. Essaie d'atteindre l'objectif de concentration quotidien cumulé avec la durée totale de tes nouvelles sessions.
-4. Les sessions générées doivent se situer *uniquement* à la date du {date_str}.
-5. Format des dates attendu : YYYY-MM-DDTHH:MM:SS (format ISO).
-6. Tu vas retourner le résultat sous la forme d'un tableau JSON avec les valeurs exactes demandées ci-dessous.
+CRÉNEAUX DISPONIBLES (tu dois assigner une matière à chaque créneau):
+{slots_description}
 
-FORMAT STRICT DE SORTIE (JSON uniquement, sans markdown ni autre texte, réponds juste par des crochets [...] contenant les objets):
+INSTRUCTIONS:
+1. Pour chaque créneau, propose un sujet de révision pertinent et une priorité.
+2. Inspire-toi des cours du jour et des préférences pour choisir les matières.
+3. Varie les matières entre les créneaux si possible.
+4. Les heures sont DÉJÀ FIXÉES — ne les modifie pas.
+
+FORMAT STRICT (JSON uniquement, sans markdown, un objet par créneau):
 [
   {{
+    "slot_index": 0,
     "subject": "Nom de la session",
-    "start": "2023-12-01T09:00:00",
-    "end": "2023-12-01T10:30:00",
     "priority": "high"
   }}
-]
-"""
+]"""
 
 # ── Dedicated timetable extraction prompt ─────────────────────────────────────
 _TIMETABLE_EXTRACTION_PROMPT = """Tu es un assistant spécialisé dans l'extraction d'emplois du temps.
@@ -94,6 +115,311 @@ FORMAT DE SORTIE :
 
 Retourne UNIQUEMENT le JSON :"""
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FREE SLOT COMPUTATION (deterministic)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _compute_free_slots(
+    day: date,
+    blocks: list[tuple[str, datetime, datetime]],
+    *,
+    start_hour: int = _DAY_START_HOUR,
+    end_hour: int = _DAY_END_HOUR,
+    buffer_minutes: int = _BUFFER_MINUTES,
+) -> list[tuple[datetime, datetime]]:
+    """Compute free time windows around existing blocks for a given day.
+
+    Returns a list of (start, end) datetime tuples representing available slots,
+    with a configurable buffer around each existing block.
+    """
+    day_start = datetime.combine(day, time(start_hour, 0))
+    day_end = datetime.combine(day, time(end_hour, 0))
+    buffer = timedelta(minutes=buffer_minutes)
+
+    if not blocks:
+        return [(day_start, day_end)]
+
+    # Sort blocks chronologically
+    sorted_blocks = sorted(blocks, key=lambda b: b[1])
+    free_slots: list[tuple[datetime, datetime]] = []
+
+    # Gap before the first block
+    first_start = sorted_blocks[0][1]
+    slot_end = first_start - buffer
+    if slot_end > day_start:
+        free_slots.append((day_start, slot_end))
+
+    # Gaps between consecutive blocks
+    for i in range(len(sorted_blocks) - 1):
+        gap_start = sorted_blocks[i][2] + buffer
+        gap_end = sorted_blocks[i + 1][1] - buffer
+        if gap_end > gap_start:
+            free_slots.append((gap_start, gap_end))
+
+    # Gap after the last block
+    last_end = sorted_blocks[-1][2]
+    slot_start = last_end + buffer
+    if slot_start < day_end:
+        free_slots.append((slot_start, day_end))
+
+    return free_slots
+
+
+def _filter_slots_by_preference(
+    free_slots: list[tuple[datetime, datetime]],
+    preferred_schedule: str,
+) -> list[tuple[datetime, datetime]]:
+    """Sort free slots to prioritize the user's preferred time of day.
+
+    Preferred-hour slots come first, others follow. Never removes slots entirely
+    — this ensures the daily focus goal can still be met even if preferred hours
+    are occupied.
+    """
+    pref_start, pref_end = _SCHEDULE_HOURS.get(
+        preferred_schedule.strip().lower(),
+        (8, 12),
+    )
+
+    def _preference_score(slot: tuple[datetime, datetime]) -> int:
+        slot_hour = slot[0].hour
+        if pref_start <= slot_hour < pref_end:
+            return 0  # preferred
+        return 1  # non-preferred
+
+    return sorted(free_slots, key=_preference_score)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SESSION FITTING (deterministic)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _fit_sessions_into_slots(
+    free_slots: list[tuple[datetime, datetime]],
+    daily_focus_goal: int,
+    *,
+    max_session_min: int = _DEFAULT_SESSION_MINUTES,
+    min_session_min: int = _MIN_SESSION_MINUTES,
+    break_min: int = _BUFFER_MINUTES,
+) -> list[tuple[datetime, datetime]]:
+    """Create session time windows from free slots to meet the daily focus goal.
+
+    Args:
+        free_slots: Available time windows (already sorted by preference).
+        daily_focus_goal: Target total study minutes for the day.
+        max_session_min: Maximum duration per session.
+        min_session_min: Minimum duration per session (shorter slots are skipped).
+        break_min: Break duration between consecutive sessions within a slot.
+
+    Returns:
+        List of (start, end) tuples for each session.
+    """
+    sessions: list[tuple[datetime, datetime]] = []
+    remaining = daily_focus_goal
+    break_delta = timedelta(minutes=break_min)
+
+    for slot_start, slot_end in free_slots:
+        if remaining <= 0:
+            break
+
+        cursor = slot_start
+        while remaining > 0:
+            available_minutes = int((slot_end - cursor).total_seconds() / 60)
+
+            if available_minutes < min_session_min:
+                break
+
+            # Use the smaller of: max session, remaining goal, available time
+            session_minutes = min(max_session_min, remaining, available_minutes)
+
+            # Don't create tiny sessions unless it's all we need
+            if session_minutes < min_session_min and remaining >= min_session_min:
+                break
+
+            session_end = cursor + timedelta(minutes=session_minutes)
+            sessions.append((cursor, session_end))
+            remaining -= session_minutes
+
+            # Move cursor past the session + break
+            cursor = session_end + break_delta
+
+    logger.info(
+        "Fitted %d sessions (total %d min, goal %d min) into free slots",
+        len(sessions),
+        daily_focus_goal - remaining,
+        daily_focus_goal,
+    )
+    return sessions
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AI SUBJECT ASSIGNMENT (Gemini — for naming only)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _assign_subjects_via_ai(
+    session_slots: list[tuple[datetime, datetime]],
+    day: date,
+    *,
+    daily_focus_goal: int,
+    preferred_schedule: str,
+    preferences: dict[str, Any] | None,
+    class_subjects: list[str],
+) -> list[dict[str, Any]] | None:
+    """Ask Gemini to assign subjects/priorities to pre-computed session slots.
+
+    Returns a list of dicts with slot_index, subject, priority — or None if AI fails.
+    This is purely for naming/personalization; time slots are already fixed.
+    """
+    if not session_slots:
+        return []
+
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    llm = genai.GenerativeModel("gemini-2.5-flash")
+
+    # Build slot descriptions
+    slots_desc = "\n".join(
+        f"  Créneau {i}: {start.strftime('%H:%M')} → {end.strftime('%H:%M')} "
+        f"({int((end - start).total_seconds() / 60)} min)"
+        for i, (start, end) in enumerate(session_slots)
+    )
+
+    # Build class context
+    if class_subjects:
+        class_context = "\n".join(f"- {subj}" for subj in class_subjects)
+    else:
+        class_context = "Aucun cours programmé pour aujourd'hui."
+
+    pref_str = (
+        json.dumps(preferences, ensure_ascii=False)
+        if preferences
+        else "Aucune préférence spécifique."
+    )
+
+    prompt = _PLANNING_PROMPT.format(
+        num_slots=len(session_slots),
+        date_str=day.isoformat(),
+        daily_focus_goal=daily_focus_goal,
+        preferred_schedule=preferred_schedule,
+        preferences=pref_str,
+        class_context=class_context,
+        slots_description=slots_desc,
+    )
+
+    try:
+        response = llm.generate_content(prompt)
+        raw_text = response.text.strip()
+
+        # Strip markdown fences
+        raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
+        raw_text = re.sub(r"\s*```$", "", raw_text)
+        raw_text = raw_text.strip()
+
+        # Extract JSON array
+        match = re.search(r"\[\s*\{.*\}\s*\]", raw_text, re.DOTALL)
+        if match:
+            raw_text = match.group(0)
+
+        assignments = json.loads(raw_text)
+        if isinstance(assignments, list):
+            logger.info(
+                "Gemini assigned subjects for %d/%d slots",
+                len(assignments),
+                len(session_slots),
+            )
+            return assignments
+
+    except json.JSONDecodeError as e:
+        logger.warning("Gemini returned invalid JSON for subject assignment: %s", e)
+    except Exception as e:
+        logger.warning("Gemini subject assignment failed: %s", e)
+
+    return None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DETERMINISTIC FALLBACK (when AI fails or is unavailable)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _deterministic_subject_assignment(
+    session_slots: list[tuple[datetime, datetime]],
+    class_subjects: list[str],
+    preferences: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Generate sensible subject assignments without AI.
+
+    Uses class subjects as revision targets (round-robin), or falls back to
+    generic "Focus Session" labels. Preferences can override subjects if
+    they contain a ``subjects`` key.
+    """
+    # Determine subject pool
+    subject_pool: list[str] = []
+
+    # 1. Explicit subjects from preferences
+    if preferences and isinstance(preferences.get("subjects"), list):
+        subject_pool = [str(s).strip() for s in preferences["subjects"] if s]
+
+    # 2. Revision of today's classes
+    if not subject_pool and class_subjects:
+        subject_pool = [f"Revision: {subj}" for subj in class_subjects]
+
+    # 3. Generic fallback
+    if not subject_pool:
+        subject_pool = ["Focus Session"]
+
+    assignments: list[dict[str, Any]] = []
+    for i in range(len(session_slots)):
+        subject = subject_pool[i % len(subject_pool)]
+        assignments.append({
+            "slot_index": i,
+            "subject": subject,
+            "priority": "medium",
+        })
+
+    return assignments
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# POST-PROCESSING: merge AI assignments with computed slots
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _merge_assignments_with_slots(
+    session_slots: list[tuple[datetime, datetime]],
+    assignments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Combine AI/deterministic subject assignments with pre-computed time slots.
+
+    The resulting sessions have guaranteed valid times (no overlaps, correct date,
+    proper durations) because the slots were computed deterministically. Only the
+    subject names and priorities come from the AI.
+    """
+    # Index assignments by slot_index for fast lookup
+    assignment_map: dict[int, dict[str, Any]] = {}
+    for a in assignments:
+        idx = a.get("slot_index")
+        if isinstance(idx, int) and 0 <= idx < len(session_slots):
+            assignment_map[idx] = a
+
+    result: list[dict[str, Any]] = []
+    for i, (start, end) in enumerate(session_slots):
+        a = assignment_map.get(i, {})
+        subject = str(a.get("subject", "Focus Session")).strip() or "Focus Session"
+        priority = str(a.get("priority", "medium")).lower()
+        if priority not in ("low", "medium", "high"):
+            priority = "medium"
+
+        result.append({
+            "subject": subject,
+            "start": start,
+            "end": end,
+            "priority": priority,
+        })
+
+    return result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TIMETABLE EXTRACTION (AI-powered — appropriate use of LLM)
+# ══════════════════════════════════════════════════════════════════════════════
 
 def _extract_timetable_from_collection(
     collection_name: str,
@@ -233,6 +559,10 @@ def _extract_timetable_from_collection(
     return timetable_blocks
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN ENTRY POINT
+# ══════════════════════════════════════════════════════════════════════════════
+
 def generate_daily_schedule(
     day: date,
     existing_sessions: list[StudySession],
@@ -240,114 +570,122 @@ def generate_daily_schedule(
     preferences: dict[str, Any] | None = None,
     collection_name: str | None = None,
 ) -> list[dict[str, Any]]:
-    """
-    Returns a list of optimal studying sessions that do not overlap with existing blocks.
-    Calls Gemini API to generate the JSON.
-    """
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel('gemini-2.5-flash')
+    """Generate a daily study schedule using deterministic slot computation + AI naming.
 
-    def _blocks_to_str(blocks: list[tuple[str, datetime, datetime]]) -> str:
-        if not blocks:
-            return "Aucun bloc existant pour le moment."
-        return "\n".join(
-            f"- '{title}' : de {start_dt.strftime('%H:%M:%S')} à {end_dt.strftime('%H:%M:%S')}"
-            for title, start_dt, end_dt in blocks
-        )
+    Pipeline:
+      1. Collect all existing blocks (manual sessions + timetable from PDF)
+      2. Compute free slots deterministically (guaranteed no overlaps)
+      3. Fit session windows into free slots (respecting focus goal + durations)
+      4. Ask Gemini to assign subjects/priorities to the pre-computed slots
+      5. Fall back to deterministic naming if Gemini fails
 
-    # Format manual existing constraints
+    Returns:
+        List of session dicts ready to be persisted.
+    """
+    # ── Step 1: Collect all existing blocks ────────────────────────────────
     manual_blocks: list[tuple[str, datetime, datetime]] = []
     for s in existing_sessions or []:
         manual_blocks.append((s.subject, s.start, s.end))
 
     # ── Timetable extraction from PDF via ChromaDB + Gemini ───────────────
     timetable_blocks: list[tuple[str, datetime, datetime]] = []
+    generated_from_timetable: list[dict[str, Any]] = []
+
     if collection_name:
         timetable_blocks = _extract_timetable_from_collection(collection_name, day)
 
-        # If a timetable document is provided and parsed successfully,
-        # return one session per class slot found in the timetable.
         if timetable_blocks:
-            generated_from_timetable: list[dict[str, Any]] = []
             for title, start_dt, end_dt in sorted(timetable_blocks, key=lambda x: x[1]):
-                generated_from_timetable.append(
-                    {
-                        "subject": title,
-                        "start": start_dt,
-                        "end": end_dt,
-                        "priority": "high",
-                    }
-                )
+                generated_from_timetable.append({
+                    "subject": title,
+                    "start": start_dt,
+                    "end": end_dt,
+                    "priority": "high",
+                })
 
-            if generated_from_timetable:
-                logger.info(
-                    "Returning %d sessions directly from timetable extraction.",
-                    len(generated_from_timetable),
-                )
-                return generated_from_timetable
+            logger.info(
+                "Extracted %d class sessions from timetable to use as constraints.",
+                len(generated_from_timetable),
+            )
+        else:
+            raise ValueError(
+                f"Aucun cours n'a pu être extrait du document pour le jour "
+                f"{_FRENCH_DAYS[day.weekday()]} ({day.isoformat()}). "
+                f"Vérifiez que le PDF contient bien un emploi du temps avec ce jour."
+            )
 
-        # Document was provided but extraction yielded nothing
-        raise ValueError(
-            f"Aucun cours n'a pu être extrait du document pour le jour "
-            f"{_FRENCH_DAYS[day.weekday()]} ({day.isoformat()}). "
-            f"Vérifiez que le PDF contient bien un emploi du temps avec ce jour."
-        )
+    # ── Step 2: Compute free slots deterministically ──────────────────────
+    all_blocks = manual_blocks + timetable_blocks
 
-    # ── Fallback: generic Gemini planning (no document provided) ──────────
-    existing_blocks_str = _blocks_to_str(manual_blocks)
-
-    # Format profile data
     daily_focus_goal = profile.daily_focus_goal if profile else 120
     preferred_schedule = profile.preferred_schedule if profile else "morning"
 
-    pref_str = json.dumps(preferences, ensure_ascii=False) if preferences else "Aucune préférence spécifique."
+    free_slots = _compute_free_slots(day, all_blocks)
+    free_slots = _filter_slots_by_preference(free_slots, preferred_schedule)
 
-    prompt = _PLANNING_PROMPT.format(
-        date_str=day.isoformat(),
-        daily_focus_goal=daily_focus_goal,
-        preferred_schedule=preferred_schedule,
-        preferences=pref_str,
-        existing_blocks=existing_blocks_str,
+    logger.info(
+        "Computed %d free slots for %s (blocks: %d manual + %d timetable)",
+        len(free_slots),
+        day.isoformat(),
+        len(manual_blocks),
+        len(timetable_blocks),
+    )
+    for slot_start, slot_end in free_slots:
+        logger.info(
+            "  Free: %s → %s (%d min)",
+            slot_start.strftime("%H:%M"),
+            slot_end.strftime("%H:%M"),
+            int((slot_end - slot_start).total_seconds() / 60),
+        )
+
+    # ── Step 3: Fit session windows into free slots ───────────────────────
+    # Determine session size constraints
+    max_session_min = min(_MAX_SESSION_MINUTES, max(_MIN_SESSION_MINUTES, daily_focus_goal // 2))
+
+    session_slots = _fit_sessions_into_slots(
+        free_slots,
+        daily_focus_goal,
+        max_session_min=max_session_min,
+        min_session_min=_MIN_SESSION_MINUTES,
+        break_min=_BUFFER_MINUTES,
     )
 
-    response = llm.generate_content(prompt)
-    raw_text = response.text.strip()
+    if not session_slots and not generated_from_timetable:
+        logger.warning("No session slots could be fitted for %s", day.isoformat())
+        return []
 
-    # Extract JSON Array using Regex
-    match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
-    if match:
-        raw_text = match.group(0)
+    # ── Step 4: Ask Gemini for subject assignments ────────────────────────
+    class_subjects = [title for title, _, _ in timetable_blocks]
 
-    try:
-        new_sessions = json.loads(raw_text)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Gemini returned invalid JSON (planning): {e}\nRaw output: {raw_text}")
+    ai_assignments = _assign_subjects_via_ai(
+        session_slots,
+        day,
+        daily_focus_goal=daily_focus_goal,
+        preferred_schedule=preferred_schedule,
+        preferences=preferences,
+        class_subjects=class_subjects,
+    )
 
-    # Validate schema loosely and convert to datetime objects
-    validated = []
-    for item in new_sessions:
-        if "subject" in item and "start" in item and "end" in item:
-            try:
-                dt_start = datetime.fromisoformat(item["start"])
-                dt_end = datetime.fromisoformat(item["end"])
-                
-                # Correct AI hallucinations overriding the day
-                if dt_start.date() != day:
-                    dt_start = datetime.combine(day, dt_start.time())
-                if dt_end.date() != day:
-                    dt_end = datetime.combine(day, dt_end.time())
+    # ── Step 5: Fallback if AI fails ──────────────────────────────────────
+    if ai_assignments is None:
+        logger.info("Using deterministic fallback for subject assignment on %s", day.isoformat())
+        ai_assignments = _deterministic_subject_assignment(
+            session_slots,
+            class_subjects,
+            preferences,
+        )
 
-                # Double check to prevent inverted start/end dates
-                if dt_end <= dt_start:
-                    continue
+    # ── Step 6: Merge assignments with pre-computed slots ─────────────────
+    study_sessions = _merge_assignments_with_slots(session_slots, ai_assignments)
 
-                validated.append({
-                    "subject": item["subject"].strip() or "Focus Session",
-                    "start": dt_start,
-                    "end": dt_end,
-                    "priority": item.get("priority", "medium").lower()
-                })
-            except Exception:
-                continue
+    logger.info(
+        "Generated %d study sessions for %s "
+        "(%d from timetable + %d revision, focus goal: %d min)",
+        len(generated_from_timetable) + len(study_sessions),
+        day.isoformat(),
+        len(generated_from_timetable),
+        len(study_sessions),
+        daily_focus_goal,
+    )
 
-    return validated
+    return generated_from_timetable + study_sessions

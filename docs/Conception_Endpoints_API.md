@@ -1,64 +1,64 @@
-# 🌐 Diagramme des Endpoints API – Smart Focus & Life Assistant
+# 🌐 Endpoints API – Smart Focus & Life Assistant
 
-**Version** : 1.0  
-**Date** : 01 Mars 2026  
-**Base URL** : `http://localhost:8000/api/v1`  
-**Framework** : FastAPI + OpenAPI (Swagger auto-généré)
+**Version** : 2.0  
+**Date** : 9 Avril 2026  
+**Base URL** : `http://localhost:8000`  
+**Framework** : FastAPI + OpenAPI (Swagger : `/docs`, ReDoc : `/redoc`)
+
+> ⚠️ Les endpoints `/chatbot/*` n'ont pas de préfixe `/api/v1/`. Tous les autres utilisent `/api/v1/`.
 
 ---
 
-## 1. Vue Globale des Endpoints
+## 1. Vue Globale des Endpoints Actifs
 
 ```mermaid
 graph LR
-    CLIENT["🖥 Client\n(Flutter / ESP32)"]
+    CLIENT["🖥 Client\n(Flutter App)"]
 
-    subgraph AUTH_GRP["🔐 /auth"]
+    subgraph AUTH_GRP["🔐 /api/v1/auth"]
         A1["POST /register"]
         A2["POST /login"]
-        A3["POST /refresh"]
-        A4["POST /logout"]
-        A5["GET  /me"]
+        A3["GET  /me"]
+        A4["PUT  /me/profile"]
     end
 
-    subgraph FOCUS_GRP["🎯 /focus"]
-        F1["POST /session/start"]
-        F2["PATCH /session/{id}/stop"]
-        F3["POST /session/{id}/frame"]
-        F4["GET  /session/{id}/score"]
-        F5["GET  /sessions"]
-        F6["GET  /stats"]
-    end
-
-    subgraph POSTURE_GRP["🧍 /posture"]
-        P1["GET  /stats"]
-        P2["GET  /history"]
-    end
-
-    subgraph PLANNING_GRP["📅 /planning"]
+    subgraph PLANNING_GRP["📅 /api/v1/planning"]
         PL1["GET  /today"]
-        PL2["POST /generate"]
-        PL3["GET  /{date}"]
-        PL4["POST /sessions"]
-        PL5["PATCH /sessions/{id}"]
-        PL6["DELETE /sessions/{id}"]
+        PL2["GET  /{date}"]
+        PL3["POST /generate"]
+        PL4["POST /generate/week"]
+        PL5["GET  /insights"]
+        PL6["POST /sessions"]
+        PL7["PATCH /sessions/{id}"]
+        PL8["PATCH /sessions/{id}/complete"]
+        PL9["DELETE /sessions/{id}"]
+        PL10["POST /reschedule/{id}"]
+        PL11["GET  /exams"]
+        PL12["POST /exams"]
+        PL13["DELETE /exams/{id}"]
     end
 
     subgraph CHATBOT_GRP["💬 /chatbot"]
-        C1["POST /ask"]
-        C2["GET  /conversations"]
-        C3["GET  /conversations/{id}"]
-        C4["DELETE /conversations/{id}"]
-        C5["POST /documents/upload"]
-        C6["GET  /documents"]
-        C7["DELETE /documents/{id}"]
-        C8["POST /quiz/generate"]
-        C9["POST /flashcards/generate"]
-        C10["GET  /flashcards/review"]
-        C11["POST /flashcards/{id}/review"]
+        C1["POST /upload"]
+        C2["GET  /documents"]
+        C3["DELETE /documents/{id}"]
+        C4["POST /chat"]
+        C5["GET  /history"]
     end
 
-    subgraph SLEEP_GRP["🌙 /sleep"]
+    subgraph QUIZ_GRP["🧠 /api/v1/quiz"]
+        Q1["POST /generate"]
+        Q2["POST /{id}/submit"]
+        Q3["GET  /"]
+    end
+
+    subgraph FLASH_GRP["🃏 /api/v1/flashcards"]
+        F1["POST /generate"]
+        F2["GET  /due"]
+        F3["POST /{id}/review"]
+    end
+
+    subgraph SLEEP_GRP["🌙 /api/v1/sleep"]
         S1["POST /log"]
         S2["GET  /stats"]
         S3["GET  /history"]
@@ -66,40 +66,26 @@ graph LR
         S5["GET  /alarm"]
     end
 
-    subgraph DEVICE_GRP["📡 /device"]
-        D1["POST /register"]
-        D2["GET  /status"]
-        D3["POST /command"]
-    end
-
-    subgraph WS_GRP["⚡ WebSocket"]
-        WS1["WS /ws/realtime"]
-    end
-
     CLIENT --> AUTH_GRP
-    CLIENT --> FOCUS_GRP
-    CLIENT --> POSTURE_GRP
     CLIENT --> PLANNING_GRP
     CLIENT --> CHATBOT_GRP
+    CLIENT --> QUIZ_GRP
+    CLIENT --> FLASH_GRP
     CLIENT --> SLEEP_GRP
-    CLIENT --> DEVICE_GRP
-    CLIENT <--> WS_GRP
 ```
 
 ---
 
-## 2. Détail Complet par Groupe
+## 2. Détail par Module
 
 ### 🔐 Authentification (`/api/v1/auth`)
 
 | Méthode | Endpoint | Auth? | Description | Body | Réponse |
 |---------|----------|-------|-------------|------|---------|
 | `POST` | `/register` | ❌ | Créer un compte | `{email, password, full_name}` | `{access_token, user}` |
-| `POST` | `/login` | ❌ | Se connecter | `{email, password}` (form) | `{access_token, refresh_token}` |
-| `POST` | `/refresh` | ❌ | Renouveler token | `{refresh_token}` | `{access_token}` |
-| `POST` | `/logout` | ✅ | Déconnecter | — | `{message}` |
-| `GET`  | `/me` | ✅ | Profil courant | — | `{user, profile}` |
-| `PUT`  | `/me/profile` | ✅ | MAJ préférences | `{daily_goal, schedule, ...}` | `{profile}` |
+| `POST` | `/login` | ❌ | Se connecter (form) | `{email, password}` | `{access_token, token_type}` |
+| `GET` | `/me` | ✅ | Profil courant + préférences | — | `{user, profile}` |
+| `PUT` | `/me/profile` | ✅ | Mettre à jour préférences | `{daily_focus_goal, preferred_schedule, notif_enabled}` | `{profile}` |
 
 ```mermaid
 sequenceDiagram
@@ -107,107 +93,166 @@ sequenceDiagram
     participant API as /auth
 
     APP->>API: POST /register {email, password, full_name}
-    API-->>APP: 201 {access_token, refresh_token, user}
+    API-->>APP: 201 {access_token, user}
 
     APP->>API: POST /login {email, password}
-    API-->>APP: 200 {access_token, refresh_token}
+    API-->>APP: 200 {access_token, token_type: "bearer"}
 
-    note over APP: access_token expire dans 30min
-    APP->>API: POST /refresh {refresh_token}
-    API-->>APP: 200 {access_token}
+    note over APP: Token stocké localement (Hive)
+    APP->>API: GET /me (Authorization: Bearer <token>)
+    API-->>APP: 200 {user, profile}
 ```
 
 ---
 
-### 🎯 Sessions Focus (`/api/v1/focus`)
+### 💬 Chatbot RAG (`/chatbot`)
+
+> Note: Ce routeur n'a pas de préfixe `/api/v1/`.
 
 | Méthode | Endpoint | Auth? | Description | Body | Réponse |
 |---------|----------|-------|-------------|------|---------|
-| `POST` | `/session/start` | ✅ | Démarrer session | `{device_id?}` | `{session_id, status}` |
-| `PATCH` | `/session/{id}/stop` | ✅ | Arrêter session | — | `{session, avg_score}` |
-| `PATCH` | `/session/{id}/pause` | ✅ | Mettre en pause | — | `{status}` |
-| `PATCH` | `/session/{id}/resume` | ✅ | Reprendre | — | `{status}` |
-| `POST` | `/session/{id}/frame` | ✅ | Envoyer frame ESP32 | `{image_base64, sensors?}` | `{score, alerts}` |
-| `GET` | `/session/{id}/score` | ✅ | Score actuel | — | `{score, posture, fatigue}` |
-| `GET` | `/sessions` | ✅ | Historique sessions | `?limit=20&skip=0` | `[sessions]` |
-| `GET` | `/stats` | ✅ | Statistiques focus | `?period=week` | `{avg, trend, best}` |
+| `POST` | `/upload` | ✅ | Upload PDF ou CSV emploi du temps | `multipart/form-data` (file) | `{message, document}` |
+| `GET` | `/documents` | ✅ | Lister les documents de l'utilisateur | — | `[DocumentInfo]` |
+| `DELETE` | `/documents/{id}` | ✅ | Supprimer document (DB + disque + ChromaDB) | — | `{message, document_id}` |
+| `POST` | `/chat` | ✅ | Poser une question (RAG ou général) | `{question, document_ids?: [int]}` | `{answer, sources[], message_id}` |
+| `GET` | `/history` | ✅ | Historique des échanges du user | `?limit=20` | `[ChatMessageInfo]` |
 
-```mermaid
-sequenceDiagram
-    participant ESP as ESP32-CAM
-    participant API as /focus
-    participant ML as MLService
-    participant WS as WebSocket
+**Modes de chat :**
+- `document_ids` vide → mode général (IA directe, sans RAG)
+- `document_ids` rempli → mode RAG (recherche dans ChromaDB + génération de réponse ancrée)
 
-    API-->>ESP: session_id = 42
-    loop Chaque 500ms
-        ESP->>API: POST /session/42/frame {image_base64}
-        API->>ML: analyze(image)
-        ML-->>API: {posture: 85, fatigue: 0.2, attention: 0.9}
-        API-->>ESP: 200 {score: 87, alert: null}
-        API->>WS: broadcast({session: 42, score: 87})
-    end
-```
-
----
-
-### 🧍 Posture (`/api/v1/posture`)
-
-| Méthode | Endpoint | Auth? | Description | Réponse |
-|---------|----------|-------|-------------|---------|
-| `GET` | `/stats` | ✅ | Stats posture du jour | `{good_pct, alerts, corrections}` |
-| `GET` | `/history` | ✅ | Historique posture | `?period=week` → `[daily_stats]` |
-| `GET` | `/alerts` | ✅ | Alertes récentes | `[{type, body_part, time}]` |
-
----
-
-### 📅 Planning Intelligent (`/api/v1/planning`)
-
-| Méthode | Endpoint | Auth? | Description | Body | Réponse |
-|---------|----------|-------|-------------|------|---------|
-| `GET` | `/today` | ✅ | Planning du jour | — | `{planning, sessions[]}` |
-| `GET` | `/{date}` | ✅ | Planning d'une date | — | `{planning, sessions[]}` |
-| `POST` | `/generate` | ✅ | Générer avec IA | `{date, preferences?}` | `{planning, sessions[]}` |
-| `POST` | `/sessions` | ✅ | Ajouter une session | `{subject, start, end, priority}` | `{session}` |
-| `PATCH` | `/sessions/{id}` | ✅ | Modifier session | `{status?, notes?}` | `{session}` |
-| `DELETE` | `/sessions/{id}` | ✅ | Supprimer session | — | `204 No Content` |
-| `PATCH` | `/sessions/{id}/complete` | ✅ | Marquer terminée | — | `{session}` |
-
----
-
-### 💬 Chatbot RAG (`/api/v1/chatbot`)
-
-| Méthode | Endpoint | Auth? | Description | Body | Réponse |
-|---------|----------|-------|-------------|------|---------|
-| `POST` | `/ask` | ✅ | Poser une question | `{question, conversation_id?, doc_ids?}` | `{answer, sources[], conversation_id}` |
-| `GET` | `/conversations` | ✅ | Liste conversations | — | `[conversations]` |
-| `GET` | `/conversations/{id}` | ✅ | Historique chat | — | `{conversation, messages[]}` |
-| `DELETE` | `/conversations/{id}` | ✅ | Suppr. conversation | — | `204` |
-| `POST` | `/documents/upload` | ✅ | Upload PDF/cours | `multipart/form-data` | `{document, chunks_count}` |
-| `GET` | `/documents` | ✅ | Mes documents | — | `[documents]` |
-| `DELETE` | `/documents/{id}` | ✅ | Suppr. document | — | `204` |
-| `POST` | `/quiz/generate` | ✅ | Générer quiz | `{document_id, num_questions?}` | `{quiz, questions[]}` |
-| `POST` | `/quiz/{id}/submit` | ✅ | Soumettre réponses | `{answers: [0,2,1,...]}` | `{score, corrections[]}` |
-| `POST` | `/flashcards/generate` | ✅ | Générer flashcards | `{document_id, count?}` | `[flashcards]` |
-| `GET` | `/flashcards/review` | ✅ | Cartes à réviser | — | `[flashcards due today]` |
-| `POST` | `/flashcards/{id}/review` | ✅ | Soumettre révision | `{ease: 0-5}` | `{next_review, difficulty}` |
+**Formats de fichier acceptés pour `/upload` :**
+- `.pdf` → ingestion ChromaDB (chunking + embedding Gemini)
+- `.csv` → validation schema (`week, day, start, end, subject`) pour emploi du temps
 
 ```mermaid
 sequenceDiagram
     participant APP as Flutter App
     participant API as /chatbot
     participant RAG as RAGService
-    participant OAI as OpenAI API
     participant DB as ChromaDB
+    participant LLM as Gemini API
 
-    APP->>API: POST /ask {question: "Explique la mitose"}
-    API->>RAG: query(question)
-    RAG->>DB: semanticSearch(embedding)
+    APP->>API: POST /upload {file: cours.pdf}
+    API->>RAG: ingest_pdf(file_path, collection)
+    RAG->>LLM: embed(chunks)
+    RAG->>DB: store(vectors)
+    API-->>APP: 201 {document, "12 pages ingested"}
+
+    APP->>API: POST /chat {question, document_ids: [1]}
+    API->>RAG: query_rag(question, collections)
+    RAG->>DB: similarity_search(embedding)
     DB-->>RAG: [chunk1, chunk2, chunk3]
-    RAG->>OAI: generateAnswer(question + chunks)
-    OAI-->>RAG: "La mitose est..."
+    RAG->>LLM: generate(question + chunks)
+    LLM-->>RAG: "La mitose est..."
     RAG-->>API: {answer, sources}
-    API-->>APP: 200 {answer, sources: ["Bio_Ch3.pdf p.12"]}
+    API-->>APP: 200 {answer, sources: [{filename, page, excerpt}]}
+```
+
+---
+
+### 🧠 Quiz (`/api/v1/quiz`)
+
+| Méthode | Endpoint | Auth? | Description | Body | Réponse |
+|---------|----------|-------|-------------|------|---------|
+| `POST` | `/generate` | ✅ | Générer un quiz depuis document(s) | `{document_id, num_questions?: int}` | `{quiz, questions[]}` |
+| `POST` | `/{id}/submit` | ✅ | Soumettre les réponses | `{answers: [0, 2, 1, ...]}` | `{score, corrections[]}` |
+| `GET` | `/` | ✅ | Lister mes quiz | — | `[Quiz]` |
+
+**Structure d'une question QCM :**
+```json
+{
+  "question_text": "Qu'est-ce que la mitose ?",
+  "options": ["Division cellulaire", "Photosynthèse", "Respiration", "Fermentation"],
+  "correct_index": 0,
+  "explanation": "La mitose est le processus de division cellulaire..."
+}
+```
+
+---
+
+### 🃏 Flashcards SM-2 (`/api/v1/flashcards`)
+
+| Méthode | Endpoint | Auth? | Description | Body | Réponse |
+|---------|----------|-------|-------------|------|---------|
+| `POST` | `/generate` | ✅ | Générer des flashcards depuis doc | `{document_id, count?: int}` | `[Flashcard]` |
+| `GET` | `/due` | ✅ | Cartes dues aujourd'hui (SM-2) | — | `[Flashcard]` |
+| `POST` | `/{id}/review` | ✅ | Soumettre une révision | `{ease: 0-5}` | `{next_review, interval, repetitions}` |
+
+**Algorithme SM-2 :**
+- `ease 0-1` → répétition immédiate (difficile)
+- `ease 2` → lendemain
+- `ease 3-5` → intervalle multiplié par `ease_factor` (2.5 par défaut)
+
+---
+
+### 📅 Planning Intelligent (`/api/v1/planning`)
+
+| Méthode | Endpoint | Auth? | Description | Body |
+|---------|----------|-------|-------------|------|
+| `GET` | `/today` | ✅ | Planning du jour courant | — |
+| `GET` | `/{date}` | ✅ | Planning d'une date (`YYYY-MM-DD`) | — |
+| `POST` | `/generate` | ✅ | Générer planning IA pour 1 jour | voir ci-dessous |
+| `POST` | `/generate/week` | ✅ | Générer planning IA pour 7 jours | voir ci-dessous |
+| `GET` | `/insights` | ✅ | Stats et recommandations | `?period=week\|month` |
+| `POST` | `/sessions` | ✅ | Créer session manuelle | `{subject, start, end, priority, document_id?}` |
+| `PATCH` | `/sessions/{id}` | ✅ | Modifier une session | `{status?, notes?, subject?}` |
+| `PATCH` | `/sessions/{id}/complete` | ✅ | Marquer comme terminée | — |
+| `DELETE` | `/sessions/{id}` | ✅ | Supprimer une session | — |
+| `POST` | `/reschedule/{id}` | ✅ | Replanifier session manquée/annulée | — |
+| `GET` | `/exams` | ✅ | Lister les examens à venir | — |
+| `POST` | `/exams` | ✅ | Créer un examen | `{title, exam_date, document_id?}` |
+| `DELETE` | `/exams/{id}` | ✅ | Supprimer un examen | — |
+
+**Body `/generate` et `/generate/week` :**
+```json
+{
+  "date": "2026-04-09",
+  "document_id": 3,
+  "week_type": "A",
+  "exam_ids": [1, 2],
+  "preferences": {
+    "subjects": ["Mathématiques", "Physique"]
+  }
+}
+```
+
+**Logique de génération (mode CSV) :**
+```mermaid
+flowchart TD
+    A[POST /generate] --> B{document_id fourni ?}
+    B -- Non --> C[Génération Gemini générique]
+    B -- Oui --> D{Fichier CSV ?}
+    D -- Oui --> E[parse_csv_schedule]
+    D -- Non --> F[Extraction PDF via ChromaDB + Gemini]
+    E --> G[class_sessions pour le jour]
+    F --> G
+    G --> H[_get_sleep_profile]
+    H --> I{Score sommeil}
+    I -- ≥80 --> J[50min/session, 6 max]
+    I -- <50 --> K[25min/session, 2 max]
+    I -- Autre --> L[35min/session, 4 max]
+    J & K & L --> M[_compute_free_slots]
+    M --> N[_build_revision_sessions]
+    N --> O[Révisions cours + examens + flashcards + quiz faibles]
+    O --> P[Sauvegarder en DB]
+    P --> Q[PlanningDayOut]
+```
+
+**Body `/insights` — exemple de réponse :**
+```json
+{
+  "period": "week",
+  "total_study_minutes": 420,
+  "completed_sessions": 8,
+  "skipped_sessions": 2,
+  "completion_rate": 0.8,
+  "avg_sleep_score": 72.5,
+  "sleep_study_correlation": "positive",
+  "weakest_subject": "Chimie_Organique.pdf",
+  "strongest_subject": "Mathématiques.pdf",
+  "recommendation": "Votre taux de complétion est plus fort le matin. Essayez de réduire les sessions le soir."
+}
 ```
 
 ---
@@ -216,80 +261,57 @@ sequenceDiagram
 
 | Méthode | Endpoint | Auth? | Description | Body | Réponse |
 |---------|----------|-------|-------------|------|---------|
-| `POST` | `/log` | ✅ | Enregistrer nuit | `{sleep_start, sleep_end, raw_data?}` | `{record, score}` |
-| `GET` | `/stats` | ✅ | Stats sommeil | `?period=week` | `{avg_hours, score_avg, trend}` |
-| `GET` | `/history` | ✅ | Historique nuits | `?limit=30` | `[sleep_records]` |
-| `PUT` | `/alarm` | ✅ | Config réveil | `{alarm_time, wake_mode, light_intensity}` | `{alarm}` |
-| `GET` | `/alarm` | ✅ | Config actuelle | — | `{alarm}` |
+| `POST` | `/log` | ✅ | Enregistrer une nuit | `{sleep_start, sleep_end, raw_data?}` | `{record, sleep_score}` |
+| `GET` | `/stats` | ✅ | Statistiques de sommeil | `?period=week\|month` | `{avg_hours, score_avg, trend}` |
+| `GET` | `/history` | ✅ | Historique des nuits | `?limit=30` | `[SleepRecord]` |
+| `PUT` | `/alarm` | ✅ | Créer/maj config alarme | `{alarm_time, wake_mode, light_intensity, sound_enabled}` | `{alarm}` |
+| `GET` | `/alarm` | ✅ | Lire la config alarme | — | `{alarm}` |
+
+**Paramètres alarme :**
+- `alarm_time` : format `"HH:MM"`
+- `wake_mode` : `"gradual"` | `"normal"` | `"silent"`
+- `light_intensity` : `0–100`
 
 ---
 
-### 📡 Device IoT (`/api/v1/device`)
-
-| Méthode | Endpoint | Auth? | Description | Body | Réponse |
-|---------|----------|-------|-------------|------|---------|
-| `POST` | `/register` | ✅ | Enregistrer ESP32 | `{device_id, firmware_version}` | `{device, api_key}` |
-| `GET` | `/status` | ✅ | État du boîtier | — | `{status, last_seen, firmware}` |
-| `POST` | `/command` | ✅ | Envoyer commande | `{led_color?, vibrate?, sound?}` | `{sent: true}` |
-
----
-
-### ⚡ WebSocket Temps Réel (`/ws/realtime`)
-
-```
-WS /ws/realtime?token={access_token}
-```
-
-#### Messages serveur → client (push)
-
-```json
-// Score focus mis à jour
-{"type": "focus_update", "data": {"score": 87, "posture": 85, "fatigue": 0.2}}
-
-// Alerte déclenchée
-{"type": "alert", "data": {"type": "posture", "message": "Redressez le dos", "severity": "warning"}}
-
-// Session terminée
-{"type": "session_end", "data": {"session_id": 42, "average_score": 78, "duration": 3600}}
-
-// Suggestion micro-pause
-{"type": "micro_break", "data": {"reason": "45min ininterrompues", "duration": 300}}
-```
-
-#### Messages client → serveur
-
-```json
-// Ping keepalive
-{"type": "ping"}
-
-// Acquitter une alerte
-{"type": "ack_alert", "data": {"alert_id": 15}}
-```
-
----
-
-## 3. Codes de Statut HTTP
-
-| Code | Signification |
-|------|---------------|
-| `200` | Succès |
-| `201` | Créé avec succès |
-| `204` | Supprimé (pas de contenu) |
-| `400` | Données invalides |
-| `401` | Non authentifié (token manquant/expiré) |
-| `403` | Accès refusé (pas propriétaire) |
-| `404` | Ressource introuvable |
-| `422` | Erreur de validation Pydantic |
-| `500` | Erreur interne serveur |
-
----
-
-## 4. Authentification JWT
+## 3. Authentification JWT
 
 ```
 Authorization: Bearer <access_token>
 ```
 
 - **Access token** : expire dans **30 minutes**
-- **Refresh token** : expire dans **7 jours**
-- Stockage Flutter : `flutter_secure_storage`
+- Stockage Flutter : `Hive` (local storage sécurisé)
+- Rôles : `student` | `teacher` | `professional`
+
+---
+
+## 4. Codes de Statut HTTP
+
+| Code | Signification |
+|------|---------------|
+| `200` | Succès |
+| `201` | Ressource créée |
+| `204` | Suppression réussie (pas de contenu) |
+| `400` | Requête invalide |
+| `401` | Non authentifié (token manquant/expiré) |
+| `403` | Accès refusé |
+| `404` | Ressource introuvable |
+| `409` | Conflit (ex: aucun créneau libre pour reschedule) |
+| `422` | Erreur de validation (Pydantic ou logique métier) |
+| `500` | Erreur interne serveur |
+
+---
+
+## 5. Endpoints Planifiés (Non Encore Implémentés)
+
+| Module | Endpoint | Raison du report |
+|--------|----------|-----------------|
+| WebSocket | `WS /ws/realtime` | Frontend prêt, backend non finalisé |
+| Device IoT | `/api/v1/device/*` | Bloqué en attente hardware Personne 1 |
+| Focus Sessions | `/api/v1/focus/*` | Dépend de l'ESP32-CAM |
+| Posture | `/api/v1/posture/*` | Dépend du ML Personne 1 |
+
+---
+
+*Mis à jour le 9 Avril 2026 — Smart Focus & Life Assistant*

@@ -1,0 +1,811 @@
+\documentclass[12pt,a4paper]{report}
+
+% Encodage et langue
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{xcolor}
+
+% Mise en page
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{parskip}
+\setstretch{1.2}
+
+% Liens et PDF
+\usepackage[hidelinks]{hyperref}
+
+% Acronymes
+\usepackage{acronym}
+
+\begin{document}
+
+\begin{acronym}
+    \acro{IA}{Intelligence Artificielle}
+    \acro{IoT}{Internet des Objets}
+    \acro{APII}{Agence de Promotion de l'Industrie et de l'Innovation}
+    \acro{RAG}{Retrieval-Augmented Generation}
+    \acro{JWT}{JSON Web Token}
+    \acro{API}{Application Programming Interface}
+    \acro{LLM}{Large Language Model}
+\end{acronym}
+
+\tableofcontents
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% INTRODUCTION GÉNÉRALE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\chapter*{Introduction Générale}
+\addcontentsline{toc}{chapter}{Introduction Générale}
+
+Face à l'avancée rapide des technologies digitales, telles que l'intelligence artificielle et l'Internet des objets, on assiste à l'émergence de nouvelles solutions intelligentes destinées à accompagner l'utilisateur dans ses tâches de tous les jours. Dans les contextes académiques et professionnels, les utilisateurs sont de plus en plus amenés à accomplir des activités qui requièrent de longues périodes de concentration, qu'il s'agisse d'étudier, de coder, d'analyser ou de travailler en général.
+
+Toutefois, ces longues sessions de concentration intense peuvent causer divers problèmes tels que l'épuisement, les postures inappropriées, la diminution graduelle de la concentration et de la productivité ou encore les interruptions. Ces phénomènes se manifestent généralement graduellement et ne sont pas systématiquement décelés immédiatement par l'usager.
+
+Lors des longues sessions d'étude ou de travail nécessitant une concentration soutenue, l'utilisateur subit souvent une dégradation progressive de son attention due à la fatigue, aux mauvaises postures ou aux distractions, sans en être immédiatement conscient.
+
+Malgré l'existence de certaines solutions dédiées à la productivité, celles-ci restent limitées car elles se concentrent principalement sur la gestion du temps ou le blocage des distractions numériques, sans analyser le comportement réel de l'utilisateur ni son état physique et cognitif. D'où la nécessité de concevoir un système intelligent capable d'observer et d'interpréter plusieurs indicateurs comportementaux afin d'évaluer de manière fiable le niveau de concentration.
+
+Le projet \textbf{Smart Focus} a pour objectif de concevoir et développer un système intelligent capable d'observer, analyser et accompagner l'utilisateur durant ses sessions de travail ou d'étude. Il repose sur la combinaison de la vision par ordinateur, de l'intelligence artificielle et des technologies IoT afin de détecter des indicateurs tels que la posture, les signes de fatigue et les situations de distraction.
+
+Le système vise à fournir une évaluation continue et fiable du niveau de concentration, accompagnée d'un feedback en temps réel, dans le but d'améliorer la productivité, la qualité du travail et le bien-être de l'utilisateur.
+
+Pour la réalisation de ce projet, une méthodologie agile basée sur Scrum a été adoptée. Cette approche permet d'organiser le travail en sprints et d'assurer une progression incrémentale du système tout en facilitant l'adaptation aux besoins évolutifs.
+
+Ce mémoire est organisé en plusieurs chapitres complémentaires, chacun abordant une étape spécifique du projet :
+
+\begin{itemize}
+    \item \textbf{Chapitre 1 : Cadre général du projet} \\
+    Ce chapitre introduit le contexte du travail, précise la problématique étudiée et présente les besoins ainsi que l'étude de l'existant ayant orienté la conception du système.
+
+    \item \textbf{Chapitre 2 : Analyse et conception} \\
+    Il est consacré à la modélisation du système, à la définition de son architecture ainsi qu'à l'élaboration des différents diagrammes nécessaires à sa conception.
+
+    \item \textbf{Chapitre 3 : Réalisation du système} \\
+    Ce chapitre décrit les aspects techniques du projet, notamment l'implémentation des différentes composantes et les outils utilisés pour le développement.
+
+    \item \textbf{Chapitre 4 : Résultats et perspectives} \\
+    Il présente les résultats obtenus, les tests effectués ainsi qu'une discussion sur les améliorations possibles et les extensions futures du système.
+\end{itemize}
+
+Tout au long de ce travail, nous mettons en évidence les choix réalisés, les contraintes rencontrées ainsi que les solutions adoptées pour mener à bien ce projet.
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHAPITRE 1
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\chapter{Cadre général du projet}
+
+\section{Introduction}
+Ce chapitre établit les fondements du projet en exposant son contexte global, les raisons qui ont inspiré sa conception et les besoins primordiaux détectés. Il offre aussi la possibilité de situer le projet en comparaison avec les solutions déjà existantes et d'expliquer les décisions prises. Finalement, il présente la démarche suivie et la structure générale du travail.
+
+\section{Présentation du cadre du projet}
+
+\subsection{Contexte général}
+Avec le progrès des technologies digitales, les espaces de travail et d'étude exigent de plus en plus des tâches requérant une concentration prolongée. Ces tâches nécessitent une interaction constante avec des systèmes informatiques, ce qui peut provoquer des conséquences indésirables comme la lassitude, le manque de concentration ou l'adoption de postures inadaptées.
+
+Les progrès en matière d'intelligence artificielle et de vision informatique permettent actuellement d'examiner le comportement humain en temps réel. De plus, l'Internet des objets offre la possibilité d'incorporer ces compétences dans des appareils intelligents aptes à soutenir l'utilisateur de façon proactive.
+
+\subsection{Domaine d'application}
+Le projet se positionne dans le champ d'application des systèmes intelligents qui allient l'\ac{IA} et l'\ac{IoT}. Il a pour objectif d'utiliser des données visuelles et comportementales pour mesurer le niveau de concentration de l'utilisateur et augmenter son efficacité durant les sessions d'étude ou de travail.
+
+\section{Présentation de l'entreprise d'accueil}
+La Pépinière d'Entreprises \ac{APII} Mahdia est une structure d'accompagnement dédiée à la création et au développement de projets innovants. Elle est implantée au sein de l'Espace Universitaire de l'ISET Mahdia et relève de l'Agence de Promotion de l'Industrie et de l'Innovation (\ac{APII}), organisme public tunisien placé sous la tutelle du Ministère de l'Industrie.
+
+Cette pépinière a pour mission de soutenir les porteurs de projets et les startups en phase de lancement, en leur offrant un environnement favorable à l'innovation et à la croissance. Elle propose un accompagnement adapté comprenant des formations spécialisées, un encadrement technique et entrepreneurial, ainsi que l'accès à des ressources matérielles et à un réseau de partenaires professionnels.
+
+Grâce à cet écosystème, la Pépinière APII Mahdia joue un rôle important dans la promotion de l'innovation, notamment dans les domaines technologiques tels que l'Internet des objets et l'intelligence artificielle. Elle constitue ainsi un cadre propice à la réalisation de projets académiques et professionnels.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\textwidth]{figures/pep_logo.png}
+    \caption{Logo de la Pépinière APII Mahdia}
+\end{figure}
+
+\section{Problématique}
+Lors des longues sessions de travail ou d'étude nécessitant un effort cognitif soutenu, l'utilisateur subit souvent une dégradation progressive de sa concentration sans en être pleinement conscient. Cette diminution, liée à des facteurs tels que la fatigue, les distractions ou les mauvaises postures, affecte directement la qualité du travail et le bien-être de l'utilisateur.
+
+En l'absence d'un système capable de détecter et d'interpréter ces changements en temps réel, il devient difficile d'évaluer l'état réel de concentration et d'agir de manière adaptée. Cette lacune constitue un frein majeur à l'optimisation de la productivité et met en évidence la nécessité de développer une solution intelligente capable d'analyser le comportement de l'utilisateur de manière continue et fiable.
+
+\section{Étude et critique de l'existant}
+Dans cette section, nous analysons les solutions existantes liées à l'amélioration de la concentration et du bien-être de l'utilisateur, afin d'identifier leurs apports ainsi que leurs limites. Cette étude permet de positionner notre solution par rapport aux approches actuelles.
+
+\subsection{Analyse des solutions existantes}
+Plusieurs solutions ont été développées dans le but d'améliorer la productivité ou de surveiller le comportement de l'utilisateur. Ces solutions peuvent être classées en différentes catégories :
+
+\begin{itemize}
+    \item \textbf{Applications de gestion du temps} : telles que les applications basées sur la technique Pomodoro, qui aident à structurer les sessions de travail.
+    \item \textbf{Applications de posture} : comme SitSense ou Zen Posture, qui utilisent la caméra pour analyser la position de l'utilisateur.
+    \item \textbf{Dispositifs portables (wearables)} : tels que Fitbit ou Oura, permettant de suivre certains indicateurs physiologiques liés à la fatigue ou au sommeil.
+    \item \textbf{Approches académiques} : basées sur la vision par ordinateur (MediaPipe, YOLO), permettant de détecter la posture, la fatigue ou l'attention.
+\end{itemize}
+
+\subsection{Comparaison des solutions existantes}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\textbf{Solution} & \textbf{Posture} & \textbf{Fatigue} & \textbf{Distraction} & \textbf{Temps réel} & \textbf{Multimodal} \\
+\hline
+SitSense / Zen Posture  & $\checkmark$ & $\times$ & $\times$ & $\checkmark$ & $\times$ \\
+\hline
+Wearables (Fitbit, Oura) & $\times$ & $\checkmark$ & $\times$ & $\checkmark$ & $\times$ \\
+\hline
+Approches académiques    & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\times$ \\
+\hline
+Applications productivité & $\times$ & $\times$ & $\checkmark$ & $\times$ & $\times$ \\
+\hline
+\textbf{Smart Focus}     & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+\hline
+\end{tabular}
+\caption{Comparaison des solutions existantes}
+\label{tab:comparaison_solutions_existantes}
+\end{table}
+
+\subsection{Limites des solutions existantes}
+L'analyse des solutions actuelles montre qu'elles présentent plusieurs limitations. La plupart se concentrent sur un seul aspect, comme la posture ou la gestion du temps, sans offrir une vision globale du comportement de l'utilisateur.
+
+De plus, certaines solutions reposent uniquement sur des capteurs ou des applications logicielles, sans intégrer une approche combinant plusieurs sources de données. Cela limite la précision et la pertinence des résultats obtenus.
+
+\subsection{Positionnement de la solution proposée}
+Contrairement aux solutions existantes, le projet Smart Focus adopte une approche intégrée basée sur la combinaison de plusieurs technologies, notamment la vision par ordinateur, les capteurs embarqués et l'intelligence artificielle.
+
+Le système propose une analyse globale et continue du comportement de l'utilisateur, tout en intégrant des fonctionnalités avancées telles que la planification intelligente, l'assistance pédagogique (chatbot \ac{RAG}) et l'accompagnement via un agent vocal.
+
+Cette approche permet de fournir une solution plus complète, interactive et adaptée aux besoins réels de l'utilisateur.
+
+\section{Méthode de développement}
+
+\subsection{Approche adoptée}
+Dans le cadre de ce projet, une démarche agile inspirée de la méthode Scrum a été adoptée. Cette approche permet d'organiser le travail en cycles itératifs appelés sprints, chacun visant la réalisation d'un ensemble cohérent de fonctionnalités.
+
+Ce mode de développement offre une grande flexibilité et permet d'ajuster progressivement le système en fonction des contraintes techniques et des retours obtenus durant les phases de test.
+
+\subsection{Organisation de l'équipe}
+Le projet a été réalisé par une équipe composée de deux membres, avec une répartition des responsabilités basée sur les différentes composantes du système.
+
+Une première partie est dédiée au traitement embarqué et à l'analyse intelligente (vision par ordinateur, détection des états), tandis que la seconde concerne la gestion du backend, la communication des données et le développement de l'application mobile.
+
+Cette organisation permet d'assurer une progression parallèle des différentes briques du système tout en facilitant leur intégration.
+
+\section{Solution proposée}
+\label{sec:solution}
+
+Afin de répondre aux limites identifiées dans les solutions existantes, nous proposons de développer un système intelligent appelé \textbf{Smart Focus}.
+
+Ce système repose sur un dispositif embarqué équipé d'une caméra et de capteurs, permettant de collecter des données en temps réel sur le comportement de l'utilisateur. Ces données sont analysées à l'aide de modèles d'intelligence artificielle afin de détecter différents états tels que la fatigue, la distraction ou une posture inadéquate.
+
+En complément, le système intègre une application mobile offrant plusieurs fonctionnalités, notamment la visualisation des statistiques, la gestion des sessions de travail et la planification intelligente des activités.
+
+Par ailleurs, une dimension interactive est ajoutée à travers un agent vocal intelligent capable de fournir des recommandations adaptées, ainsi qu'un chatbot basé sur la technique \ac{RAG} permettant d'assister l'utilisateur dans ses révisions à partir de documents.
+
+L'objectif de cette solution est de proposer un système complet et adaptatif, capable d'améliorer à la fois la concentration, l'organisation et le bien-être de l'utilisateur.
+
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+Dans ce chapitre, nous avons présenté le cadre général du projet Smart Focus. Nous avons d'abord décrit le contexte dans lequel s'inscrit ce travail et formulé la problématique principale. Nous avons ensuite analysé les solutions existantes afin de mettre en évidence leurs limites, puis décrit la méthodologie de développement adoptée. Enfin, nous avons présenté la solution proposée.
+
+Le chapitre suivant sera consacré à l'analyse détaillée des besoins et à la conception des différents composants du système.
+
+\clearpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CHAPITRE 2
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\chapter{Analyse et modélisation des besoins}
+
+\section{Introduction}
+
+Dans ce chapitre, nous allons approfondir la compréhension des besoins qui guident le développement du système \textit{Smart Focus}. Il s'agit d'une étape essentielle pour s'assurer que la solution finale réponde précisément aux attentes des utilisateurs et aux contraintes techniques identifiées.
+
+Grâce à notre intégration au sein de l'équipe projet et aux différentes tâches que nous avons réalisées, nous avons pu participer activement à cette phase d'analyse. Nous verrons d'abord comment les besoins ont été recueillis, puis analysés et priorisés. Nous présenterons ensuite les acteurs du système, les diagrammes de cas d'utilisation, ainsi que l'architecture globale retenue. Enfin, la planification des sprints sera détaillée.
+
+Cette démarche vise à garantir une base solide pour la suite du projet, en alignant clairement les objectifs fonctionnels et techniques avec les attentes réelles des utilisateurs.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% RECUEIL DES BESOINS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Recueil des besoins}
+
+\subsection{Méthodes utilisées}
+
+La collecte des besoins constitue une étape cruciale pour bien comprendre les attentes des utilisateurs et définir les fonctionnalités du système \textit{Smart Focus}. Plusieurs méthodes complémentaires ont été mises en œuvre afin d'obtenir une vision précise et complète des besoins réels.
+
+Tout d'abord, des entretiens réguliers avec les membres de l'équipe projet et l'encadrant ont permis de recueillir des informations directes sur les scénarios d'usage, les difficultés rencontrées lors de sessions d'étude prolongées et les attentes fonctionnelles. Ces échanges ont favorisé une compréhension fine des enjeux liés à la concentration et au bien-être.
+
+Par ailleurs, une analyse attentive des solutions existantes (applications de gestion du temps, wearables, outils académiques de vision par ordinateur) a été réalisée pour identifier les points forts à reprendre et les limites à dépasser. Cette démarche a permis de mieux cerner les exigences techniques et ergonomiques.
+
+Enfin, des retours d'expérience personnels et d'utilisateurs cibles (étudiants, professionnels) ont apporté un éclairage précieux sur les besoins concrets, notamment en matière de planification adaptative, de suivi du sommeil et d'assistance pédagogique.
+
+L'association de ces méthodes a permis d'établir une base solide pour formaliser les besoins et orienter les développements à venir.
+
+\subsection{Identification des besoins}
+
+À partir des méthodes de recueil décrites précédemment, plusieurs besoins clés ont été identifiés pour le projet \textit{Smart Focus}. Ces besoins reflètent à la fois les attentes fonctionnelles des utilisateurs et les contraintes techniques à respecter.
+
+\vspace{0.5em}
+\begin{table}[H]
+    \centering
+    \caption{Synthèse des besoins identifiés}
+    \label{tab:besoins_identifies}
+    \begin{tabular}{|p{5.5cm}|p{8.5cm}|}
+        \hline
+        \textbf{Catégorie} & \textbf{Description} \\ \hline
+        Détection de la concentration & Analyse en temps réel de la posture, de la fatigue et des distractions via la vision par ordinateur pour calculer un score de concentration. \\ \hline
+        Planification intelligente & Génération automatique de sessions d'étude adaptées au profil de l'utilisateur, à son sommeil et à ses examens à venir, en exploitant l'\ac{IA}. \\ \hline
+        Assistance pédagogique & Chatbot \ac{RAG} permettant de poser des questions sur ses cours (PDF), de générer des quiz QCM et des flashcards avec répétition espacée. \\ \hline
+        Suivi du sommeil & Enregistrement et analyse de la qualité du sommeil, avec adaptation automatique de la charge de travail du lendemain. \\ \hline
+        Feedback intelligent & Retours visuels (LEDs, écran TFT), sonores et via notifications mobiles pour alerter l'utilisateur en cas de baisse de concentration ou de mauvaise posture. \\ \hline
+        Interface mobile ergonomique & Application Flutter intuitive offrant dashboard, statistiques, gestion des sessions et accès à toutes les fonctionnalités du système. \\ \hline
+    \end{tabular}
+\end{table}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ANALYSE DES BESOINS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Analyse des besoins}
+
+\subsection{Classification des besoins}
+
+Pour mieux structurer les exigences du projet \textit{Smart Focus}, les besoins identifiés ont été classés selon leur nature et leur rôle dans le fonctionnement global du système. Cette classification facilite la compréhension des priorités et des contraintes à prendre en compte.
+
+\vspace{0.5em}
+\begin{itemize}
+    \item \textbf{Besoins fonctionnels} :
+    \begin{itemize}
+        \item Capturer et analyser les données visuelles afin d'évaluer la posture, la fatigue et le niveau de concentration de l'utilisateur en temps réel.
+        \item Détecter les situations de distraction et générer des alertes adaptées.
+        \item Calculer un score de concentration dynamique basé sur plusieurs indicateurs comportementaux.
+        \item Gérer des sessions de travail intelligentes, incluant le démarrage, le suivi et l'historique.
+        \item Proposer un système de planification adaptatif permettant d'organiser les sessions en fonction de l'état de l'utilisateur (fatigue, concentration, sommeil) et de ses examens.
+        \item Intégrer un assistant pédagogique basé sur un chatbot \ac{RAG} permettant d'exploiter des documents (PDF et CSV), de répondre aux questions, de générer des quiz et des flashcards.
+        \item Offrir un système de suivi du sommeil permettant d'évaluer sa qualité et d'influencer l'organisation des activités.
+        \item Fournir un accompagnement via un agent vocal intelligent capable d'interagir avec l'utilisateur et de proposer des recommandations.
+        \item Afficher les données et statistiques à travers une application mobile.
+        \item Assurer la synchronisation des données entre les différents composants du système (boîtier \ac{IoT}, backend, application).
+    \end{itemize}
+
+    \item \textbf{Besoins non fonctionnels} :
+    \begin{itemize}
+        \item \textbf{Performance :} Traitement rapide des données garantissant un fonctionnement en temps réel.
+        \item \textbf{Précision :} Analyses IA fiables et cohérentes.
+        \item \textbf{Ergonomie :} Interface simple, intuitive et adaptée à une utilisation quotidienne.
+        \item \textbf{Disponibilité :} Fonctionnement maintenu même en cas de perte temporaire de connexion.
+        \item \textbf{Scalabilité :} Architecture permettant l'ajout de nouvelles fonctionnalités.
+        \item \textbf{Sécurité :} Protection des données de l'utilisateur (\ac{JWT}, bcrypt).
+        \item \textbf{Compatibilité :} Fonctionnement sur plateforme embarquée et accès via application mobile.
+        \item \textbf{Maintenabilité :} Code structuré facilitant les mises à jour et améliorations.
+    \end{itemize}
+
+    \item \textbf{Contraintes} :
+    \begin{itemize}
+        \item Ressources matérielles limitées de l'ESP32 (mémoire, puissance de calcul).
+        \item Dépendance à un service \ac{LLM} externe (Google Gemini) nécessitant une connexion Internet.
+        \item Séparation des responsabilités entre deux membres de l'équipe (hardware / logiciel).
+        \item Compatibilité avec les technologies retenues (FastAPI, Flutter, PostgreSQL, ChromaDB).
+    \end{itemize}
+\end{itemize}
+
+\vspace{1em}
+\noindent\colorbox{gray!15}{%
+    \parbox{\dimexpr\linewidth-2\fboxsep}{%
+        \textbf{Résumé :} Cette classification permet de mieux cibler les efforts de développement en mettant en lumière les aspects essentiels à couvrir pour assurer la réussite du projet.
+    }%
+}
+
+\subsection{Priorisation}
+
+Pour garantir un avancement efficace du projet \textit{Smart Focus}, il est essentiel de prioriser les besoins en fonction de leur impact sur les utilisateurs et la faisabilité technique. Cette étape permet de concentrer les efforts sur les fonctionnalités les plus critiques.
+
+\vspace{0.5em}
+\begin{table}[H]
+    \centering
+    \caption{Priorisation des besoins}
+    \label{tab:priorisation_besoins}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|p{5cm}|p{6.5cm}|c|}
+        \hline
+        \textbf{Besoin} & \textbf{Justification} & \textbf{Priorité} \\ \hline
+        Authentification et gestion de profil & Base nécessaire pour toutes les fonctionnalités & Haute \\ \hline
+        Chatbot \ac{RAG} (upload, chat, quiz, flashcards) & Fonctionnalité différenciante majeure du système & Haute \\ \hline
+        Planification intelligente & Forte valeur ajoutée, repose sur l'\ac{IA} et les données utilisateur & Haute \\ \hline
+        Suivi du sommeil et alarme & Influence directement la qualité de la planification & Haute \\ \hline
+        Détection de la concentration (score focus) & Cœur du système, nécessite le hardware & Haute \\ \hline
+        Dashboard et statistiques & Valorise les données collectées, améliore l'engagement & Moyenne \\ \hline
+        Posture et feedback ergonomique & Dépend du hardware ESP32, intégration progressive & Moyenne \\ \hline
+        Agent vocal intelligent & Fonctionnalité complémentaire, planifiée en fin de projet & Basse \\ \hline
+    \end{tabular}
+\end{table}
+
+\vspace{1em}
+\noindent\colorbox{gray!15}{%
+    \parbox{\dimexpr\linewidth-2\fboxsep}{%
+        \textbf{Conclusion :} La priorité a été donnée aux besoins liés à l'authentification, l'assistance pédagogique et la planification intelligente, afin d'assurer une base solide pour le système, tout en planifiant l'intégration progressive des fonctionnalités dépendant du hardware.
+    }%
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% IDENTIFICATION DES ACTEURS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Identification des acteurs}
+
+Le système Smart Focus implique plusieurs acteurs, qu'ils soient principaux ou secondaires. Le tableau suivant synthétise leur rôle dans le système.
+
+\begin{table}[H]
+    \centering
+    \caption{Identification des acteurs du système}
+    \label{tab:acteurs}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|l|p{8cm}|}
+        \hline
+        \textbf{Acteur} & \textbf{Type} & \textbf{Description} \\
+        \hline
+        Utilisateur & Principal & Étudiant, professionnel ou enseignant qui interagit avec l'application mobile pour suivre sa concentration, organiser ses sessions de travail et accéder aux différentes fonctionnalités. \\
+        \hline
+        Boîtier ESP32 & Secondaire & Dispositif \ac{IoT} embarqué qui capture les données physiques (images via caméra, capteurs de présence, microphone) et les transmet au backend. \\
+        \hline
+        Service ML & Secondaire & Module serveur chargé de l'analyse des images pour détecter la posture, la fatigue et l'état de concentration via MediaPipe. \\
+        \hline
+        Système \ac{IA} & Secondaire & Module \ac{RAG}/\ac{LLM} (Google Gemini) qui alimente le chatbot, la génération de quiz et flashcards, et le service de planification intelligente. \\
+        \hline
+    \end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MODÉLISATION — CAS D'UTILISATION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Modélisation des besoins}
+
+\subsection{Diagramme de cas d'utilisation global}
+
+Le diagramme suivant présente l'ensemble des cas d'utilisation du système Smart Focus, regroupés par module fonctionnel. Le système comprend 46 cas d'utilisation répartis en 9 modules.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/uml_global.png}
+    \caption{Diagramme de cas d'utilisation global}
+    \label{fig:uml_global}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{Résumé des cas d'utilisation par module}
+    \label{tab:resume_cu}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|c|c|c|}
+        \hline
+        \textbf{Module} & \textbf{Nombre de CU} & \textbf{Priorité} & \textbf{Statut} \\
+        \hline
+        Authentification & 4 & Haute & Implémenté \\
+        \hline
+        Focus \& Concentration & 4 & Haute & En attente hardware \\
+        \hline
+        Planning Intelligent & 10 & Haute & Implémenté \\
+        \hline
+        Chatbot \ac{RAG} & 5 & Haute & Implémenté \\
+        \hline
+        Quiz & 5 & Haute & Implémenté \\
+        \hline
+        Flashcards SM-2 & 6 & Haute & Implémenté \\
+        \hline
+        Posture \& Ergonomie & 4 & Moyenne & En attente hardware \\
+        \hline
+        Sommeil \& Réveil & 5 & Moyenne & Implémenté \\
+        \hline
+        Dashboard \& Statistiques & 3 & Haute & Implémenté \\
+        \hline
+        \textbf{Total} & \textbf{46} & & \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Cas d'utilisation détaillés par module}
+
+\subsubsection{Module Authentification}
+
+Ce module gère l'accès sécurisé au système. L'utilisateur peut s'inscrire, se connecter, gérer son profil et rafraîchir son token \ac{JWT}.
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Authentification}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3cm}|p{4.5cm}|p{4cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC1 & S'inscrire & Saisir email, mot de passe, nom, rôle — Valider & Compte actif, JWT généré \\
+        \hline
+        UC2 & Se connecter & Saisir identifiants (OAuth2) — Token retourné & Session active \\
+        \hline
+        UC3 & Gérer le profil & Modifier les préférences (objectif focus, schedule, notifications) & Profil mis à jour \\
+        \hline
+        UC4 & Rafraîchir le token & Envoyer le refresh token — Nouveau couple retourné & Nouvelle session \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Module Focus \& Concentration}
+
+Ce module est au cœur du système. Il permet à l'utilisateur de démarrer des sessions de travail surveillées en temps réel par le boîtier ESP32 et le service ML.
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Focus}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3cm}|p{4.5cm}|p{4cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC5 & Démarrer une session & ESP32 capture — ML analyse — Score affiché temps réel & Session en cours \\
+        \hline
+        UC6 & Voir score temps réel & Dashboard + WebSocket mis à jour en direct & Score visible \\
+        \hline
+        UC7 & Recevoir alerte focus & Score bas → LED rouge + notification mobile & Utilisateur alerté \\
+        \hline
+        UC8 & Consulter l'historique & Filtrer par période — Voir graphiques & Historique affiché \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Module Planning Intelligent}
+
+Ce module est le plus sophistiqué du système, avec une logique d'adaptation reposant sur le profil sommeil de l'utilisateur, ses examens, ses résultats de quiz et ses flashcards dues.
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Planning}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3.5cm}|p{4.5cm}|p{3.5cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC9  & Consulter le planning & Afficher les sessions du jour ou d'une date & Planning affiché \\
+        \hline
+        UC10 & Générer planning IA (jour) & Parsing CSV/PDF, profil sommeil, créneaux libres, rotation pondérée & Planning journée créé \\
+        \hline
+        UC11 & Générer planning IA (semaine) & Génère pour 7 jours — Week-end : sweep hebdomadaire & Planning semaine créé \\
+        \hline
+        UC12 & Créer session manuelle & Définir sujet, horaire, priorité, documents liés & Session créée \\
+        \hline
+        UC13 & Modifier une session & Modifier statut, notes, documents & Session modifiée \\
+        \hline
+        UC14 & Marquer session terminée & Enregistrer \texttt{completed\_at} & Session terminée \\
+        \hline
+        UC15 & Replanifier session manquée & Chercher créneau libre sur J ou J+1 & Session replanifiée \\
+        \hline
+        UC16 & Supprimer une session & Confirmer suppression & Session supprimée \\
+        \hline
+        UC17 & Consulter les insights & stats : minutes, taux, corrélation sommeil, sujet faible & Insights affichés \\
+        \hline
+        UC18 & Gérer les examens & Créer/lister/supprimer examens & Examen géré \\
+        \hline
+    \end{tabular}
+\end{table}
+
+La logique de planification adapte automatiquement les sessions selon le score de sommeil :
+
+\vspace{0.5em}
+\begin{table}[H]
+    \centering
+    \caption{Adaptation des sessions selon le score de sommeil}
+    \label{tab:sleep_adaptation}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|c|c|c|}
+        \hline
+        \textbf{Score sommeil} & \textbf{Durée max/session} & \textbf{Pause entre sessions} & \textbf{Nb max sessions} \\
+        \hline
+        $\geq 80$ (bien reposé) & 50 min & 10 min & 6 \\
+        \hline
+        50 – 79 (moyen) & 35 min & 15 min & 4 \\
+        \hline
+        $< 50$ (insuffisant) & 25 min & 20 min & 2 \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Module Chatbot RAG}
+
+Ce module offre un assistant pédagogique basé sur la technique \ac{RAG}. L'utilisateur peut uploader des documents PDF ou CSV, poser des questions sur leur contenu, et consulter l'historique de ses échanges.
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Chatbot RAG}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3.5cm}|p{4.5cm}|p{3.5cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC19 & Uploader un document & PDF → chunking + embeddings Gemini + ChromaDB ; CSV → validation schema emploi du temps & Document indexé \\
+        \hline
+        UC20 & Poser une question RAG & Recherche sémantique → Gemini génère réponse contextualisée & Réponse + sources \\
+        \hline
+        UC21 & Question générale & Gemini répond directement sans RAG & Réponse IA directe \\
+        \hline
+        UC22 & Lister documents & Liste triée par date (desc) & Documents listés \\
+        \hline
+        UC23 & Supprimer un document & Suppression : fichier + ChromaDB + DB (cascade) & Document supprimé \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Module Quiz}
+
+Le module quiz est un routeur indépendant avec support multi-documents et génération depuis une session d'étude terminée.
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Quiz}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3.5cm}|p{4.5cm}|p{3.5cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC24 & Générer quiz (documents) & Sélectionner document(s) → Gemini génère QCM (3–30 questions) & Quiz créé \\
+        \hline
+        UC25 & Générer quiz (session) & Depuis session terminée → génère ou retourne existant & Quiz de session \\
+        \hline
+        UC26 & Soumettre réponses & Scoring + corrections + explications IA & Score et corrections \\
+        \hline
+        UC27 & Lister mes quiz & Liste triée par date (desc) & Quiz listés \\
+        \hline
+        UC28 & Consulter un quiz & Si non soumis : réponses masquées ; si soumis : corrections & Quiz affiché \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Module Flashcards SM-2}
+
+Le module flashcards utilise l'algorithme de répétition espacée SM-2. La qualité de rappel (0–5) détermine le prochain intervalle de révision.
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Flashcards}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3.5cm}|p{4.5cm}|p{3.5cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC29 & Générer flashcards (documents) & Gemini extrait concepts → cartes front/back avec \texttt{ease\_factor=2.5} & Deck créé \\
+        \hline
+        UC30 & Générer flashcards (session) & Depuis session terminée → génère ou retourne existantes & Deck de session \\
+        \hline
+        UC31 & Réviser une flashcard & Soumettre quality (0–5) → SM-2 calcule \texttt{next\_review} & Prochaine révision planifiée \\
+        \hline
+        UC32 & Consulter cartes dues & Retourne cartes avec \texttt{next\_review} $\leq$ now & Cartes dues listées \\
+        \hline
+        UC33 & Consulter un deck & Par document ou par session & Deck affiché \\
+        \hline
+        UC34 & Supprimer une flashcard & Confirmer suppression & Carte supprimée \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Module Sommeil \& Réveil}
+
+Ce module suit la qualité du sommeil de l'utilisateur et adapte automatiquement le planning du lendemain en conséquence.
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Sommeil}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3.5cm}|p{4.5cm}|p{3.5cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC35 & Enregistrer sommeil & Saisir heures → calcul automatique \texttt{sleep\_score} (0–100) & Nuit enregistrée \\
+        \hline
+        UC36 & Consulter stats sommeil & Période semaine/mois → moyenne heures, score, tendance & Stats consultées \\
+        \hline
+        UC37 & Historique sommeil & Liste des nuits (limit N) & Historique affiché \\
+        \hline
+        UC38 & Configurer le réveil & Heure + mode (gradual/normal/silent) + intensité lumineuse & Alarme configurée \\
+        \hline
+        UC39 & Adapter planning & Score < 50 → sessions réduites (25min, max 2) & Planning adapté \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsubsection{Module Dashboard \& Statistiques}
+
+\begin{table}[H]
+    \centering
+    \caption{Cas d'utilisation — Module Dashboard}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{3.5cm}|p{4.5cm}|p{3.5cm}|}
+        \hline
+        \textbf{\#} & \textbf{Cas d'utilisation} & \textbf{Scénario principal} & \textbf{Post-condition} \\
+        \hline
+        UC40 & Dashboard global & Scores du jour + alertes + prochaine session & Vue d'ensemble \\
+        \hline
+        UC41 & Stats hebdomadaires & Graphiques fl\_chart par semaine & Progrès visualisés \\
+        \hline
+        UC42 & Conseils personnalisés & IA analyse patterns → recommandation & Conseils affichés \\
+        \hline
+    \end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ARCHITECTURE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Architecture du système}
+
+\subsection{Vue globale de l'architecture}
+
+Le système Smart Focus repose sur une architecture multicouche qui sépare clairement les responsabilités entre le matériel, le backend et l'application mobile. Elle comprend quatre couches principales :
+
+\begin{enumerate}
+    \item \textbf{Couche Hardware} — Boîtier ESP32 (caméra OV2640, capteurs, écran TFT, LEDs WS2812B)
+    \item \textbf{Couche Backend} — Serveur FastAPI (Python 3.11) avec services métier et \ac{API} REST
+    \item \textbf{Couche Données} — PostgreSQL (relationnel) + ChromaDB (vecteurs) + fichiers (PDF)
+    \item \textbf{Couche Client} — Application mobile Flutter avec Riverpod et GoRouter
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/architecture_globale.png}
+    \caption{Architecture globale du système Smart Focus}
+    \label{fig:architecture_globale}
+\end{figure}
+
+\subsection{Couche Hardware — Boîtier ESP32}
+
+Le boîtier constitue le point de collecte des données physiques :
+
+\begin{table}[H]
+    \centering
+    \caption{Composants matériels du boîtier ESP32}
+    \label{tab:composants_esp32}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|l|p{6cm}|}
+        \hline
+        \textbf{Composant} & \textbf{Modèle} & \textbf{Rôle} \\
+        \hline
+        Microcontrôleur & ESP32-CAM & Traitement central, WiFi, caméra intégrée \\
+        \hline
+        Capteur cardiaque & MAX30102 & Rythme cardiaque et SpO2 \\
+        \hline
+        Microphone & INMP441 (I2S) & Détection de la parole et des sons \\
+        \hline
+        Capteur de présence & Pression / IR & Détection de la présence au bureau \\
+        \hline
+        Écran & TFT ILI9341 (2,4") & Affichage du score et des alertes \\
+        \hline
+        LEDs & NeoPixel WS2812B & Feedback visuel coloré \\
+        \hline
+        Haut-parleur & MAX98357A (I2S) & Feedback sonore \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Couche Backend — FastAPI}
+
+Le backend expose une \ac{API} REST sécurisée par \ac{JWT} et est structuré en services métier indépendants :
+
+\begin{itemize}
+    \item \textbf{AuthService} : gestion des comptes, tokens JWT (access + refresh), bcrypt.
+    \item \textbf{RAGService} : pipeline LangChain → ChromaDB → Gemini (embeddings \texttt{text-embedding-004} + génération \texttt{gemini-2.5-flash}).
+    \item \textbf{PlanningService} : parsing CSV déterministe ou extraction PDF via RAG, génération de sessions adaptatives, reschedule, insights.
+    \item \textbf{SleepService} : scoring du sommeil, configuration d'alarme, impact sur le planning.
+    \item \textbf{SM2Service} : algorithme de répétition espacée pour les flashcards.
+    \item \textbf{FocusService} : calcul du score de concentration (en attente hardware).
+    \item \textbf{MLService} : analyse MediaPipe (en attente hardware).
+\end{itemize}
+
+\subsection{Couche Données}
+
+\begin{table}[H]
+    \centering
+    \caption{Technologies de stockage du système}
+    \label{tab:stockage}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|l|p{6.5cm}|}
+        \hline
+        \textbf{Technologie} & \textbf{Rôle} & \textbf{Données stockées} \\
+        \hline
+        PostgreSQL + Alembic & Base relationnelle & Utilisateurs, sessions, quiz, flashcards, sommeil, examens (13 tables) \\
+        \hline
+        ChromaDB & Base vectorielle & Embeddings des documents PDF pour la recherche sémantique \\
+        \hline
+        Système de fichiers & Stockage local & Documents PDF/CSV uploadés \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Couche Client — Application Flutter}
+
+L'application mobile suit une architecture \textbf{Feature-First} avec les technologies suivantes :
+
+\begin{table}[H]
+    \centering
+    \caption{Technologies principales de l'application Flutter}
+    \label{tab:flutter_stack}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|l|p{6cm}|}
+        \hline
+        \textbf{Package} & \textbf{Version} & \textbf{Usage} \\
+        \hline
+        flutter\_riverpod & \^{}3.2.1 & State management réactif \\
+        \hline
+        go\_router & \^{}17.1.0 & Navigation centralisée \\
+        \hline
+        dio & \^{}5.9.1 & Client HTTP REST \\
+        \hline
+        fl\_chart & \^{}1.1.1 & Graphiques et visualisations \\
+        \hline
+        alarm & \^{}5.2.1 & Alarme locale intelligente \\
+        \hline
+        socket\_io\_client & \^{}3.1.4 & WebSocket temps réel \\
+        \hline
+        hive + hive\_flutter & \^{}2.2.3 & Stockage local (cache, tokens) \\
+        \hline
+    \end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PLANIFICATION DES SPRINTS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Planification des sprints}
+
+Le processus de planification des sprints, basé sur la méthodologie Scrum, nous a permis d'organiser le travail de manière structurée et itérative. Le projet s'étale sur une durée totale de quatre mois, répartis en quatre sprints d'environ un mois chacun. Chaque sprint a été défini en fonction des priorités identifiées lors de la phase d'analyse, avec des objectifs clairs à atteindre dans un délai précis.
+
+Le tableau suivant présente la planification des sprints, en détaillant les fonctionnalités développées, leur description, ainsi que la durée estimée de réalisation pour chaque étape.
+
+\begin{table}[H]
+    \centering
+    \caption{Planification des sprints}
+    \label{tab:planification_sprints}
+    \renewcommand{\arraystretch}{1.4}
+    \begin{tabular}{|c|p{3.5cm}|p{6.5cm}|c|}
+        \hline
+        \textbf{Sprint} & \textbf{Fonctionnalité(s)} & \textbf{Description} & \textbf{Durée} \\
+        \hline
+        Sprint 1 &
+        \begin{tabular}[t]{@{}p{3.4cm}@{}}Infrastructure, \\ Hardware Initial \\ \& Chatbot RAG\end{tabular} &
+        Conception du boîtier ESP32 (caméra, capteurs, écran TFT, LEDs). Mise en place de l'architecture backend (FastAPI, PostgreSQL, Alembic) et mobile (Flutter). Authentification JWT. Chatbot RAG : upload PDF/CSV, embeddings Gemini, chat. &
+        30 jours \\
+        \hline
+        Sprint 2 &
+        \begin{tabular}[t]{@{}p{3.4cm}@{}}Modèles ML, Quiz, \\ Flashcards \\ \& Sommeil\end{tabular} &
+        Modèles ML de détection de posture/fatigue (MediaPipe, OpenCV). Quiz QCM multi-documents. Flashcards SM-2. Enregistrement et scoring du sommeil, historique, alarme intelligente et notifications. &
+        30 jours \\
+        \hline
+        Sprint 3 &
+        \begin{tabular}[t]{@{}p{3.4cm}@{}}Focus Score, \\ Planning IA \\ \& Dashboard\end{tabular} &
+        Détection des distractions et calcul du score de concentration avec feedback matériel (TFT/LEDs). Planning intelligent IA (Gemini), adaptation au sommeil, gestion des examens. Dashboard global. &
+        30 jours \\
+        \hline
+        Sprint 4 &
+        \begin{tabular}[t]{@{}p{3.4cm}@{}}Intégration, \\ Finitions \\ \& Tests\end{tabular} &
+        Intégration matérielle-logicielle (WebSocket, HTTP) et performances temps réel. Assemblage final. Écran d'onboarding, tests unitaires critiques, corrections UI et préparation de la démo. &
+        30 jours \\
+        \hline
+    \end{tabular}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% CONCLUSION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+Dans ce chapitre, nous avons présenté l'analyse et la modélisation des besoins du système Smart Focus. Nous avons d'abord décrit les méthodes de recueil des besoins, puis classé et priorisé ces besoins selon leur nature et leur impact.
+
+Nous avons ensuite identifié les acteurs du système et présenté les 46 cas d'utilisation répartis en 9 modules fonctionnels, en détaillant les scénarios de chaque module. L'architecture multicouche a été décrite, couvrant le boîtier ESP32, le backend FastAPI, les bases de données et l'application Flutter.
+
+Enfin, la planification des sprints a permis de structurer le développement de manière itérative, en alignant les efforts avec les priorités identifiées.
+
+Le chapitre suivant sera consacré à la réalisation technique du système, en présentant les détails d'implémentation de chaque composant.
+
+\end{document}

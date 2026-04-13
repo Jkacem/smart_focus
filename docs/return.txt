@@ -1,0 +1,153 @@
+LATEST WORK SESSIONS
+================================================================================  
+  Session ID: 805d27e4-cd70-46cd-b7e0-1a3fbfbb9fdb
+  Started: 2026-03-26 12:27:51
+  Ended: None
+  Active: True
+
+  Session ID: 00ebed4e-2b8a-414b-869e-e4ab28a2a5de
+  Started: 2026-03-26 12:27:03
+  Ended: None
+  Active: True
+
+  Session ID: d341f20f-e648-473a-a39a-25fe6023ba23
+  Started: 2026-03-26 12:05:18
+  Ended: None
+  Active: True
+
+================================================================================  
+📈 LATEST SNAPSHOTS & SCORES
+================================================================================  
+  [2026-03-26 11:05:44.056466]
+    Session: d341f20f-e648-473a-a39a-25fe6023ba23
+    Work Mode: focused
+    Attention Score: 100.0
+    Posture Score: 52.1
+    Vigilance Score: 100.0
+    Stress Risk Score: 50.0
+    🎯 Global Focus Score: 90.42
+
+  [2026-03-26 11:05:43.993489]
+    Session: d341f20f-e648-473a-a39a-25fe6023ba23
+    Work Mode: focused
+    Attention Score: 100.0
+    Posture Score: 52.1
+    Vigilance Score: 100.0
+    Stress Risk Score: 50.0
+    🎯 Global Focus Score: 90.42
+
+  [2026-03-26 11:05:43.980154]
+    Session: d341f20f-e648-473a-a39a-25fe6023ba23
+    Work Mode: focused
+    Attention Score: 100.0
+    Posture Score: 52.1
+    Vigilance Score: 100.0
+    Stress Risk Score: 50.0
+    🎯 Global Focus Score: 90.42
+
+  [2026-03-26 11:05:43.939235]
+    Session: d341f20f-e648-473a-a39a-25fe6023ba23
+    Work Mode: focused
+    Attention Score: 100.0
+    Posture Score: 52.1
+    Vigilance Score: 100.0
+    Stress Risk Score: 50.0
+    🎯 Global Focus Score: 90.42
+
+  [2026-03-26 11:05:43.919904]
+    Session: d341f20f-e648-473a-a39a-25fe6023ba23
+    Work Mode: focused
+    Attention Score: 100.0
+    Posture Score: 52.1
+    Vigilance Score: 100.0
+    Stress Risk Score: 0.0
+    🎯 Global Focus Score: 90.42
+
+================================================================================  
+⚠️  LATEST EVENTS/ALERTS
+================================================================================  
+  [2026-03-26 11:04:57.692142] LOW: alert
+    Description: Mauvaise posture persistante. Redressez-vous.
+
+  [2026-03-26 11:04:57.639989] LOW: alert
+    Description: Mauvaise posture persistante. Redressez-vous.
+
+  [2026-03-26 11:04:57.620353] LOW: alert
+    Description: Mauvaise posture persistante. Redressez-vous.
+
+  [2026-03-26 11:04:57.570120] LOW: alert
+    Description: Mauvaise posture persistante. Redressez-vous.
+
+  [2026-03-26 11:04:57.546624] LOW: alert
+    Description: Mauvaise posture persistante. Redressez-vous.
+
+================================================================================  
+📄 LATEST JSON SNAPSHOT PAYLOAD
+================================================================================  
+{
+  "session_id": "d341f20f-e648-473a-a39a-25fe6023ba23",
+  "timestamp": "2026-03-26T11:05:44Z",
+  "work_mode": "focused",
+  "scores": {
+    "attention_score": 100.0,
+    "posture_score": 52.1,
+    "vigilance_score": 100.0,
+    "stress_risk_score": 50.0,
+    "distraction_score": 0.0,
+    "focus_score_global": 90.42
+  },
+  "presence": {
+    "main_person_present": true,
+    "person_count": 1,
+    "face_detected": true
+  },
+  "instant_observations": {
+    "head_direction": "down",
+    "gaze_zone": "desk",
+    "eyes_state": "open",
+    "posture_state": "warning",
+    "phone_detected": false,
+    "face_tension_level": "low",
+    "agitation_level": "high"
+  },
+  "short_window_inference": {
+    "possible_reading": true,
+    "possible_writing": false,
+    "possible_thinking": false,
+    "possible_self_explaining": false,
+    "possible_social_interaction": false,
+    "possible_phone_distraction": false,
+    "possible_fatigue": false,
+    "possible_stress": true
+  },
+  "consolidated_states": {
+    "work_mode": "focused",
+    "attention_state": "focused",
+    "fatigue_state": "normal",
+    "stress_state": "stress_suspected",
+    "social_state": "alone",
+    "phone_state": "not_detected",
+    "posture_state": "acceptable",
+    "reasoning_indices": [
+      "reading_evidence_dominant",
+      "gaze_in_workspace",
+      "posture_inclination_forward"
+    ]
+  },
+  "reliability": {
+    "work_mode_confidence": 0.6,
+    "attention_confidence": 0.9,
+    "fatigue_confidence": 0.85,
+    "stress_confidence": 0.8
+  },
+  "temporal_context": {
+    "observed_for_sec": 25.61,
+    "stable_state_for_sec": 25.61
+  },
+  "alert": {
+    "should_alert": false,
+    "level": "none",
+    "reason": null
+  },
+  "events": []
+}
