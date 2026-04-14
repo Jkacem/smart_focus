@@ -46,6 +46,7 @@ dependencies:
   file_picker: ^10.3.10
   intl: ^0.20.2
   alarm: ^5.2.1
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

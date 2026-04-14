@@ -113,19 +113,46 @@ def read_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-# ── Me / Profile (update) ──
+# ── Me / Profile (read/update) ──
 
-@router.put("/me/profile", response_model=schemas.UserProfileRead)
-def update_my_profile(
-    updates: schemas.UserProfileUpdate,
+@router.get("/me/profile", response_model=schemas.CurrentUserProfileRead)
+def read_my_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update the current user's profile preferences."""
+    """Return the current user and editable profile preferences in one payload."""
     profile = crud.get_user_profile(db, current_user.id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return crud.update_user_profile(db, profile, updates)
+    return _build_current_user_profile(current_user, profile)
+
+@router.put("/me/profile", response_model=schemas.CurrentUserProfileRead)
+def update_my_profile(
+    updates: schemas.CurrentUserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update the current user's account details and profile preferences."""
+    profile = crud.get_user_profile(db, current_user.id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    if updates.role is not None and updates.role not in ("student", "teacher", "professional"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be 'student', 'teacher', or 'professional'",
+        )
+    if updates.full_name is not None and not updates.full_name.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="full_name must not be empty",
+        )
+    user, updated_profile = crud.update_current_user_profile(
+        db,
+        current_user,
+        profile,
+        updates,
+    )
+    return _build_current_user_profile(user, updated_profile)
 
 
 # ── helper ──
@@ -137,3 +164,21 @@ def _build_tokens(email: str) -> dict:
         "refresh_token": create_refresh_token(data),
         "token_type": "bearer",
     }
+
+
+def _build_current_user_profile(
+    user: User,
+    profile,
+) -> schemas.CurrentUserProfileRead:
+    return schemas.CurrentUserProfileRead(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role,
+        daily_focus_goal=profile.daily_focus_goal,
+        preferred_schedule=profile.preferred_schedule,
+        avatar_data_url=profile.avatar_data_url,
+        notif_enabled=profile.notif_enabled,
+        notif_preferences=profile.notif_preferences,
+        updated_at=profile.updated_at,
+    )

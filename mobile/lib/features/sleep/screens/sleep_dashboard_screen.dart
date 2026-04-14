@@ -46,6 +46,7 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
   Widget build(BuildContext context) {
     final statsAsync = ref.watch(sleepStatsProvider);
     final historyAsync = ref.watch(sleepHistoryProvider);
+    final manualSleepSession = ref.watch(manualSleepSessionProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -76,11 +77,14 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
               onRefresh: () async {
                 ref.read(sleepStatsProvider.notifier).fetchStats();
                 ref.read(sleepHistoryProvider.notifier).fetchHistory();
+                await ref.read(manualSleepSessionProvider.notifier).refresh();
               },
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 children: [
                   const SizedBox(height: 16),
+                  _buildManualSleepCard(manualSleepSession),
+                  const SizedBox(height: 24),
                   _buildPeriodFilter(),
                   const SizedBox(height: 24),
                   _buildStatsCard(statsAsync),
@@ -116,6 +120,217 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
         child: const Icon(Icons.alarm_add, color: Colors.white),
       ),
     );
+  }
+
+  Widget _buildManualSleepCard(ManualSleepSessionState sessionState) {
+    final sleepStart = sessionState.sleepStart;
+    final now = DateTime.now();
+    final duration = sleepStart == null ? null : now.difference(sleepStart);
+    final actionLabel = sessionState.isSleeping
+        ? "I'm awake"
+        : "I'm going to sleep";
+    final actionIcon = sessionState.isSleeping
+        ? Icons.wb_sunny_rounded
+        : Icons.nights_stay_rounded;
+    final actionColor = sessionState.isSleeping
+        ? const Color(0xFF8BD3A8)
+        : const Color(0xFF97CAD8);
+
+    return FrostedGlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: actionColor.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(actionIcon, color: actionColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Manual Sleep Tracking',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      sessionState.isSleeping
+                          ? 'Sleep start is saved locally. Wake up will send the record to the backend.'
+                          : 'Tap once before sleep, then tap again when you wake up.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildManualSleepInfoRow(
+                  'Status',
+                  sessionState.isSleeping ? 'Sleeping' : 'Awake',
+                ),
+                const SizedBox(height: 10),
+                _buildManualSleepInfoRow(
+                  'Sleep start',
+                  sleepStart == null
+                      ? 'Not started yet'
+                      : DateFormat('dd MMM yyyy • HH:mm').format(sleepStart),
+                ),
+                if (duration != null) ...[
+                  const SizedBox(height: 10),
+                  _buildManualSleepInfoRow(
+                    'Elapsed',
+                    _formatDuration(duration),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            height: 58,
+            child: ElevatedButton.icon(
+              onPressed: sessionState.isLoading || sessionState.isSubmitting
+                  ? null
+                  : () async {
+                      if (sessionState.isSleeping) {
+                        await _finishManualSleep();
+                        return;
+                      }
+                      await _startManualSleep();
+                    },
+              icon: sessionState.isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Color(0xFF0A1628),
+                      ),
+                    )
+                  : Icon(actionIcon),
+              label: Text(
+                sessionState.isSubmitting ? 'Saving...' : actionLabel,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                foregroundColor: const Color(0xFF0A1628),
+                backgroundColor: actionColor,
+                disabledBackgroundColor: Colors.white.withOpacity(0.18),
+                disabledForegroundColor: Colors.white54,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualSleepInfoRow(String label, String value) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 88,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _startManualSleep() async {
+    try {
+      final sleepStart = await ref
+          .read(manualSleepSessionProvider.notifier)
+          .startSleep();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Sleep started at ${DateFormat('HH:mm').format(sleepStart)}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _finishManualSleep() async {
+    try {
+      final record = await ref
+          .read(manualSleepSessionProvider.notifier)
+          .finishSleep();
+      if (!mounted) return;
+
+      final totalHours = record.totalHours?.toStringAsFixed(1);
+      final message = totalHours == null
+          ? 'Sleep record saved successfully.'
+          : 'Sleep record saved: $totalHours h.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   Widget _buildPeriodFilter() {
@@ -394,6 +609,16 @@ class _SleepDashboardScreenState extends ConsumerState<SleepDashboardScreen> {
     if (score >= 80) return Colors.greenAccent;
     if (score >= 60) return Colors.orangeAccent;
     return Colors.redAccent;
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+
+    if (hours > 0) {
+      return '${hours}h ${minutes.toString().padLeft(2, '0')}m';
+    }
+    return '${duration.inMinutes}m';
   }
 
   Widget _buildConfigureAlarmButton() {

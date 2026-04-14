@@ -101,10 +101,10 @@ class PlanningInsightsCard extends StatelessWidget {
               Expanded(
                 child: _MetricTile(
                   label: 'Sommeil moyen',
-                  value: insights.avgSleepScore == null
-                      ? '--'
-                      : insights.avgSleepScore!.toStringAsFixed(0),
-                  hint: insights.sleepCorrelationLabel,
+                  value: insights.avgSleepHoursLabel,
+                  hint: insights.avgSleepScore == null
+                      ? insights.sleepCorrelationLabel
+                      : 'Score moyen ${insights.avgSleepScore!.toStringAsFixed(0)}',
                   accent: const Color(0xFFFFC857),
                 ),
               ),

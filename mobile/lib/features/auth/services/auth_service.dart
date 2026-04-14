@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../core/network/app_dio.dart';
+import '../models/current_user_profile.dart';
 
 class AuthService {
   AuthService(this._dio);
@@ -70,6 +71,30 @@ class AuthService {
   Future<void> logout() async {
     final box = Hive.box('auth');
     await box.deleteAll(['access_token', 'refresh_token', 'token_type']);
+  }
+
+  Future<CurrentUserProfile> getCurrentUserProfile() async {
+    final response = await _dio.get('/auth/me/profile');
+    final data = response.data;
+    if (data is! Map) {
+      throw const FormatException('Unexpected profile response format');
+    }
+    return CurrentUserProfile.fromJson(Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<CurrentUserProfile> updateCurrentUserProfile(
+    CurrentUserProfileUpdateInput input,
+  ) async {
+    final response = await _dio.put(
+      '/auth/me/profile',
+      data: input.toJson(),
+      options: Options(contentType: Headers.jsonContentType),
+    );
+    final data = response.data;
+    if (data is! Map) {
+      throw const FormatException('Unexpected profile update response format');
+    }
+    return CurrentUserProfile.fromJson(Map<String, dynamic>.from(data as Map));
   }
 }
 

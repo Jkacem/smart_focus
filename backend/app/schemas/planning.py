@@ -112,6 +112,7 @@ class PlanningInsightsOut(BaseModel):
     completed_sessions: int
     skipped_sessions: int
     completion_rate: float
+    avg_sleep_hours: Optional[float] = None
     avg_sleep_score: Optional[float] = None
     sleep_study_correlation: str
     weakest_subject: Optional[str] = None

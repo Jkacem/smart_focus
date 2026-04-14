@@ -103,3 +103,30 @@ class AlarmConfig {
     'sound_enabled': soundEnabled,
   };
 }
+
+class ManualSleepSessionState {
+  final DateTime? sleepStart;
+  final bool isLoading;
+  final bool isSubmitting;
+
+  const ManualSleepSessionState({
+    this.sleepStart,
+    this.isLoading = false,
+    this.isSubmitting = false,
+  });
+
+  bool get isSleeping => sleepStart != null;
+
+  ManualSleepSessionState copyWith({
+    DateTime? sleepStart,
+    bool clearSleepStart = false,
+    bool? isLoading,
+    bool? isSubmitting,
+  }) {
+    return ManualSleepSessionState(
+      sleepStart: clearSleepStart ? null : (sleepStart ?? this.sleepStart),
+      isLoading: isLoading ?? this.isLoading,
+      isSubmitting: isSubmitting ?? this.isSubmitting,
+    );
+  }
+}

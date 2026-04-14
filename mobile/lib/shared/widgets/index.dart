@@ -5,3 +5,4 @@ export 'starfield_painter.dart';
 export 'frosted_glass_card.dart';
 export 'custom_bottom_nav_bar.dart';
 export 'custom_app_bar.dart';
+export 'profile_avatar.dart';

@@ -101,3 +101,11 @@ def ensure_schema_compatibility() -> None:
                         "ON DELETE SET NULL"
                     )
                 )
+
+        if inspector.has_table("user_profiles"):
+            profile_columns = {
+                column["name"] for column in inspector.get_columns("user_profiles")
+            }
+
+            if "avatar_data_url" not in profile_columns:
+                connection.execute(text("ALTER TABLE user_profiles ADD COLUMN avatar_data_url VARCHAR"))

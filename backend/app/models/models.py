@@ -62,6 +62,7 @@ class UserProfile(Base):
                                 nullable=False, unique=True)
     daily_focus_goal   = Column(Integer, nullable=False, default=120)
     preferred_schedule = Column(String(50), nullable=False, default="morning")
+    avatar_data_url    = Column(String, nullable=True)
     notif_enabled      = Column(Boolean, nullable=False, default=True)
     notif_preferences  = Column(JSON, nullable=True)
     updated_at         = Column(DateTime, nullable=False, default=utc_now_naive,

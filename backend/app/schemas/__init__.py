@@ -1,6 +1,7 @@
 from .user import (
     UserBase, UserCreate, UserRead,
     UserProfileCreate, UserProfileRead, UserProfileUpdate,
+    CurrentUserProfileRead, CurrentUserProfileUpdate,
     LoginRequest, TokenResponse, RefreshRequest,
 )
 from .sleep import (

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ChatBubble extends StatelessWidget {
+import '../../auth/widgets/current_user_avatar.dart';
+
+class ChatBubble extends ConsumerWidget {
   final String text;
   final bool isUser;
   final List<String>? sources;
@@ -13,7 +16,7 @@ class ChatBubble extends StatelessWidget {
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
       child: Row(
@@ -24,7 +27,7 @@ class ChatBubble extends StatelessWidget {
           if (!isUser) ...[
             const CircleAvatar(
               backgroundColor: Colors.transparent,
-              child: Text('🤖', style: TextStyle(fontSize: 24)),
+              child: Text('AI', style: TextStyle(fontSize: 16)),
             ),
             const SizedBox(width: 8),
           ],
@@ -33,8 +36,8 @@ class ChatBubble extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isUser
-                    ? const Color(0xFF6A1B9A).withOpacity(0.8) // Purple for user
-                    : Colors.white.withOpacity(0.1), // Gray/glass for bot
+                    ? const Color(0xFF17304A).withOpacity(0.92)
+                    : Colors.white.withOpacity(0.1),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
                   topRight: const Radius.circular(20),
@@ -62,7 +65,7 @@ class ChatBubble extends StatelessWidget {
                     Divider(color: Colors.white.withOpacity(0.2)),
                     const SizedBox(height: 4),
                     const Text(
-                      '📎 Sources :',
+                      'Sources:',
                       style: TextStyle(
                         color: Colors.grey,
                         fontSize: 12,
@@ -70,20 +73,22 @@ class ChatBubble extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    ...sources!.map((source) => Padding(
-                          padding: const EdgeInsets.only(bottom: 2),
-                          child: InkWell(
-                            onTap: () {},
-                            child: Text(
-                              '• $source',
-                              style: const TextStyle(
-                                color: Colors.blueAccent,
-                                fontSize: 12,
-                                decoration: TextDecoration.underline,
-                              ),
+                    ...sources!.map(
+                      (source) => Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: InkWell(
+                          onTap: () {},
+                          child: Text(
+                            '- $source',
+                            style: const TextStyle(
+                              color: Colors.blueAccent,
+                              fontSize: 12,
+                              decoration: TextDecoration.underline,
                             ),
                           ),
-                        )),
+                        ),
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -91,10 +96,7 @@ class ChatBubble extends StatelessWidget {
           ),
           if (isUser) ...[
             const SizedBox(width: 8),
-            const CircleAvatar(
-              backgroundColor: Colors.transparent,
-              child: Text('👤', style: TextStyle(fontSize: 24)),
-            ),
+            const CurrentUserAvatar(radius: 18),
           ],
         ],
       ),

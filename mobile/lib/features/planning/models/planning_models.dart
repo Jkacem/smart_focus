@@ -79,6 +79,7 @@ class PlanningInsightsModel {
   final int completedSessions;
   final int skippedSessions;
   final double completionRate;
+  final double? avgSleepHours;
   final double? avgSleepScore;
   final String sleepStudyCorrelation;
   final String? weakestSubject;
@@ -91,6 +92,7 @@ class PlanningInsightsModel {
     required this.completedSessions,
     required this.skippedSessions,
     required this.completionRate,
+    required this.avgSleepHours,
     required this.avgSleepScore,
     required this.sleepStudyCorrelation,
     required this.weakestSubject,
@@ -105,6 +107,7 @@ class PlanningInsightsModel {
       completedSessions: json['completed_sessions'] as int? ?? 0,
       skippedSessions: json['skipped_sessions'] as int? ?? 0,
       completionRate: (json['completion_rate'] as num?)?.toDouble() ?? 0,
+      avgSleepHours: (json['avg_sleep_hours'] as num?)?.toDouble(),
       avgSleepScore: (json['avg_sleep_score'] as num?)?.toDouble(),
       sleepStudyCorrelation:
           json['sleep_study_correlation']?.toString() ?? 'insufficient_data',
@@ -122,6 +125,25 @@ class PlanningInsightsModel {
     }
     if (hours > 0) {
       return '${hours}h';
+    }
+    return '${minutes}min';
+  }
+
+  String get avgSleepHoursLabel {
+    final hoursValue = avgSleepHours;
+    if (hoursValue == null) {
+      return '--';
+    }
+
+    final roundedMinutes = (hoursValue * 60).round();
+    final wholeHours = roundedMinutes ~/ 60;
+    final minutes = roundedMinutes % 60;
+
+    if (wholeHours > 0 && minutes > 0) {
+      return '${wholeHours}h${minutes.toString().padLeft(2, '0')}';
+    }
+    if (wholeHours > 0) {
+      return '${wholeHours}h';
     }
     return '${minutes}min';
   }

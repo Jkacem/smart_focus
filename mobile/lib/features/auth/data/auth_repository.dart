@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/current_user_profile.dart';
 import '../services/auth_service.dart';
 
 abstract class AuthRepository {
@@ -10,6 +11,10 @@ abstract class AuthRepository {
     required String password,
     required String role,
   });
+  Future<CurrentUserProfile> getCurrentUserProfile();
+  Future<CurrentUserProfile> updateCurrentUserProfile(
+    CurrentUserProfileUpdateInput input,
+  );
   Future<void> saveTokens(Map<String, dynamic> tokens);
   Future<void> logout();
 }
@@ -37,6 +42,18 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
       role: role,
     );
+  }
+
+  @override
+  Future<CurrentUserProfile> getCurrentUserProfile() {
+    return _service.getCurrentUserProfile();
+  }
+
+  @override
+  Future<CurrentUserProfile> updateCurrentUserProfile(
+    CurrentUserProfileUpdateInput input,
+  ) {
+    return _service.updateCurrentUserProfile(input);
   }
 
   @override

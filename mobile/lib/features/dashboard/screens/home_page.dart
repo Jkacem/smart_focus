@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/core/router/app_routes.dart';
+import 'package:smart_focus/features/auth/providers/user_profile_provider.dart';
+import 'package:smart_focus/features/auth/widgets/current_user_avatar.dart';
 import 'package:smart_focus/features/planning/models/planning_models.dart';
 import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
@@ -40,6 +42,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final todayPlanningAsync = ref.watch(todayPlanningProvider);
+    final userProfileState = ref.watch(userProfileProvider);
+    final currentUser = userProfileState.profile;
     final now = DateTime.now();
 
     return Scaffold(
@@ -76,16 +80,37 @@ class _HomePageState extends ConsumerState<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 20),
-                  Text(
-                    'Vue d ensemble du jour',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.94),
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      height: 1.05,
-                    ),
+                  Row(
+                    children: [
+                      const CurrentUserAvatar(radius: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              currentUser == null
+                                  ? 'Bonjour'
+                                  : 'Bonjour, ${currentUser.fullName.split(' ').first}',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.92),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              'Votre profil et vos preferences sont maintenant synchronises.',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.62),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 16),
                   Text(
                     _formatLongDate(now),
                     style: TextStyle(
@@ -133,7 +158,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.calendar_today, color: Colors.white),
+                              const Icon(
+                                Icons.calendar_today,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 8),
                               const Expanded(
                                 child: Text(
@@ -166,7 +194,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                           todayPlanningAsync.when(
                             data: (planningDay) => _DashboardPlanningSection(
                               sessions: planningDay.sessions,
-                              onOpenPlanning: () => context.go(AppRoutes.planning),
+                              onOpenPlanning: () =>
+                                  context.go(AppRoutes.planning),
                             ),
                             loading: () => const Center(
                               child: Padding(
@@ -176,12 +205,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 ),
                               ),
                             ),
-                            error: (error, stackTrace) => _DashboardPlanningError(
-                              message: error.toString().replaceFirst('Exception: ', ''),
-                              onRetry: () {
-                                ref.invalidate(todayPlanningProvider);
-                              },
-                            ),
+                            error: (error, stackTrace) =>
+                                _DashboardPlanningError(
+                                  message: error.toString().replaceFirst(
+                                    'Exception: ',
+                                    '',
+                                  ),
+                                  onRetry: () {
+                                    ref.invalidate(todayPlanningProvider);
+                                  },
+                                ),
                           ),
                         ],
                       ),
@@ -239,9 +272,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 class _DashboardStartSessionButton extends StatelessWidget {
   final VoidCallback onPressed;
 
-  const _DashboardStartSessionButton({
-    required this.onPressed,
-  });
+  const _DashboardStartSessionButton({required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -298,11 +329,7 @@ class _DashboardHeroScoreCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF17304A),
-            Color(0xFF13283E),
-            Color(0xFF0B1220),
-          ],
+          colors: [Color(0xFF17304A), Color(0xFF13283E), Color(0xFF0B1220)],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFF97CAD8).withOpacity(0.24)),
@@ -358,7 +385,10 @@ class _DashboardHeroScoreCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(999),
@@ -390,7 +420,9 @@ class _DashboardHeroScoreCard extends StatelessWidget {
                         value: progress,
                         strokeWidth: 10,
                         backgroundColor: Colors.white.withOpacity(0.12),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF97CAD8)),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF97CAD8),
+                        ),
                       ),
                     ),
                     Column(
@@ -475,10 +507,7 @@ class _DashboardInsightCard extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            accent.withOpacity(0.16),
-            const Color(0xFF112438),
-          ],
+          colors: [accent.withOpacity(0.16), const Color(0xFF112438)],
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: accent.withOpacity(0.28)),
@@ -641,11 +670,18 @@ class _DashboardPlanningSection extends StatelessWidget {
     }
 
     final now = DateTime.now();
-    final completedCount = sessions.where((session) => session.isCompleted).length;
-    final pendingCount = sessions
-        .where((session) => !session.isCompleted && !session.isCancelled)
+    final completedCount = sessions
+        .where((session) => session.isCompleted)
         .length;
-    final smartCount = sessions.where((session) => session.isAiGenerated).length;
+    final pendingCount = sessions
+        .where(
+          (session) =>
+              !session.isCompleted && !session.isCancelled && !session.isMissed,
+        )
+        .length;
+    final smartCount = sessions
+        .where((session) => session.isAiGenerated)
+        .length;
     final featuredSession = _featuredSession(now);
 
     return Column(
@@ -709,7 +745,9 @@ class _DashboardPlanningSection extends StatelessWidget {
               ...List.generate(
                 sessions.length,
                 (index) => Padding(
-                  padding: EdgeInsets.only(bottom: index == sessions.length - 1 ? 0 : 12),
+                  padding: EdgeInsets.only(
+                    bottom: index == sessions.length - 1 ? 0 : 12,
+                  ),
                   child: _DashboardPlanningItem(
                     session: sessions[index],
                     isLast: index == sessions.length - 1,
@@ -725,7 +763,8 @@ class _DashboardPlanningSection extends StatelessWidget {
 
   PlanningSessionModel? _featuredSession(DateTime now) {
     for (final session in sessions) {
-      final isCurrent = !session.isCompleted &&
+      final isCurrent =
+          !session.isCompleted &&
           !session.isCancelled &&
           !now.isBefore(session.start) &&
           now.isBefore(session.end);
@@ -736,7 +775,9 @@ class _DashboardPlanningSection extends StatelessWidget {
 
     for (final session in sessions) {
       final isUpcoming =
-          !session.isCompleted && !session.isCancelled && session.end.isAfter(now);
+          !session.isCompleted &&
+          !session.isCancelled &&
+          session.end.isAfter(now);
       if (isUpcoming) {
         return session;
       }
@@ -750,10 +791,7 @@ class _DashboardPlanningItem extends StatelessWidget {
   final PlanningSessionModel session;
   final bool isLast;
 
-  const _DashboardPlanningItem({
-    required this.session,
-    this.isLast = false,
-  });
+  const _DashboardPlanningItem({required this.session, this.isLast = false});
 
   @override
   Widget build(BuildContext context) {
@@ -811,11 +849,7 @@ class _DashboardPlanningItem extends StatelessWidget {
                     color: accent.withOpacity(0.16),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    _statusIcon(session),
-                    color: accent,
-                    size: 18,
-                  ),
+                  child: Icon(_statusIcon(session), color: accent, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -861,7 +895,10 @@ class _DashboardPlanningItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: accent.withOpacity(0.16),
                         borderRadius: BorderRadius.circular(999),
@@ -988,7 +1025,10 @@ class _DashboardFeaturedSessionCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(999),
@@ -1030,7 +1070,7 @@ class _DashboardFeaturedSessionCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${_DashboardPlanningItem._formatTime(session.start)} - ${_DashboardPlanningItem._formatTime(session.end)}  •  ${_DashboardPlanningItem._formatDuration(session.duration)}',
+                '${_DashboardPlanningItem._formatTime(session.start)} - ${_DashboardPlanningItem._formatTime(session.end)}  -  ${_DashboardPlanningItem._formatDuration(session.duration)}',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.76),
                   fontSize: 13,
@@ -1156,10 +1196,7 @@ class _DashboardPlanningError extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
 
-  const _DashboardPlanningError({
-    required this.message,
-    required this.onRetry,
-  });
+  const _DashboardPlanningError({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {

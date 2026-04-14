@@ -121,6 +121,32 @@ def update_user_profile(
     return profile
 
 
+def update_current_user_profile(
+    db: Session,
+    user: models.User,
+    profile: models.UserProfile,
+    updates: "schemas.CurrentUserProfileUpdate",
+) -> tuple[models.User, models.UserProfile]:
+    """Apply partial updates to both the user and profile models."""
+    payload = updates.model_dump(exclude_unset=True)
+
+    full_name = payload.pop("full_name", None)
+    if full_name is not None:
+        user.full_name = full_name.strip()
+
+    role = payload.pop("role", None)
+    if role is not None:
+        user.role = role
+
+    for field, value in payload.items():
+        setattr(profile, field, value)
+
+    db.commit()
+    db.refresh(user)
+    db.refresh(profile)
+    return user, profile
+
+
 # ══════════════════════════════════════════════
 # SLEEP RECORDS
 # ══════════════════════════════════════════════

@@ -274,12 +274,14 @@ def _build_planning_insights(
         lookback_days=lookback_days,
     )
 
+    completed_session_items = [
+        session_obj for session_obj in sessions if session_obj.status == "completed"
+    ]
     total_study_minutes = sum(
         int((session_obj.end - session_obj.start).total_seconds() // 60)
-        for session_obj in sessions
-        if session_obj.status != "cancelled"
+        for session_obj in completed_session_items
     )
-    completed_sessions = sum(1 for session_obj in sessions if session_obj.status == "completed")
+    completed_sessions = len(completed_session_items)
     skipped_sessions = sum(
         1
         for session_obj in sessions
@@ -295,6 +297,8 @@ def _build_planning_insights(
         2,
     ) if measured_sessions > 0 else 0.0
 
+    sleep_hours = [record.total_hours for record in sleep_records if record.total_hours is not None]
+    avg_sleep_hours = round(sum(sleep_hours) / len(sleep_hours), 1) if sleep_hours else None
     scored_sleep = [record.sleep_score for record in sleep_records if record.sleep_score is not None]
     avg_sleep_score = round(sum(scored_sleep) / len(scored_sleep), 1) if scored_sleep else None
     sleep_study_correlation = _compute_sleep_study_correlation(sessions, sleep_records)
@@ -327,6 +331,7 @@ def _build_planning_insights(
         completed_sessions=completed_sessions,
         skipped_sessions=skipped_sessions,
         completion_rate=completion_rate,
+        avg_sleep_hours=avg_sleep_hours,
         avg_sleep_score=avg_sleep_score,
         sleep_study_correlation=sleep_study_correlation,
         weakest_subject=weakest_subject,

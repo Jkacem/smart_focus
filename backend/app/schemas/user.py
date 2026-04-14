@@ -41,6 +41,7 @@ class UserProfileRead(BaseModel):
     user_id: int
     daily_focus_goal: int
     preferred_schedule: str
+    avatar_data_url: Optional[str] = None
     notif_enabled: bool
     notif_preferences: Optional[Any] = None
     updated_at: datetime
@@ -52,6 +53,30 @@ class UserProfileRead(BaseModel):
 class UserProfileUpdate(BaseModel):
     daily_focus_goal: Optional[int] = None
     preferred_schedule: Optional[str] = None
+    avatar_data_url: Optional[str] = None
+    notif_enabled: Optional[bool] = None
+    notif_preferences: Optional[Any] = None
+
+
+class CurrentUserProfileRead(BaseModel):
+    id: int
+    email: EmailStr
+    full_name: str
+    role: str
+    daily_focus_goal: int
+    preferred_schedule: str
+    avatar_data_url: Optional[str] = None
+    notif_enabled: bool
+    notif_preferences: Optional[Any] = None
+    updated_at: datetime
+
+
+class CurrentUserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    daily_focus_goal: Optional[int] = None
+    preferred_schedule: Optional[str] = None
+    avatar_data_url: Optional[str] = None
     notif_enabled: Optional[bool] = None
     notif_preferences: Optional[Any] = None
 
