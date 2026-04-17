@@ -48,6 +48,25 @@ class AuthService {
     return Map<String, dynamic>.from(data as Map);
   }
 
+  Future<Map<String, dynamic>> loginWithGoogle({
+    required String idToken,
+    String? role,
+  }) async {
+    final response = await _dio.post(
+      '/auth/google',
+      data: {
+        'id_token': idToken,
+        if (role != null && role.isNotEmpty) 'role': role,
+      },
+      options: Options(contentType: Headers.jsonContentType),
+    );
+    final data = response.data;
+    if (data is! Map) {
+      throw const FormatException('Unexpected Google login response format');
+    }
+    return Map<String, dynamic>.from(data as Map);
+  }
+
   Future<void> saveTokens(Map<String, dynamic> tokens) async {
     final accessToken = tokens['access_token'];
     final refreshToken = tokens['refresh_token'];

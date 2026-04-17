@@ -2,7 +2,7 @@ from .user import (
     UserBase, UserCreate, UserRead,
     UserProfileCreate, UserProfileRead, UserProfileUpdate,
     CurrentUserProfileRead, CurrentUserProfileUpdate,
-    LoginRequest, TokenResponse, RefreshRequest,
+    LoginRequest, TokenResponse, RefreshRequest, GoogleAuthRequest,
 )
 from .sleep import (
     SleepLogCreate, SleepLogResponse,

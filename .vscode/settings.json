@@ -1,4 +1,6 @@
 {
     "cmake.sourceDirectory": "C:/Users/SBS/Desktop/SmartFocus/mobile/linux",
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "java.import.gradle.enabled": false,
+    "java.configuration.updateBuildConfiguration": "disabled"
 }

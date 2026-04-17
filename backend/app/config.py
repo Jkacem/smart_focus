@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     # ── Google Gemini (RAG Chatbot) ──
     GOOGLE_API_KEY: Optional[str] = None
+    # Comma-separated OAuth client IDs allowed to exchange Google id_token.
+    # Example: "xxx.apps.googleusercontent.com,yyy.apps.googleusercontent.com"
+    GOOGLE_OAUTH_CLIENT_IDS: Optional[str] = None
 
     # ── RAG Storage ──
     CHROMA_DB_PATH: str = "chroma_db"

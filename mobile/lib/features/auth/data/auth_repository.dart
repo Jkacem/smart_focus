@@ -11,6 +11,10 @@ abstract class AuthRepository {
     required String password,
     required String role,
   });
+  Future<Map<String, dynamic>> loginWithGoogle({
+    required String idToken,
+    String? role,
+  });
   Future<CurrentUserProfile> getCurrentUserProfile();
   Future<CurrentUserProfile> updateCurrentUserProfile(
     CurrentUserProfileUpdateInput input,
@@ -42,6 +46,14 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
       role: role,
     );
+  }
+
+  @override
+  Future<Map<String, dynamic>> loginWithGoogle({
+    required String idToken,
+    String? role,
+  }) {
+    return _service.loginWithGoogle(idToken: idToken, role: role);
   }
 
   @override

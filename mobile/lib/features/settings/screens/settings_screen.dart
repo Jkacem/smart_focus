@@ -42,6 +42,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _preferredSchedule = 'morning';
   String _selectedRole = 'student';
   String? _avatarDataUrl;
+  bool _isEditingAccount = false;
 
   @override
   void dispose() {
@@ -131,11 +132,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   else ...[
                     _buildProfileCard(profile),
                     const SizedBox(height: 24),
-                    _buildSectionTitle('Compte'),
-                    const SizedBox(height: 8),
-                    _buildAccountCard(profile),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('Preferences d etude'),
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 220),
+                      firstChild: const SizedBox.shrink(),
+                      secondChild: Column(
+                        children: [
+                          _buildSectionTitle('Compte'),
+                          const SizedBox(height: 8),
+                          _buildAccountCard(profile),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                      crossFadeState: _isEditingAccount
+                          ? CrossFadeState.showSecond
+                          : CrossFadeState.showFirst,
+                    ),
+                    _buildSectionTitle('Preferences d"étude'),
                     const SizedBox(height: 8),
                     _buildPreferencesCard(),
                     const SizedBox(height: 24),
@@ -260,6 +272,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isEditingAccount = !_isEditingAccount;
+                    });
+                  },
+                  icon: Icon(
+                    _isEditingAccount
+                        ? Icons.check_circle_outline
+                        : Icons.edit_outlined,
+                    size: 18,
+                  ),
+                  label: Text(
+                    _isEditingAccount ? 'Fermer edition' : 'Modifier le compte',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF97CAD8),
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 32),
                   ),
                 ),
               ],
@@ -730,7 +764,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
 
     try {
-      await ref.read(userProfileProvider.notifier).updateProfile(
+      await ref
+          .read(userProfileProvider.notifier)
+          .updateProfile(
             CurrentUserProfileUpdateInput(
               fullName: fullName,
               role: _selectedRole,
@@ -744,16 +780,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis a jour.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profil mis a jour.')));
     } catch (_) {
-      final error = ref.read(userProfileProvider).errorMessage ??
+      final error =
+          ref.read(userProfileProvider).errorMessage ??
           'Impossible d enregistrer vos modifications.';
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
     }
   }
 

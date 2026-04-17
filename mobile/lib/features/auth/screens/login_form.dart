@@ -64,6 +64,28 @@ class _LoginFormScreenState extends ConsumerState<LoginFormScreen> {
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    if (!mounted) return;
+    final didLogin = await ref.read(authProvider.notifier).loginWithGoogle();
+
+    if (!mounted) return;
+    if (didLogin) {
+      ref.invalidate(chatProvider);
+      context.go(AppRoutes.dashboard);
+      return;
+    }
+
+    final state = ref.read(authProvider);
+    if (state.status == AuthStatus.error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.errorMessage ?? 'Erreur de connexion Google'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -201,6 +223,29 @@ class _LoginFormScreenState extends ConsumerState<LoginFormScreen> {
                                         fontSize: 16,
                                       ),
                                     ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              onPressed: isLoading ? null : _handleGoogleLogin,
+                              icon: const Icon(Icons.g_mobiledata, size: 28),
+                              label: const Text(
+                                'Continuer avec Google',
+                                style: TextStyle(
+                                  fontFamily: 'SF Pro',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: BorderSide(color: Colors.white.withOpacity(0.35)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(26),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),

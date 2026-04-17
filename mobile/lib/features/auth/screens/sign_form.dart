@@ -78,6 +78,28 @@ class _SignFormScreenState extends ConsumerState<SignFormScreen> {
     }
   }
 
+  Future<void> _handleGoogleSignUp() async {
+    final didRegister = await ref
+        .read(authProvider.notifier)
+        .loginWithGoogle(role: _selectedRole);
+
+    if (!mounted) return;
+    if (didRegister) {
+      context.go(AppRoutes.dashboard);
+      return;
+    }
+
+    final state = ref.read(authProvider);
+    if (state.status == AuthStatus.error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.errorMessage ?? 'Erreur de connexion Google'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -205,6 +227,29 @@ class _SignFormScreenState extends ConsumerState<SignFormScreen> {
                                         fontSize: 16,
                                       ),
                                     ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              onPressed: isLoading ? null : _handleGoogleSignUp,
+                              icon: const Icon(Icons.g_mobiledata, size: 28),
+                              label: const Text(
+                                'S inscrire avec Google',
+                                style: TextStyle(
+                                  fontFamily: 'SF Pro',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: BorderSide(color: Colors.white.withOpacity(0.35)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(26),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),

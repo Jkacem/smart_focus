@@ -3,10 +3,15 @@
 Authentication endpoints – register, login, refresh, me.
 """
 
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 
 from app import crud, schemas
+from app.config import settings
 from app.deps import get_db, get_current_user
 from app.models import User
 from app.utils.security import verify_password, create_access_token, create_refresh_token, decode_token
@@ -66,6 +71,55 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated",
+        )
+
+    crud.update_last_login(db, user)
+    return _build_tokens(user.email)
+
+
+@router.post("/google", response_model=schemas.TokenResponse)
+def google_auth(
+    payload: schemas.GoogleAuthRequest,
+    db: Session = Depends(get_db),
+):
+    """Authenticate or auto-register a user from a Google id_token."""
+    google_payload = _verify_google_id_token(payload.id_token)
+
+    email = (google_payload.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google token does not contain an email",
+        )
+
+    email_verified = google_payload.get("email_verified")
+    if email_verified not in (True, "true", "True", 1, "1"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google account email is not verified",
+        )
+
+    user = crud.get_user_by_email(db, email)
+    if not user:
+        role = payload.role if payload.role in ("student", "teacher", "professional") else "student"
+        full_name = (google_payload.get("name") or email.split("@")[0]).strip()
+        if not full_name:
+            full_name = "Google User"
+
+        user = crud.create_user(
+            db,
+            schemas.UserCreate(
+                email=email,
+                full_name=full_name,
+                password=secrets.token_urlsafe(32),
+                role=role,
+            ),
         )
 
     if not user.is_active:
@@ -164,6 +218,42 @@ def _build_tokens(email: str) -> dict:
         "refresh_token": create_refresh_token(data),
         "token_type": "bearer",
     }
+
+
+def _verify_google_id_token(id_token_value: str) -> dict:
+    request = google_requests.Request()
+    client_ids_raw = settings.GOOGLE_OAUTH_CLIENT_IDS or ""
+    client_ids = [item.strip() for item in client_ids_raw.split(",") if item.strip()]
+
+    if not client_ids:
+        if not settings.DEBUG:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="GOOGLE_OAUTH_CLIENT_IDS is not configured on the backend",
+            )
+        try:
+            payload = google_id_token.verify_oauth2_token(id_token_value, request)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Google token",
+            )
+        return payload
+
+    for client_id in client_ids:
+        try:
+            return google_id_token.verify_oauth2_token(
+                id_token_value,
+                request,
+                client_id,
+            )
+        except ValueError:
+            continue
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid Google token for configured client IDs",
+    )
 
 
 def _build_current_user_profile(
