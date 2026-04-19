@@ -5,7 +5,6 @@ Charge les variables d'environnement depuis le fichier .env
 
 from pydantic_settings import BaseSettings
 from typing import Optional
-import os
 
 
 class Settings(BaseSettings):
@@ -24,7 +23,12 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # ── Google Gemini (RAG Chatbot) ──
+    AI_PROVIDER: str = "gemini"
     GOOGLE_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    LLM_MAX_RPM: int = 25
     # Comma-separated OAuth client IDs allowed to exchange Google id_token.
     # Example: "xxx.apps.googleusercontent.com,yyy.apps.googleusercontent.com"
     GOOGLE_OAUTH_CLIENT_IDS: Optional[str] = None

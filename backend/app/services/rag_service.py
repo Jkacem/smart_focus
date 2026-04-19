@@ -6,26 +6,28 @@ Pipeline:
   2. Chunking       → LangChain RecursiveCharacterTextSplitter
   3. Embedding      → HuggingFace sentence-transformers (local, free)
   4. Vector Store   → ChromaDB (persisted on disk)
-  5. Query          → retrieve top-k chunks → build prompt → Gemini 1.5 Flash
+  5. Query          → retrieve top-k chunks → build prompt → Gemini 2.5 Flash
 """
 
 import os
 import re
 import json
+import logging
 import random
-import uuid
 import fitz  # PyMuPDF
 from pathlib import Path
 from typing import List, Dict, Any
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-import google.generativeai as genai
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 
 from app.config import settings
+from app.services.gemini_client import gemini_generate
+
+logger = logging.getLogger(__name__)
 
 
 # ── Singleton: reuse embedding model across requests ──────────────────────────
@@ -182,12 +184,9 @@ def query_rag(
         for c in all_chunks
     )
 
-    # Generate answer with Gemini 1.5 Flash using direct SDK
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel('gemini-2.5-flash')
+    # Generate answer with Gemini 2.5 Flash
     prompt_text = _RAG_PROMPT.format(context=context, question=question)
-    response = llm.generate_content(prompt_text)
-    answer = response.text.strip()
+    answer = gemini_generate(prompt_text)
 
     # Build source citations (deduplicated by page)
     seen = set()
@@ -209,14 +208,10 @@ def query_general(question: str) -> Dict[str, Any]:
     """
     Answer a general question directly with Gemini (No RAG context).
     """
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel('gemini-2.5-flash')
-    response = llm.generate_content(f"Tu es un assistant pédagogique intelligent pour l'application SmartFocus.\n\nRéponds à la question suivante : {question}")
-    
-    return {
-        "answer": response.text.strip(),
-        "sources": []
-    }
+    answer = gemini_generate(
+        f"Tu es un assistant pédagogique intelligent pour l'application SmartFocus.\n\nRéponds à la question suivante : {question}"
+    )
+    return {"answer": answer, "sources": []}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -281,13 +276,8 @@ def generate_quiz(collection_name: str, num_questions: int = 10) -> List[Dict]:
     context = "\n\n---\n\n".join(c.page_content for c in sampled)
 
     # Generate with Gemini
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel('gemini-2.5-flash')
     prompt_text = _QUIZ_PROMPT.format(context=context, num_questions=num_questions)
-    response = llm.generate_content(prompt_text)
-
-    # Parse JSON response using regex to extract array
-    raw_text = response.text.strip()
+    raw_text = gemini_generate(prompt_text)
     match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
     if match:
         raw_text = match.group(0)
@@ -343,12 +333,8 @@ def generate_quiz_from_collections(
     sampled = random.sample(all_chunks, sample_size)
     context = "\n\n---\n\n".join(chunk.page_content for chunk in sampled)
 
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel('gemini-2.5-flash')
     prompt_text = _QUIZ_PROMPT.format(context=context, num_questions=num_questions)
-    response = llm.generate_content(prompt_text)
-
-    raw_text = response.text.strip()
+    raw_text = gemini_generate(prompt_text)
     match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
     if match:
         raw_text = match.group(0)
@@ -426,12 +412,8 @@ def generate_flashcards(collection_name: str, num_cards: int = 15) -> List[Dict]
 
     context = "\n\n---\n\n".join(c.page_content for c in sampled)
 
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel('gemini-2.5-flash')
     prompt_text = _FLASHCARD_PROMPT.format(context=context, num_cards=num_cards)
-    response = llm.generate_content(prompt_text)
-
-    raw_text = response.text.strip()
+    raw_text = gemini_generate(prompt_text)
     match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
     if match:
         raw_text = match.group(0)
@@ -486,12 +468,8 @@ def generate_flashcards_from_collections(
     sampled = random.sample(all_chunks, sample_size)
     context = "\n\n---\n\n".join(chunk.page_content for chunk in sampled)
 
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel('gemini-2.5-flash')
     prompt_text = _FLASHCARD_PROMPT.format(context=context, num_cards=num_cards)
-    response = llm.generate_content(prompt_text)
-
-    raw_text = response.text.strip()
+    raw_text = gemini_generate(prompt_text)
     match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
     if match:
         raw_text = match.group(0)

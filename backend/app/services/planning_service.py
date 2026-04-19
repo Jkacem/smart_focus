@@ -16,12 +16,11 @@ import re
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
-import google.generativeai as genai
 from langchain_community.vectorstores import Chroma
 
-from app.config import settings
 from app.models.models import StudySession, UserProfile
 from app.services.rag_service import _get_embeddings, _chroma_path
+from app.services.gemini_client import gemini_generate
 
 logger = logging.getLogger(__name__)
 
@@ -273,8 +272,6 @@ def _assign_subjects_via_ai(
     if not session_slots:
         return []
 
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel("gemini-2.5-flash")
 
     # Build slot descriptions
     slots_desc = "\n".join(
@@ -306,8 +303,7 @@ def _assign_subjects_via_ai(
     )
 
     try:
-        response = llm.generate_content(prompt)
-        raw_text = response.text.strip()
+        raw_text = gemini_generate(prompt)
 
         # Strip markdown fences
         raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
@@ -482,9 +478,6 @@ def _extract_timetable_from_collection(
         len(all_chunks), len(document_text), collection_name,
     )
 
-    # ── Step 3: Dedicated Gemini call for timetable extraction ────────────
-    genai.configure(api_key=settings.GOOGLE_API_KEY)
-    llm = genai.GenerativeModel("gemini-2.5-flash")
 
     prompt = _TIMETABLE_EXTRACTION_PROMPT.format(
         day_name=day_name,
@@ -492,8 +485,7 @@ def _extract_timetable_from_collection(
         document_text=document_text,
     )
 
-    response = llm.generate_content(prompt)
-    raw = response.text.strip()
+    raw = gemini_generate(prompt)
     logger.info("Gemini timetable extraction raw response:\n%s", raw)
 
     # ── Step 4: Parse JSON ────────────────────────────────────────────────
