@@ -52,6 +52,8 @@ class User(Base):
     study_sessions = relationship("StudySession", back_populates="user",
                                    cascade="all, delete-orphan")
     exams = relationship("Exam", back_populates="user", cascade="all, delete-orphan")
+    work_sessions = relationship("WorkSession", back_populates="user",
+                                 cascade="all, delete-orphan")
 
 
 class UserProfile(Base):
@@ -479,3 +481,51 @@ class StudySession(Base):
             return "in_progress"
         return "generated"
 
+
+class WorkSession(Base):
+    """CV monitoring work session from the pi_client."""
+    __tablename__ = "work_sessions"
+
+    id = Column(String(36), primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    start_time = Column(DateTime, nullable=False, default=utc_now_naive)
+    end_time = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    metadata_json = Column(JSON, nullable=True)
+
+    user = relationship("User", back_populates="work_sessions")
+    snapshots = relationship("Snapshot", back_populates="session", cascade="all, delete-orphan")
+    focus_events = relationship("FocusEvent", back_populates="session", cascade="all, delete-orphan")
+
+
+class Snapshot(Base):
+    """Point-in-time CV state snapshot (Levels 1-4 + Scores)."""
+    __tablename__ = "snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(36), ForeignKey("work_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(DateTime, nullable=False, default=utc_now_naive)
+    work_mode = Column(String(50))
+    attention_score = Column(Float)
+    posture_score = Column(Float)
+    vigilance_score = Column(Float)
+    stress_risk_score = Column(Float)
+    global_focus_score = Column(Float)
+    raw_payload_json = Column(JSON)
+
+    session = relationship("WorkSession", back_populates="snapshots")
+
+
+class FocusEvent(Base):
+    """Discrete behavioral event or alert from CV monitoring."""
+    __tablename__ = "focus_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(36), ForeignKey("work_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(DateTime, nullable=False, default=utc_now_naive)
+    event_type = Column(String(50))
+    level = Column(String(20))
+    description = Column(String(500))
+    raw_payload_json = Column(JSON, nullable=True)
+
+    session = relationship("WorkSession", back_populates="focus_events")

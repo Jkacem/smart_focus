@@ -3,12 +3,13 @@
 CRUD helpers for SQLAlchemy models.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from . import models, schemas
+from .utils.datetime_utils import utc_now_naive
 from .utils.security import hash_password
 
 
@@ -672,3 +673,150 @@ def delete_study_session(db: Session, session_obj: models.StudySession) -> None:
     """Delete a single study session."""
     db.delete(session_obj)
     db.commit()
+
+
+# ============================================================================
+# VISION / MONITORING
+# ============================================================================
+
+def _parse_iso_timestamp(value: str | None) -> datetime:
+    """Parse ISO timestamps sent by the CV client, falling back to UTC now."""
+    if not value:
+        return utc_now_naive()
+
+    normalized = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return utc_now_naive()
+
+    if parsed.tzinfo is None:
+        return parsed
+    return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def create_work_session(
+    db: Session,
+    session_id: str,
+    user_id: int | None = None,
+    metadata_json: dict | None = None,
+) -> models.WorkSession:
+    """Create (or return existing) CV work session."""
+    existing = get_work_session(db, session_id)
+    if existing:
+        return existing
+
+    session_obj = models.WorkSession(
+        id=session_id,
+        user_id=user_id,
+        metadata_json=metadata_json,
+    )
+    db.add(session_obj)
+    db.commit()
+    db.refresh(session_obj)
+    return session_obj
+
+
+def get_work_session(db: Session, session_id: str) -> models.WorkSession | None:
+    """Lookup a CV work session by UUID."""
+    return (
+        db.query(models.WorkSession)
+        .filter(models.WorkSession.id == session_id)
+        .first()
+    )
+
+
+def finalize_work_session(
+    db: Session,
+    session_id: str,
+    summary_data: dict,
+) -> models.WorkSession | None:
+    """Mark a CV session as completed and persist final summary payload."""
+    session_obj = get_work_session(db, session_id)
+    if not session_obj:
+        return None
+
+    metadata = dict(session_obj.metadata_json or {})
+    metadata["final_summary"] = summary_data
+    session_obj.metadata_json = metadata
+    session_obj.is_active = False
+    session_obj.end_time = utc_now_naive()
+
+    db.commit()
+    db.refresh(session_obj)
+    return session_obj
+
+
+def create_snapshot(
+    db: Session,
+    payload: schemas.SnapshotCreate,
+) -> models.Snapshot:
+    """Insert a CV snapshot, auto-creating the parent session if needed."""
+    session_obj = get_work_session(db, payload.session_id)
+    if session_obj is None:
+        session_obj = create_work_session(db, payload.session_id)
+
+    scores = payload.scores or {}
+    snapshot = models.Snapshot(
+        session_id=session_obj.id,
+        timestamp=_parse_iso_timestamp(payload.timestamp),
+        work_mode=payload.work_mode,
+        attention_score=scores.get("attention_score"),
+        posture_score=scores.get("posture_score"),
+        vigilance_score=scores.get("vigilance_score"),
+        stress_risk_score=scores.get("stress_risk_score"),
+        global_focus_score=scores.get("focus_score_global", scores.get("global_focus_score")),
+        raw_payload_json=payload.model_dump(),
+    )
+    db.add(snapshot)
+    db.commit()
+    db.refresh(snapshot)
+    return snapshot
+
+
+def create_focus_event(
+    db: Session,
+    payload: schemas.EventCreate,
+) -> models.FocusEvent:
+    """Insert a CV discrete event, auto-creating the parent session if needed."""
+    session_obj = get_work_session(db, payload.session_id)
+    if session_obj is None:
+        session_obj = create_work_session(db, payload.session_id)
+
+    focus_event = models.FocusEvent(
+        session_id=session_obj.id,
+        timestamp=_parse_iso_timestamp(payload.timestamp),
+        event_type=payload.event_type,
+        level=payload.level,
+        description=payload.description,
+        raw_payload_json=payload.metadata,
+    )
+    db.add(focus_event)
+    db.commit()
+    db.refresh(focus_event)
+    return focus_event
+
+
+def get_latest_snapshot(db: Session, session_id: str) -> models.Snapshot | None:
+    """Return the latest snapshot by timestamp for the given session."""
+    return (
+        db.query(models.Snapshot)
+        .filter(models.Snapshot.session_id == session_id)
+        .order_by(models.Snapshot.timestamp.desc())
+        .first()
+    )
+
+
+def list_work_sessions(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[models.WorkSession]:
+    """List persisted CV work sessions."""
+    return (
+        db.query(models.WorkSession)
+        .order_by(models.WorkSession.start_time.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )

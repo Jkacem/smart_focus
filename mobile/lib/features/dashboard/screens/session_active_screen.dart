@@ -1,14 +1,76 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:smart_focus/shared/widgets/custom_app_bar.dart';
 import 'package:smart_focus/shared/widgets/frosted_glass_card.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 
-class SessionActiveScreen extends StatelessWidget {
+import '../models/vision_models.dart';
+import '../providers/vision_provider.dart';
+import '../services/vision_service.dart';
+
+class SessionActiveScreen extends ConsumerStatefulWidget {
   const SessionActiveScreen({Key? key}) : super(key: key);
 
   @override
+  ConsumerState<SessionActiveScreen> createState() =>
+      _SessionActiveScreenState();
+}
+
+class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
+  late final Stopwatch _stopwatch;
+  Timer? _uiTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _stopwatch = Stopwatch()..start();
+    _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+
+    // If no active session yet, pick the first active one from the backend
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureSession());
+  }
+
+  Future<void> _ensureSession() async {
+    final currentId = ref.read(activeWorkSessionIdProvider);
+    if (currentId != null) return;
+
+    try {
+      final service = ref.read(visionServiceProvider);
+      final sessions = await service.listSessions(limit: 10);
+      final active = sessions.where((s) => s.isActive).toList();
+      if (active.isNotEmpty) {
+        ref.read(activeWorkSessionIdProvider.notifier).state = active.first.id;
+      }
+    } catch (_) {
+      // Silently fail — user can still see the static screen
+    }
+  }
+
+  @override
+  void dispose() {
+    _uiTimer?.cancel();
+    _stopwatch.stop();
+    super.dispose();
+  }
+
+  String _formatElapsed() {
+    final d = _stopwatch.elapsed;
+    final h = d.inHours.toString().padLeft(2, '0');
+    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$h:$m:$s';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final snapshotAsync = ref.watch(liveSnapshotProvider);
+    final snapshot = snapshotAsync.value;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: CustomAppBar(
@@ -27,7 +89,10 @@ class SessionActiveScreen extends StatelessWidget {
             _SessionActionIcon(
               icon: Icons.stop_rounded,
               color: const Color(0xFFFB7185),
-              onPressed: () {},
+              onPressed: () {
+                ref.read(activeWorkSessionIdProvider.notifier).state = null;
+                Navigator.of(context).pop();
+              },
             ),
           ],
         ),
@@ -53,15 +118,21 @@ class SessionActiveScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  SizedBox(height: 12),
-                  _SessionHeroCard(),
-                  SizedBox(height: 18),
-                  _SessionMetricsGrid(),
-                  SizedBox(height: 18),
-                  _SessionAlertsCard(),
-                  SizedBox(height: 18),
-                  _SessionActionsCard(),
+                children: [
+                  const SizedBox(height: 12),
+                  _SessionHeroCard(
+                    elapsed: _formatElapsed(),
+                    snapshot: snapshot,
+                  ),
+                  const SizedBox(height: 18),
+                  _SessionMetricsGrid(snapshot: snapshot),
+                  const SizedBox(height: 18),
+                  _SessionConnectionStatus(
+                    hasData: snapshot != null,
+                    sessionId: ref.watch(activeWorkSessionIdProvider),
+                  ),
+                  const SizedBox(height: 18),
+                  const _SessionActionsCard(),
                 ],
               ),
             ),
@@ -72,11 +143,77 @@ class SessionActiveScreen extends StatelessWidget {
   }
 }
 
+// ───────────────────────────────────────────────
+// Hero Card (top)
+// ───────────────────────────────────────────────
+
 class _SessionHeroCard extends StatelessWidget {
-  const _SessionHeroCard();
+  final String elapsed;
+  final VisionSnapshot? snapshot;
+
+  const _SessionHeroCard({required this.elapsed, this.snapshot});
+
+  String _focusLabel(double? score) {
+    if (score == null) return '--';
+    return '${score.round()}%';
+  }
+
+  String _qualityLabel(String? workMode) {
+    if (workMode == null) return '--';
+    final wm = workMode.toLowerCase();
+    if (wm.contains('focused') || wm == 'thinking' || wm == 'self_explaining') {
+      return 'Haute';
+    }
+    if (wm == 'brief_off_task') return 'Moyenne';
+    return 'Faible';
+  }
+
+  Color _qualityColor(String? workMode) {
+    if (workMode == null) return const Color(0xFF97CAD8);
+    final wm = workMode.toLowerCase();
+    if (wm.contains('focused') || wm == 'thinking') return const Color(0xFF8BD3A8);
+    if (wm == 'brief_off_task') return const Color(0xFFFFC857);
+    return const Color(0xFFFB7185);
+  }
+
+  String _modeLabel(String? workMode) {
+    if (workMode == null) return 'En attente du capteur...';
+    const labels = {
+      'focused': 'Concentré',
+      'focused_reading': 'Lecture concentrée',
+      'focused_writing': 'Écriture concentrée',
+      'thinking': 'Réflexion',
+      'self_explaining': 'Auto-explication',
+      'brief_off_task': 'Brève distraction',
+      'phone_distraction': 'Distraction téléphone',
+      'social_distraction': 'Distraction sociale',
+    };
+    return labels[workMode] ?? workMode!;
+  }
+
+  String _statusBadge(String? workMode) {
+    if (workMode == null) return 'Attente';
+    final wm = workMode.toLowerCase();
+    if (wm.contains('focused') || wm == 'thinking' || wm == 'self_explaining') {
+      return 'Excellent';
+    }
+    if (wm == 'brief_off_task') return 'Attention';
+    return 'Alerte';
+  }
+
+  Color _statusBadgeColor(String? workMode) {
+    if (workMode == null) return const Color(0xFF97CAD8);
+    final wm = workMode.toLowerCase();
+    if (wm.contains('focused') || wm == 'thinking') return const Color(0xFF8BD3A8);
+    if (wm == 'brief_off_task') return const Color(0xFFFFC857);
+    return const Color(0xFFFB7185);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final wm = snapshot?.workMode;
+    final badgeColor = _statusBadgeColor(wm);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -84,11 +221,7 @@ class _SessionHeroCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF17304A),
-            Color(0xFF13283E),
-            Color(0xFF0B1220),
-          ],
+          colors: [Color(0xFF17304A), Color(0xFF13283E), Color(0xFF0B1220)],
         ),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFF97CAD8).withOpacity(0.24)),
@@ -113,10 +246,7 @@ class _SessionHeroCard extends StatelessWidget {
                   color: const Color(0xFF97CAD8).withOpacity(0.18),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(
-                  Icons.timer_outlined,
-                  color: Color(0xFF97CAD8),
-                ),
+                child: const Icon(Icons.timer_outlined, color: Color(0xFF97CAD8)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -124,7 +254,7 @@ class _SessionHeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Bloc de concentration en cours',
+                      'Session de concentration',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.94),
                         fontSize: 18,
@@ -133,7 +263,7 @@ class _SessionHeroCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Maths avancees - Rythme stable',
+                      _modeLabel(wm),
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.66),
                         fontSize: 13,
@@ -145,13 +275,13 @@ class _SessionHeroCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8BD3A8).withOpacity(0.18),
+                  color: badgeColor.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
-                  'Excellent',
+                child: Text(
+                  _statusBadge(wm),
                   style: TextStyle(
-                    color: Color(0xFF8BD3A8),
+                    color: badgeColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
@@ -164,7 +294,7 @@ class _SessionHeroCard extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  '00:42:17',
+                  elapsed,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.98),
                     fontSize: 44,
@@ -175,7 +305,7 @@ class _SessionHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Temps de focus cumule',
+                  'Temps de focus cumulé',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.64),
                     fontSize: 13,
@@ -187,28 +317,30 @@ class _SessionHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           Row(
-            children: const [
+            children: [
               Expanded(
                 child: _SessionHeroStat(
                   label: 'Focus',
-                  value: '87%',
-                  accent: Color(0xFF97CAD8),
+                  value: _focusLabel(snapshot?.globalFocusScore),
+                  accent: const Color(0xFF97CAD8),
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: _SessionHeroStat(
-                  label: 'Qualite',
-                  value: 'Haute',
-                  accent: Color(0xFF8BD3A8),
+                  label: 'Qualité',
+                  value: _qualityLabel(wm),
+                  accent: _qualityColor(wm),
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: _SessionHeroStat(
-                  label: 'Pause',
-                  value: 'dans 18m',
-                  accent: Color(0xFFFFC857),
+                  label: 'Stress',
+                  value: snapshot?.stressRiskScore != null
+                      ? '${snapshot!.stressRiskScore!.round()}'
+                      : '--',
+                  accent: const Color(0xFFFFC857),
                 ),
               ),
             ],
@@ -265,56 +397,124 @@ class _SessionHeroStat extends StatelessWidget {
   }
 }
 
+// ───────────────────────────────────────────────
+// Live Metrics Grid (4 cards)
+// ───────────────────────────────────────────────
+
 class _SessionMetricsGrid extends StatelessWidget {
-  const _SessionMetricsGrid();
+  final VisionSnapshot? snapshot;
+
+  const _SessionMetricsGrid({this.snapshot});
+
+  String _scoreStr(double? v) => v != null ? '${v.round()}' : '--';
+
+  String _postureStatus(double? v) {
+    if (v == null) return 'En attente...';
+    if (v >= 80) return 'Bonne tenue';
+    if (v >= 50) return 'À surveiller';
+    return 'Mauvaise posture';
+  }
+
+  Color _postureColor(double? v) {
+    if (v == null) return const Color(0xFF97CAD8);
+    if (v >= 80) return const Color(0xFF8BD3A8);
+    if (v >= 50) return const Color(0xFFFFC857);
+    return const Color(0xFFFB7185);
+  }
+
+  String _fatigueStatus(double? v) {
+    if (v == null) return 'En attente...';
+    if (v >= 70) return 'Fatigue élevée';
+    if (v >= 40) return 'Fatigue modérée';
+    return 'Énergie stable';
+  }
+
+  Color _fatigueColor(double? v) {
+    if (v == null) return const Color(0xFF97CAD8);
+    if (v >= 70) return const Color(0xFFFB7185);
+    if (v >= 40) return const Color(0xFFFFC857);
+    return const Color(0xFF97CAD8);
+  }
+
+  String _attentionStatus(double? v) {
+    if (v == null) return 'En attente...';
+    if (v >= 80) return 'Excellente';
+    if (v >= 50) return 'À surveiller';
+    return 'Faible attention';
+  }
+
+  Color _attentionColor(double? v) {
+    if (v == null) return const Color(0xFF97CAD8);
+    if (v >= 80) return const Color(0xFF8BD3A8);
+    if (v >= 50) return const Color(0xFFFFC857);
+    return const Color(0xFFFB7185);
+  }
+
+  String _stressStatus(double? v) {
+    if (v == null) return 'En attente...';
+    if (v >= 60) return 'Stress élevé';
+    if (v >= 30) return 'Stress modéré';
+    return 'Détendu';
+  }
+
+  Color _stressColor(double? v) {
+    if (v == null) return const Color(0xFF97CAD8);
+    if (v >= 60) return const Color(0xFFFB7185);
+    if (v >= 30) return const Color(0xFFFFC857);
+    return const Color(0xFF8BD3A8);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: const [
+      children: [
         Row(
           children: [
             Expanded(
               child: _SessionMetricCard(
                 title: 'Posture',
-                value: '85',
-                status: 'Bonne tenue',
-                accent: Color(0xFF8BD3A8),
+                value: _scoreStr(snapshot?.postureScore),
+                status: _postureStatus(snapshot?.postureScore),
+                accent: _postureColor(snapshot?.postureScore),
                 icon: Icons.accessibility_new_rounded,
               ),
             ),
-            SizedBox(width: 14),
+            const SizedBox(width: 14),
             Expanded(
               child: _SessionMetricCard(
                 title: 'Fatigue',
-                value: 'Low',
-                status: 'Charge stable',
-                accent: Color(0xFF97CAD8),
+                value: _scoreStr(snapshot?.vigilanceScore),
+                status: _fatigueStatus(snapshot?.vigilanceScore != null
+                    ? (100 - snapshot!.vigilanceScore!)
+                    : null),
+                accent: _fatigueColor(snapshot?.vigilanceScore != null
+                    ? (100 - snapshot!.vigilanceScore!)
+                    : null),
                 icon: Icons.battery_charging_full_rounded,
               ),
             ),
           ],
         ),
-        SizedBox(height: 14),
+        const SizedBox(height: 14),
         Row(
           children: [
             Expanded(
               child: _SessionMetricCard(
                 title: 'Attention',
-                value: '72',
-                status: 'A surveiller',
-                accent: Color(0xFFFFC857),
+                value: _scoreStr(snapshot?.attentionScore),
+                status: _attentionStatus(snapshot?.attentionScore),
+                accent: _attentionColor(snapshot?.attentionScore),
                 icon: Icons.visibility_outlined,
               ),
             ),
-            SizedBox(width: 14),
+            const SizedBox(width: 14),
             Expanded(
               child: _SessionMetricCard(
-                title: 'Hydratation',
-                value: 'Ok',
-                status: 'Rappel fait',
-                accent: Color(0xFF97CAD8),
-                icon: Icons.water_drop_outlined,
+                title: 'Stress',
+                value: _scoreStr(snapshot?.stressRiskScore),
+                status: _stressStatus(snapshot?.stressRiskScore),
+                accent: _stressColor(snapshot?.stressRiskScore),
+                icon: Icons.psychology_outlined,
               ),
             ),
           ],
@@ -394,8 +594,18 @@ class _SessionMetricCard extends StatelessWidget {
   }
 }
 
-class _SessionAlertsCard extends StatelessWidget {
-  const _SessionAlertsCard();
+// ───────────────────────────────────────────────
+// Connection Status (replaces old alerts card)
+// ───────────────────────────────────────────────
+
+class _SessionConnectionStatus extends StatelessWidget {
+  final bool hasData;
+  final String? sessionId;
+
+  const _SessionConnectionStatus({
+    required this.hasData,
+    this.sessionId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -404,14 +614,17 @@ class _SessionAlertsCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Row(
             children: [
-              Icon(Icons.notifications_active_outlined, color: Color(0xFFFFC857)),
-              SizedBox(width: 10),
+              Icon(
+                hasData ? Icons.sensors_rounded : Icons.sensors_off_rounded,
+                color: hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857),
+              ),
+              const SizedBox(width: 10),
               Text(
-                'Alertes recentes',
-                style: TextStyle(
+                hasData ? 'Capteur connecté' : 'En attente du capteur',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -419,100 +632,89 @@ class _SessionAlertsCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 14),
-          _SessionAlertRow(
-            time: '12:34',
-            title: 'Posture a corriger',
-            subtitle: 'Epaules legerement fermees depuis 2 min.',
-            accent: Color(0xFFFFC857),
-          ),
-          SizedBox(height: 12),
-          _SessionAlertRow(
-            time: '12:21',
-            title: 'Pause bientot recommandee',
-            subtitle: 'Bloc long detecte. Encore 18 min avant la pause ideale.',
-            accent: Color(0xFF97CAD8),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SessionAlertRow extends StatelessWidget {
-  final String time;
-  final String title;
-  final String subtitle;
-  final Color accent;
-
-  const _SessionAlertRow({
-    required this.time,
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: accent.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(0.22)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+          const SizedBox(height: 14),
           Container(
-            width: 42,
-            height: 42,
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: accent.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(12),
+              color: (hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857))
+                  .withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: (hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857))
+                    .withOpacity(0.22),
+              ),
             ),
-            child: Icon(Icons.info_outline_rounded, color: accent, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: (hasData
+                            ? const Color(0xFF8BD3A8)
+                            : const Color(0xFFFFC857))
+                        .withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    hasData ? Icons.check_circle_outline : Icons.info_outline_rounded,
+                    color: hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857),
+                    size: 18,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.68),
-                    fontSize: 12,
-                    height: 1.35,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasData
+                            ? 'Données en temps réel'
+                            : 'Lancez le capteur CV',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasData
+                            ? 'Les métriques se mettent à jour automatiquement.'
+                            : 'Exécutez main_cv.py pour démarrer le suivi en temps réel.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.68),
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Text(
-            time,
-            style: TextStyle(
-              color: accent,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+          if (sessionId != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Session: ${sessionId!.substring(0, sessionId!.length.clamp(0, 8))}...',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.4),
+                fontSize: 11,
+                fontFamily: 'monospace',
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
 }
+
+// ───────────────────────────────────────────────
+// Actions Card (bottom)
+// ───────────────────────────────────────────────
 
 class _SessionActionsCard extends StatelessWidget {
   const _SessionActionsCard();

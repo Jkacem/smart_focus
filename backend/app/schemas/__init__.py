@@ -38,3 +38,12 @@ from .flashcard import (
     FlashcardOut,
     FlashcardDeckOut,
 )
+from .vision import (
+    EventCreate,
+    FocusEventOut,
+    SessionFinalizePayload,
+    SnapshotCreate,
+    SnapshotOut,
+    WorkSessionCreate,
+    WorkSessionOut,
+)
