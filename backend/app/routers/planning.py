@@ -4,6 +4,8 @@ Planning Router - intelligent planning endpoints.
 
 import logging
 import math
+import json
+import re
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -14,6 +16,7 @@ from sqlalchemy.orm import Session
 from app import crud, schemas
 from app.deps import get_current_user, get_db
 from app.models.models import ChatDocument, Exam, SleepRecord, StudySession, User
+from app.services.gemini_client import gemini_generate
 from app.services.planning_service import generate_daily_schedule
 from app.services.schedule_parser import is_csv_schedule, parse_csv_schedule
 from app.utils.datetime_utils import utc_now_naive
@@ -24,6 +27,34 @@ logger = logging.getLogger(__name__)
 _DAY_START_HOUR = 8
 _DAY_END_HOUR = 22
 _BUFFER_MINUTES = 15
+
+_CSV_REVISION_PERSONALIZATION_PROMPT = """Tu es un planificateur pedagogique.
+Tu dois personnaliser les sujets de revision pour des sessions DEJA PLANIFIEES.
+
+DATE: {date_str}
+PREFERENCE HORAIRE: {preferred_schedule}
+PREFERENCES UTILISATEUR: {preferences}
+
+COURS DU JOUR:
+{class_context}
+
+SESSIONS A PERSONNALISER (horaires fixes, ne pas modifier):
+{slots_description}
+
+INSTRUCTIONS:
+1. Ne modifie JAMAIS les heures.
+2. Propose un sujet de revision plus pertinent pour chaque session.
+3. Donne une priorite parmi: low, medium, high.
+4. Reponds uniquement en JSON valide, sans markdown.
+
+FORMAT STRICT:
+[
+  {{
+    "session_index": 0,
+    "subject": "Sujet de revision",
+    "priority": "medium"
+  }}
+]"""
 
 router = APIRouter(prefix="/api/v1/planning", tags=["Planning"])
 
@@ -1120,6 +1151,128 @@ def _target_min_duration(target: dict[str, Any]) -> timedelta:
     return timedelta(minutes=min_duration)
 
 
+def _parse_llm_json_array(raw_text: str) -> list[dict[str, Any]] | None:
+    cleaned = re.sub(r"^```(?:json)?\s*", "", raw_text or "")
+    cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)]
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\[\s*\{.*\}\s*\]", cleaned, re.DOTALL)
+    if not match:
+        return None
+
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(parsed, list):
+        return None
+    return [item for item in parsed if isinstance(item, dict)]
+
+
+def _personalize_csv_revision_sessions_with_ai(
+    target_day: date,
+    class_sessions: list[dict[str, Any]],
+    revision_sessions: list[dict[str, Any]],
+    *,
+    preferences: schemas.PlanningPreferences | None,
+    preferred_schedule: str | None,
+) -> list[dict[str, Any]]:
+    if not revision_sessions:
+        return revision_sessions
+
+    candidate_indexes: list[int] = []
+    for idx, session_obj in enumerate(revision_sessions):
+        subject = str(session_obj.get("subject", "")).strip().lower()
+        if subject.startswith("revision:"):
+            candidate_indexes.append(idx)
+
+    if not candidate_indexes:
+        return revision_sessions
+
+    class_subjects = [
+        str(item.get("subject", "")).strip()
+        for item in class_sessions
+        if str(item.get("subject", "")).strip()
+    ]
+    unique_class_subjects = list(dict.fromkeys(class_subjects))
+    class_context = (
+        "\n".join(f"- {subject}" for subject in unique_class_subjects[:20])
+        if unique_class_subjects
+        else "Aucun cours explicite pour ce jour."
+    )
+
+    slots_description = "\n".join(
+        (
+            f"Session {idx}: {revision_sessions[idx]['start'].strftime('%H:%M')} -> "
+            f"{revision_sessions[idx]['end'].strftime('%H:%M')} | "
+            f"sujet actuel: {revision_sessions[idx]['subject']}"
+        )
+        for idx in candidate_indexes
+    )
+    pref_str = json.dumps(preferences, ensure_ascii=False) if preferences else "Aucune"
+
+    prompt = _CSV_REVISION_PERSONALIZATION_PROMPT.format(
+        date_str=target_day.isoformat(),
+        preferred_schedule=(preferred_schedule or "morning"),
+        preferences=pref_str,
+        class_context=class_context,
+        slots_description=slots_description,
+    )
+
+    try:
+        raw = gemini_generate(prompt)
+        assignments = _parse_llm_json_array(raw)
+        if not assignments:
+            logger.info(
+                "CSV revision personalization returned no parseable JSON for %s",
+                target_day.isoformat(),
+            )
+            return revision_sessions
+
+        revised_sessions = [dict(item) for item in revision_sessions]
+        candidate_set = set(candidate_indexes)
+        applied = 0
+
+        for item in assignments:
+            idx = item.get("session_index")
+            if not isinstance(idx, int) or idx not in candidate_set:
+                continue
+
+            raw_subject = str(item.get("subject", "")).strip()
+            if not raw_subject:
+                continue
+            if raw_subject.lower().startswith("revision:"):
+                raw_subject = raw_subject.split(":", 1)[1].strip() or raw_subject
+
+            revised_sessions[idx]["subject"] = f"Revision: {raw_subject}"
+
+            priority = str(item.get("priority", "")).lower().strip()
+            if priority in {"low", "medium", "high"}:
+                revised_sessions[idx]["priority"] = priority
+            applied += 1
+
+        logger.info(
+            "CSV revision personalization applied %d AI assignment(s) for %s",
+            applied,
+            target_day.isoformat(),
+        )
+        return revised_sessions
+    except Exception as exc:
+        logger.warning(
+            "CSV revision personalization failed for %s: %s",
+            target_day.isoformat(),
+            exc,
+        )
+        return revision_sessions
+
+
 def _build_revision_sessions(
     target_day: date,
     class_sessions: list[dict[str, Any]],
@@ -1388,6 +1541,11 @@ def _generate_sessions_for_day(
     )
 
     if doc_file_path and is_csv_schedule(doc_file_path):
+        logger.info(
+            "Planning generation for %s is using CSV timetable path: %s",
+            target_day.isoformat(),
+            doc_file_path,
+        )
         class_sessions = parse_csv_schedule(
             file_path=doc_file_path,
             target_date=target_day,
@@ -1429,6 +1587,11 @@ def _generate_sessions_for_day(
 
         if revision_source_sessions or exams or due_flashcard_subjects or quiz_performance:
             sleep_profile = _get_sleep_profile(db, current_user.id, target_day)
+            preferred_schedule = (
+                current_user.profile.preferred_schedule
+                if current_user.profile
+                else "morning"
+            )
             revision_sessions = _build_revision_sessions(
                 target_day,
                 class_sessions,
@@ -1438,12 +1601,17 @@ def _generate_sessions_for_day(
                 due_flashcard_subjects=due_flashcard_subjects,
                 quiz_performance=quiz_performance,
                 completion_rate_by_hour=completion_rate_by_hour,
-                preferred_schedule=current_user.profile.preferred_schedule
-                if current_user.profile
-                else "morning",
+                preferred_schedule=preferred_schedule,
                 planned_course_revision_counts=planned_course_revision_counts,
                 postponed_course_counts=postponed_course_counts,
                 preferred_document_ids=preferred_document_ids,
+            )
+            revision_sessions = _personalize_csv_revision_sessions_with_ai(
+                target_day,
+                class_sessions,
+                revision_sessions,
+                preferences=preferences,
+                preferred_schedule=preferred_schedule,
             )
             return class_sessions + revision_sessions
 
