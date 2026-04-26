@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:smart_focus/features/planning/data/planning_repository.dart';
+import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/custom_app_bar.dart';
 import 'package:smart_focus/shared/widgets/frosted_glass_card.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
@@ -10,6 +12,7 @@ import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 import '../models/vision_models.dart';
 import '../providers/vision_provider.dart';
 import '../services/vision_service.dart';
+import '../utils/session_utils.dart';
 
 class SessionActiveScreen extends ConsumerStatefulWidget {
   const SessionActiveScreen({Key? key}) : super(key: key);
@@ -20,56 +23,343 @@ class SessionActiveScreen extends ConsumerStatefulWidget {
 }
 
 class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
-  late final Stopwatch _stopwatch;
   Timer? _uiTimer;
+  bool _isStopping = false;
+
+  VisionSnapshot? _minuteSnapshot;
+  DateTime? _minuteSnapshotAt;
 
   @override
   void initState() {
     super.initState();
-    _stopwatch = Stopwatch()..start();
+    final runtime = ref.read(activeSessionRuntimeProvider);
+    ref.read(isLivePollingPausedProvider.notifier).state = runtime.isPaused;
     _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      ref.read(activeSessionRuntimeProvider.notifier).tick();
+      _refreshMinuteSnapshot();
+      setState(() {});
     });
 
-    // If no active session yet, pick the first active one from the backend
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensureSession());
   }
 
   Future<void> _ensureSession() async {
-    final currentId = ref.read(activeWorkSessionIdProvider);
-    if (currentId != null) return;
+    var currentId = ref.read(activeWorkSessionIdProvider);
+    if (currentId != null && isSyntheticPlanningSessionId(currentId)) {
+      ref.read(activeWorkSessionIdProvider.notifier).state = null;
+      currentId = null;
+    }
+
+    if (currentId == null) {
+      try {
+        final service = ref.read(visionServiceProvider);
+        final sessions = await service.listSessions(limit: 200);
+        final active = sessions
+            .where(
+              (session) =>
+                  session.isActive && !isSyntheticPlanningSessionId(session.id),
+            )
+            .toList();
+        if (active.isNotEmpty) {
+          final selected = active.first;
+          ref.read(activeWorkSessionIdProvider.notifier).state = selected.id;
+
+          final planningId =
+              planningSessionIdFromMetadata(selected.metadataJson);
+          ref.read(activePlanningSessionIdProvider.notifier).state = planningId;
+
+          final planningTitle =
+              planningSessionTitleFromMetadata(selected.metadataJson);
+          ref.read(activePlanningSessionTitleProvider.notifier).state =
+              planningTitle;
+        }
+      } catch (e) {
+        debugPrint('[SessionActive] Session discovery failed: $e');
+      }
+    }
+
+    currentId = ref.read(activeWorkSessionIdProvider);
+    ref.read(activeSessionRuntimeProvider.notifier).attachSession(currentId);
+    final isPaused = ref.read(activeSessionRuntimeProvider).isPaused;
+    ref.read(isLivePollingPausedProvider.notifier).state = isPaused;
+
+    await _resolvePlanningSessionTitleFromCalendar();
+  }
+
+  Future<void> _resolvePlanningSessionTitleFromCalendar() async {
+    final planningId = ref.read(activePlanningSessionIdProvider);
+    if (planningId == null) return;
 
     try {
-      final service = ref.read(visionServiceProvider);
-      final sessions = await service.listSessions(limit: 10);
-      final active = sessions.where((s) => s.isActive).toList();
-      if (active.isNotEmpty) {
-        ref.read(activeWorkSessionIdProvider.notifier).state = active.first.id;
+      final day = await ref.read(planningRepositoryProvider).getToday();
+      for (final session in day.sessions) {
+        if (session.id == planningId && session.subject.trim().isNotEmpty) {
+          ref.read(activePlanningSessionTitleProvider.notifier).state =
+              session.subject.trim();
+          return;
+        }
       }
     } catch (_) {
-      // Silently fail — user can still see the static screen
+      // Ignore resolution failures, keep generic fallback title.
+    }
+  }
+
+
+
+  @override
+  void deactivate() {
+    _uiTimer?.cancel();
+    _uiTimer = null;
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    if (_uiTimer == null) {
+      _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        ref.read(activeSessionRuntimeProvider.notifier).tick();
+        _refreshMinuteSnapshot();
+        setState(() {});
+      });
     }
   }
 
   @override
   void dispose() {
     _uiTimer?.cancel();
-    _stopwatch.stop();
     super.dispose();
   }
 
-  String _formatElapsed() {
-    final d = _stopwatch.elapsed;
-    final h = d.inHours.toString().padLeft(2, '0');
-    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
-    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+  void _refreshMinuteSnapshot() {
+    final latest = ref.read(liveSnapshotProvider).value;
+    if (latest == null) return;
+
+    final now = DateTime.now();
+    final shouldSeed = _minuteSnapshot == null || _minuteSnapshotAt == null;
+    final shouldRefresh = !shouldSeed &&
+        now.difference(_minuteSnapshotAt!) >= const Duration(minutes: 1);
+
+    if (shouldSeed || shouldRefresh) {
+      _minuteSnapshot = latest;
+      _minuteSnapshotAt = now;
+    }
+  }
+
+  String _formatElapsed(int elapsedSeconds) {
+    final h = (elapsedSeconds ~/ 3600).toString().padLeft(2, '0');
+    final m = ((elapsedSeconds % 3600) ~/ 60).toString().padLeft(2, '0');
+    final s = (elapsedSeconds % 60).toString().padLeft(2, '0');
     return '$h:$m:$s';
+  }
+
+  String _sessionStateLabel({
+    required String? activeSessionId,
+    required VisionSnapshot? snapshot,
+    required bool isLoading,
+    required bool isPaused,
+  }) {
+    if (_isStopping) return 'Finalisation en cours';
+    if (isPaused) return 'Session en pause';
+    if (activeSessionId == null) return 'Aucune session active';
+    if (snapshot != null) return 'Session suivie en direct';
+    if (isLoading) return 'Connexion au capteur...';
+    return 'Session demarree (en attente de donnees)';
+  }
+
+  _SessionNotice _noticeFor({
+    required VisionSnapshot? snapshot,
+    required bool hasLiveData,
+    required bool isPaused,
+  }) {
+    if (_isStopping) {
+      return const _SessionNotice(
+        title: 'Arret en cours',
+        message: 'Sauvegarde des donnees de session.',
+        icon: Icons.sync_rounded,
+        color: Color(0xFFFFC857),
+      );
+    }
+
+    if (isPaused) {
+      return const _SessionNotice(
+        title: 'Session en pause',
+        message: 'Reprenez la session pour relancer le suivi automatique.',
+        icon: Icons.pause_circle_outline_rounded,
+        color: Color(0xFFFFC857),
+      );
+    }
+
+    if (!hasLiveData) {
+      return const _SessionNotice(
+        title: 'Capteur non connecte',
+        message: 'Lancez main_cv.py pour demarrer la collecte des signaux.',
+        icon: Icons.sensors_off_rounded,
+        color: Color(0xFFFFC857),
+      );
+    }
+
+    final stress = snapshot?.stressRiskScore;
+    if (stress != null && stress >= 60) {
+      return const _SessionNotice(
+        title: 'Alerte stress',
+        message: 'Respirez 60 secondes puis reprenez votre rythme.',
+        icon: Icons.warning_amber_rounded,
+        color: Color(0xFFFB7185),
+      );
+    }
+
+    final workMode = snapshot?.workMode?.toLowerCase();
+    if (workMode == 'brief_off_task' ||
+        workMode == 'phone_distraction' ||
+        workMode == 'social_distraction') {
+      return const _SessionNotice(
+        title: 'Distraction detectee',
+        message: 'Revenez sur la tache courante pour proteger le focus.',
+        icon: Icons.notifications_active_outlined,
+        color: Color(0xFFFFC857),
+      );
+    }
+
+    final focus = snapshot?.globalFocusScore;
+    if (focus != null && focus >= 80) {
+      return const _SessionNotice(
+        title: 'Bon rythme',
+        message: 'Concentration stable. Continuez sur cette dynamique.',
+        icon: Icons.check_circle_outline_rounded,
+        color: Color(0xFF8BD3A8),
+      );
+    }
+
+    return const _SessionNotice(
+      title: 'Session stable',
+      message: 'Stats mises a jour chaque minute pour un suivi clair.',
+      icon: Icons.info_outline_rounded,
+      color: Color(0xFF97CAD8),
+    );
+  }
+
+  void _togglePause() {
+    if (_isStopping) return;
+    final runtime = ref.read(activeSessionRuntimeProvider);
+    final notifier = ref.read(activeSessionRuntimeProvider.notifier);
+    if (runtime.isPaused) {
+      notifier.resume();
+      ref.read(isLivePollingPausedProvider.notifier).state = false;
+    } else {
+      notifier.pause();
+      ref.read(isLivePollingPausedProvider.notifier).state = true;
+    }
+  }
+
+  Map<String, dynamic> _buildFinalizeSummary(
+    VisionSnapshot? snapshot,
+    ActiveSessionRuntimeState runtime,
+  ) {
+    final focus = snapshot?.globalFocusScore;
+    final posture = snapshot?.postureScore;
+    final stress = snapshot?.stressRiskScore;
+
+    return {
+      'session_duration': runtime.elapsedSeconds.toDouble(),
+      'focus_time_ratio': focus != null ? (focus / 100).clamp(0.0, 1.0) : null,
+      'posture_quality_score': posture,
+      'final_score': focus,
+      'breakdown': {
+        'pause_count': runtime.pauseCount,
+        if (stress != null) 'stress_risk_score': stress,
+      },
+    };
+  }
+
+  Future<void> _stopSessionAndExit(VisionSnapshot? snapshot) async {
+    if (_isStopping) return;
+
+    setState(() {
+      _isStopping = true;
+    });
+
+    final workSessionId = ref.read(activeWorkSessionIdProvider);
+    final planningSessionId = ref.read(activePlanningSessionIdProvider);
+    final service = ref.read(visionServiceProvider);
+    final runtimeNotifier = ref.read(activeSessionRuntimeProvider.notifier);
+    runtimeNotifier.tick();
+    final runtime = ref.read(activeSessionRuntimeProvider);
+
+    if (workSessionId != null) {
+      try {
+        await service.finalizeSession(
+          workSessionId,
+          summary: _buildFinalizeSummary(snapshot, runtime),
+        );
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Impossible de finaliser la session. Reessayez.'),
+            ),
+          );
+          setState(() {
+            _isStopping = false;
+          });
+        }
+        return;
+      }
+    }
+
+    if (planningSessionId != null) {
+      try {
+        await ref
+            .read(planningRepositoryProvider)
+            .updateSessionStatus(planningSessionId, 'completed');
+      } catch (_) {
+        // Keep local stop successful even if planning sync fails.
+      }
+    }
+
+    runtimeNotifier.clear();
+    ref.read(activeWorkSessionIdProvider.notifier).state = null;
+    ref.read(activePlanningSessionIdProvider.notifier).state = null;
+    ref.read(activePlanningSessionTitleProvider.notifier).state = null;
+    ref.read(isLivePollingPausedProvider.notifier).state = false;
+
+    ref.invalidate(todayVisionSummaryProvider);
+    ref.invalidate(todayPlanningProvider);
+    ref.invalidate(workSessionsProvider);
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final snapshotAsync = ref.watch(liveSnapshotProvider);
-    final snapshot = snapshotAsync.value;
+    final liveSnapshot = snapshotAsync.value;
+    final activeSessionId = ref.watch(activeWorkSessionIdProvider);
+    final planningSessionTitle = ref.watch(activePlanningSessionTitleProvider);
+    final runtime = ref.watch(activeSessionRuntimeProvider);
+    final isPaused = runtime.isPaused;
+
+    _refreshMinuteSnapshot();
+    final displaySnapshot = _minuteSnapshot ?? liveSnapshot;
+    final sessionStateLabel = _sessionStateLabel(
+      activeSessionId: activeSessionId,
+      snapshot: liveSnapshot,
+      isLoading: snapshotAsync.isLoading,
+      isPaused: isPaused,
+    );
+    final notice = _noticeFor(
+      snapshot: displaySnapshot,
+      hasLiveData: liveSnapshot != null,
+      isPaused: isPaused,
+    );
+    final resolvedTitle = (planningSessionTitle != null &&
+            planningSessionTitle.trim().isNotEmpty)
+        ? planningSessionTitle.trim()
+        : 'Session de concentration';
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -81,18 +371,17 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _SessionActionIcon(
-              icon: Icons.pause_rounded,
-              color: const Color(0xFFFFC857),
-              onPressed: () {},
+              icon:
+                  isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+              color:
+                  isPaused ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857),
+              onPressed: _togglePause,
             ),
             const SizedBox(width: 8),
             _SessionActionIcon(
               icon: Icons.stop_rounded,
               color: const Color(0xFFFB7185),
-              onPressed: () {
-                ref.read(activeWorkSessionIdProvider.notifier).state = null;
-                Navigator.of(context).pop();
-              },
+              onPressed: () => _stopSessionAndExit(liveSnapshot ?? displaySnapshot),
             ),
           ],
         ),
@@ -116,24 +405,43 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 12),
-                  _SessionHeroCard(
-                    elapsed: _formatElapsed(),
-                    snapshot: snapshot,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 920),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      _SessionHeroCard(
+                        elapsed: _formatElapsed(runtime.elapsedSeconds),
+                        sessionTitle: resolvedTitle,
+                        stateLabel: sessionStateLabel,
+                        isPaused: isPaused,
+                        lastMinuteUpdate: _minuteSnapshotAt,
+                      ),
+                      const SizedBox(height: 18),
+                      _SessionMinuteSummaryCard(
+                        snapshot: displaySnapshot,
+                        updatedAt: _minuteSnapshotAt,
+                      ),
+                      const SizedBox(height: 18),
+                      _SessionStatusCard(
+                        hasData: liveSnapshot != null,
+                        sessionId: activeSessionId,
+                        stateLabel: sessionStateLabel,
+                        notice: notice,
+                      ),
+                      const SizedBox(height: 18),
+                      _SessionActionsCard(
+                        isPaused: isPaused,
+                        isStopping: _isStopping,
+                        onPauseToggle: _togglePause,
+                        onStop: () =>
+                            _stopSessionAndExit(liveSnapshot ?? displaySnapshot),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 18),
-                  _SessionMetricsGrid(snapshot: snapshot),
-                  const SizedBox(height: 18),
-                  _SessionConnectionStatus(
-                    hasData: snapshot != null,
-                    sessionId: ref.watch(activeWorkSessionIdProvider),
-                  ),
-                  const SizedBox(height: 18),
-                  const _SessionActionsCard(),
-                ],
+                ),
               ),
             ),
           ),
@@ -143,76 +451,27 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
   }
 }
 
-// ───────────────────────────────────────────────
-// Hero Card (top)
-// ───────────────────────────────────────────────
+
 
 class _SessionHeroCard extends StatelessWidget {
   final String elapsed;
-  final VisionSnapshot? snapshot;
+  final String sessionTitle;
+  final String stateLabel;
+  final bool isPaused;
+  final DateTime? lastMinuteUpdate;
 
-  const _SessionHeroCard({required this.elapsed, this.snapshot});
-
-  String _focusLabel(double? score) {
-    if (score == null) return '--';
-    return '${score.round()}%';
-  }
-
-  String _qualityLabel(String? workMode) {
-    if (workMode == null) return '--';
-    final wm = workMode.toLowerCase();
-    if (wm.contains('focused') || wm == 'thinking' || wm == 'self_explaining') {
-      return 'Haute';
-    }
-    if (wm == 'brief_off_task') return 'Moyenne';
-    return 'Faible';
-  }
-
-  Color _qualityColor(String? workMode) {
-    if (workMode == null) return const Color(0xFF97CAD8);
-    final wm = workMode.toLowerCase();
-    if (wm.contains('focused') || wm == 'thinking') return const Color(0xFF8BD3A8);
-    if (wm == 'brief_off_task') return const Color(0xFFFFC857);
-    return const Color(0xFFFB7185);
-  }
-
-  String _modeLabel(String? workMode) {
-    if (workMode == null) return 'En attente du capteur...';
-    const labels = {
-      'focused': 'Concentré',
-      'focused_reading': 'Lecture concentrée',
-      'focused_writing': 'Écriture concentrée',
-      'thinking': 'Réflexion',
-      'self_explaining': 'Auto-explication',
-      'brief_off_task': 'Brève distraction',
-      'phone_distraction': 'Distraction téléphone',
-      'social_distraction': 'Distraction sociale',
-    };
-    return labels[workMode] ?? workMode!;
-  }
-
-  String _statusBadge(String? workMode) {
-    if (workMode == null) return 'Attente';
-    final wm = workMode.toLowerCase();
-    if (wm.contains('focused') || wm == 'thinking' || wm == 'self_explaining') {
-      return 'Excellent';
-    }
-    if (wm == 'brief_off_task') return 'Attention';
-    return 'Alerte';
-  }
-
-  Color _statusBadgeColor(String? workMode) {
-    if (workMode == null) return const Color(0xFF97CAD8);
-    final wm = workMode.toLowerCase();
-    if (wm.contains('focused') || wm == 'thinking') return const Color(0xFF8BD3A8);
-    if (wm == 'brief_off_task') return const Color(0xFFFFC857);
-    return const Color(0xFFFB7185);
-  }
+  const _SessionHeroCard({
+    required this.elapsed,
+    required this.sessionTitle,
+    required this.stateLabel,
+    required this.isPaused,
+    required this.lastMinuteUpdate,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final wm = snapshot?.workMode;
-    final badgeColor = _statusBadgeColor(wm);
+    final badgeColor =
+        isPaused ? const Color(0xFFFFC857) : const Color(0xFF8BD3A8);
 
     return Container(
       width: double.infinity,
@@ -238,6 +497,7 @@ class _SessionHeroCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 46,
@@ -254,7 +514,7 @@ class _SessionHeroCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Session de concentration',
+                      sessionTitle,
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.94),
                         fontSize: 18,
@@ -263,10 +523,10 @@ class _SessionHeroCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _modeLabel(wm),
+                      stateLabel,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.66),
-                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -279,7 +539,7 @@ class _SessionHeroCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  _statusBadge(wm),
+                  isPaused ? 'Pause' : 'Actif',
                   style: TextStyle(
                     color: badgeColor,
                     fontSize: 12,
@@ -305,7 +565,7 @@ class _SessionHeroCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Temps de focus cumulé',
+                  'Temps de focus cumule',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.64),
                     fontSize: 13,
@@ -315,297 +575,61 @@ class _SessionHeroCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _SessionHeroStat(
-                  label: 'Focus',
-                  value: _focusLabel(snapshot?.globalFocusScore),
-                  accent: const Color(0xFF97CAD8),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _SessionHeroStat(
-                  label: 'Qualité',
-                  value: _qualityLabel(wm),
-                  accent: _qualityColor(wm),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _SessionHeroStat(
-                  label: 'Stress',
-                  value: snapshot?.stressRiskScore != null
-                      ? '${snapshot!.stressRiskScore!.round()}'
-                      : '--',
-                  accent: const Color(0xFFFFC857),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SessionHeroStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color accent;
-
-  const _SessionHeroStat({
-    required this.label,
-    required this.value,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
-      child: Column(
-        children: [
+          const SizedBox(height: 18),
           Text(
-            label,
+            lastMinuteUpdate == null
+                ? 'Resume stats: en attente de donnees'
+                : 'Resume stats mis a jour a ${_formatClock(lastMinuteUpdate!)}',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.64),
-              fontSize: 11,
+              color: Colors.white.withOpacity(0.62),
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: accent,
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-// ───────────────────────────────────────────────
-// Live Metrics Grid (4 cards)
-// ───────────────────────────────────────────────
-
-class _SessionMetricsGrid extends StatelessWidget {
+class _SessionMinuteSummaryCard extends StatelessWidget {
   final VisionSnapshot? snapshot;
+  final DateTime? updatedAt;
 
-  const _SessionMetricsGrid({this.snapshot});
-
-  String _scoreStr(double? v) => v != null ? '${v.round()}' : '--';
-
-  String _postureStatus(double? v) {
-    if (v == null) return 'En attente...';
-    if (v >= 80) return 'Bonne tenue';
-    if (v >= 50) return 'À surveiller';
-    return 'Mauvaise posture';
-  }
-
-  Color _postureColor(double? v) {
-    if (v == null) return const Color(0xFF97CAD8);
-    if (v >= 80) return const Color(0xFF8BD3A8);
-    if (v >= 50) return const Color(0xFFFFC857);
-    return const Color(0xFFFB7185);
-  }
-
-  String _fatigueStatus(double? v) {
-    if (v == null) return 'En attente...';
-    if (v >= 70) return 'Fatigue élevée';
-    if (v >= 40) return 'Fatigue modérée';
-    return 'Énergie stable';
-  }
-
-  Color _fatigueColor(double? v) {
-    if (v == null) return const Color(0xFF97CAD8);
-    if (v >= 70) return const Color(0xFFFB7185);
-    if (v >= 40) return const Color(0xFFFFC857);
-    return const Color(0xFF97CAD8);
-  }
-
-  String _attentionStatus(double? v) {
-    if (v == null) return 'En attente...';
-    if (v >= 80) return 'Excellente';
-    if (v >= 50) return 'À surveiller';
-    return 'Faible attention';
-  }
-
-  Color _attentionColor(double? v) {
-    if (v == null) return const Color(0xFF97CAD8);
-    if (v >= 80) return const Color(0xFF8BD3A8);
-    if (v >= 50) return const Color(0xFFFFC857);
-    return const Color(0xFFFB7185);
-  }
-
-  String _stressStatus(double? v) {
-    if (v == null) return 'En attente...';
-    if (v >= 60) return 'Stress élevé';
-    if (v >= 30) return 'Stress modéré';
-    return 'Détendu';
-  }
-
-  Color _stressColor(double? v) {
-    if (v == null) return const Color(0xFF97CAD8);
-    if (v >= 60) return const Color(0xFFFB7185);
-    if (v >= 30) return const Color(0xFFFFC857);
-    return const Color(0xFF8BD3A8);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _SessionMetricCard(
-                title: 'Posture',
-                value: _scoreStr(snapshot?.postureScore),
-                status: _postureStatus(snapshot?.postureScore),
-                accent: _postureColor(snapshot?.postureScore),
-                icon: Icons.accessibility_new_rounded,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _SessionMetricCard(
-                title: 'Fatigue',
-                value: _scoreStr(snapshot?.vigilanceScore),
-                status: _fatigueStatus(snapshot?.vigilanceScore != null
-                    ? (100 - snapshot!.vigilanceScore!)
-                    : null),
-                accent: _fatigueColor(snapshot?.vigilanceScore != null
-                    ? (100 - snapshot!.vigilanceScore!)
-                    : null),
-                icon: Icons.battery_charging_full_rounded,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _SessionMetricCard(
-                title: 'Attention',
-                value: _scoreStr(snapshot?.attentionScore),
-                status: _attentionStatus(snapshot?.attentionScore),
-                accent: _attentionColor(snapshot?.attentionScore),
-                icon: Icons.visibility_outlined,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _SessionMetricCard(
-                title: 'Stress',
-                value: _scoreStr(snapshot?.stressRiskScore),
-                status: _stressStatus(snapshot?.stressRiskScore),
-                accent: _stressColor(snapshot?.stressRiskScore),
-                icon: Icons.psychology_outlined,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _SessionMetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String status;
-  final Color accent;
-  final IconData icon;
-
-  const _SessionMetricCard({
-    required this.title,
-    required this.value,
-    required this.status,
-    required this.accent,
-    required this.icon,
+  const _SessionMinuteSummaryCard({
+    required this.snapshot,
+    required this.updatedAt,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return FrostedGlassCard(
-      borderRadius: 20,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.16),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: accent, size: 18),
-              ),
-              const Spacer(),
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.74),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            status,
-            style: TextStyle(
-              color: accent,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
+  String _scoreLabel(double? value, {bool withPercent = false}) {
+    if (value == null) return '--';
+    final rounded = value.round();
+    return withPercent ? '$rounded%' : '$rounded';
   }
-}
 
-// ───────────────────────────────────────────────
-// Connection Status (replaces old alerts card)
-// ───────────────────────────────────────────────
-
-class _SessionConnectionStatus extends StatelessWidget {
-  final bool hasData;
-  final String? sessionId;
-
-  const _SessionConnectionStatus({
-    required this.hasData,
-    this.sessionId,
-  });
+  String _modeLabel(String? workMode) {
+    if (workMode == null || workMode.isEmpty) return 'En attente';
+    switch (workMode) {
+      case 'focused':
+        return 'Concentre';
+      case 'focused_reading':
+        return 'Lecture concentree';
+      case 'focused_writing':
+        return 'Ecriture concentree';
+      case 'thinking':
+        return 'Reflexion';
+      case 'self_explaining':
+        return 'Auto-explication';
+      case 'brief_off_task':
+        return 'Distraction courte';
+      case 'phone_distraction':
+        return 'Distraction telephone';
+      case 'social_distraction':
+        return 'Distraction sociale';
+      default:
+        return workMode;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -617,74 +641,246 @@ class _SessionConnectionStatus extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                hasData ? Icons.sensors_rounded : Icons.sensors_off_rounded,
-                color: hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                hasData ? 'Capteur connecté' : 'En attente du capteur',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF97CAD8).withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.monitor_heart_outlined,
+                  color: Color(0xFF97CAD8),
                 ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Resume des stats (mise a jour 1 min)',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.92),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (updatedAt != null)
+                Text(
+                  _formatClock(updatedAt!),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.56),
+                    fontSize: 12,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 14),
+          if (snapshot == null)
+            Text(
+              'Les mesures apparaitront ici des que le capteur enverra des donnees.',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.72),
+                fontSize: 13,
+                height: 1.35,
+              ),
+            )
+          else
+            Column(
+              children: [
+                _SummaryLine(
+                  label: 'Mode',
+                  value: _modeLabel(snapshot!.workMode),
+                  color: const Color(0xFF97CAD8),
+                ),
+                _SummaryLine(
+                  label: 'Focus global',
+                  value: _scoreLabel(
+                    snapshot!.globalFocusScore,
+                    withPercent: true,
+                  ),
+                  color: const Color(0xFF8BD3A8),
+                ),
+                _SummaryLine(
+                  label: 'Attention',
+                  value: _scoreLabel(
+                    snapshot!.attentionScore,
+                    withPercent: true,
+                  ),
+                  color: const Color(0xFF97CAD8),
+                ),
+                _SummaryLine(
+                  label: 'Posture',
+                  value: _scoreLabel(
+                    snapshot!.postureScore,
+                    withPercent: true,
+                  ),
+                  color: const Color(0xFF8BD3A8),
+                ),
+                _SummaryLine(
+                  label: 'Stress',
+                  value: _scoreLabel(snapshot!.stressRiskScore),
+                  color: const Color(0xFFFFC857),
+                  showDivider: false,
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryLine extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool showDivider;
+
+  const _SummaryLine({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.showDivider = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.7),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        if (showDivider) ...[
+          const SizedBox(height: 8),
+          Divider(color: Colors.white.withOpacity(0.1), height: 1),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _SessionStatusCard extends StatelessWidget {
+  final bool hasData;
+  final String? sessionId;
+  final String stateLabel;
+  final _SessionNotice notice;
+
+  const _SessionStatusCard({
+    required this.hasData,
+    required this.sessionId,
+    required this.stateLabel,
+    required this.notice,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sensorColor =
+        hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857);
+    final sessionPrefix = sessionId == null
+        ? 'N/A'
+        : sessionId!.substring(0, sessionId!.length < 10 ? sessionId!.length : 10);
+
+    return FrostedGlassCard(
+      borderRadius: 22,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Etat et notifications',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.94),
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: (hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857))
-                  .withOpacity(0.08),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: (hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857))
-                    .withOpacity(0.22),
-              ),
+              color: sensorColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: sensorColor.withOpacity(0.24)),
             ),
             child: Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: (hasData
-                            ? const Color(0xFF8BD3A8)
-                            : const Color(0xFFFFC857))
-                        .withOpacity(0.16),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    hasData ? Icons.check_circle_outline : Icons.info_outline_rounded,
-                    color: hasData ? const Color(0xFF8BD3A8) : const Color(0xFFFFC857),
-                    size: 18,
+                Icon(
+                  hasData ? Icons.sensors_rounded : Icons.sensors_off_rounded,
+                  color: sensorColor,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    stateLabel,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.88),
+                      fontSize: 13,
+                      height: 1.3,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                Text(
+                  sessionPrefix,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.45),
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: notice.color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: notice.color.withOpacity(0.26)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(notice.icon, color: notice.color),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        hasData
-                            ? 'Données en temps réel'
-                            : 'Lancez le capteur CV',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                        notice.title,
+                        style: TextStyle(
+                          color: notice.color,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        hasData
-                            ? 'Les métriques se mettent à jour automatiquement.'
-                            : 'Exécutez main_cv.py pour démarrer le suivi en temps réel.',
+                        notice.message,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.68),
+                          color: Colors.white.withOpacity(0.76),
                           fontSize: 12,
                           height: 1.35,
                         ),
@@ -695,29 +891,24 @@ class _SessionConnectionStatus extends StatelessWidget {
               ],
             ),
           ),
-          if (sessionId != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Session: ${sessionId!.substring(0, sessionId!.length.clamp(0, 8))}...',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.4),
-                fontSize: 11,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
 }
 
-// ───────────────────────────────────────────────
-// Actions Card (bottom)
-// ───────────────────────────────────────────────
-
 class _SessionActionsCard extends StatelessWidget {
-  const _SessionActionsCard();
+  final bool isPaused;
+  final bool isStopping;
+  final VoidCallback onPauseToggle;
+  final VoidCallback onStop;
+
+  const _SessionActionsCard({
+    required this.isPaused,
+    required this.isStopping,
+    required this.onPauseToggle,
+    required this.onStop,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -728,7 +919,7 @@ class _SessionActionsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Actions rapides',
+            'Actions session',
             style: TextStyle(
               color: Colors.white.withOpacity(0.94),
               fontSize: 16,
@@ -736,35 +927,24 @@ class _SessionActionsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.self_improvement_rounded),
-              label: const Text('Prendre une pause'),
-              style: ElevatedButton.styleFrom(
-                foregroundColor: const Color(0xFF0A1628),
-                backgroundColor: const Color(0xFF97CAD8),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.flag_outlined),
-                  label: const Text('Marquer'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withOpacity(0.14)),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
+                child: ElevatedButton.icon(
+                  onPressed: isStopping ? null : onPauseToggle,
+                  icon: Icon(
+                    isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                  ),
+                  label: Text(
+                    isPaused ? 'Reprendre' : 'Mettre en pause',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0A1628),
+                    backgroundColor: const Color(0xFF97CAD8),
+                    disabledBackgroundColor:
+                        const Color(0xFF97CAD8).withOpacity(0.4),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -774,12 +954,16 @@ class _SessionActionsCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.notes_rounded),
-                  label: const Text('Notes'),
+                  onPressed: isStopping ? null : onStop,
+                  icon: Icon(
+                    isStopping ? Icons.sync_rounded : Icons.stop_rounded,
+                  ),
+                  label: Text(isStopping ? 'Arret...' : 'Terminer'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withOpacity(0.14)),
+                    foregroundColor: const Color(0xFFFB7185),
+                    side: BorderSide(
+                      color: const Color(0xFFFB7185).withOpacity(0.45),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -826,4 +1010,24 @@ class _SessionActionIcon extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SessionNotice {
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color color;
+
+  const _SessionNotice({
+    required this.title,
+    required this.message,
+    required this.icon,
+    required this.color,
+  });
+}
+
+String _formatClock(DateTime dateTime) {
+  final hour = dateTime.hour.toString().padLeft(2, '0');
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
 }

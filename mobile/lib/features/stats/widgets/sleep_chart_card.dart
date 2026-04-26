@@ -2,10 +2,46 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class SleepChartCard extends StatelessWidget {
-  const SleepChartCard({Key? key}) : super(key: key);
+  final List<String> labels;
+  final List<double> values;
+  final String periodLabel;
+  final int recordsCount;
+
+  const SleepChartCard({
+    Key? key,
+    required this.labels,
+    required this.values,
+    required this.periodLabel,
+    required this.recordsCount,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    if (values.isEmpty || labels.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.15)),
+        ),
+        child: const SizedBox(
+          height: 120,
+          child: Center(
+            child: Text(
+              'Aucune donnee sommeil disponible',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final maxRecordedHours = values.reduce((a, b) => a > b ? a : b);
+    final chartMaxY = (maxRecordedHours < 8 ? 8.0 : (maxRecordedHours + 1))
+        .clamp(6.0, 14.0)
+        .toDouble();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -16,13 +52,18 @@ class SleepChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Sommeil (7 jours)',
-            style: TextStyle(
+          Text(
+            'Sommeil ($periodLabel)',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$recordsCount nuits enregistrees',
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -30,7 +71,7 @@ class SleepChartCard extends StatelessWidget {
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 10,
+                maxY: chartMaxY,
                 barTouchData: BarTouchData(enabled: false),
                 titlesData: FlTitlesData(
                   show: true,
@@ -41,36 +82,18 @@ class SleepChartCard extends StatelessWidget {
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
+                      reservedSize: 24,
                       getTitlesWidget: (double value, TitleMeta meta) {
-                        const style =
-                            TextStyle(color: Colors.white70, fontSize: 12);
-                        Widget text;
-                        switch (value.toInt()) {
-                          case 0:
-                            text = const Text('L', style: style);
-                            break;
-                          case 1:
-                            text = const Text('M', style: style);
-                            break;
-                          case 2:
-                            text = const Text('M', style: style);
-                            break;
-                          case 3:
-                            text = const Text('J', style: style);
-                            break;
-                          case 4:
-                            text = const Text('V', style: style);
-                            break;
-                          case 5:
-                            text = const Text('S', style: style);
-                            break;
-                          case 6:
-                            text = const Text('D', style: style);
-                            break;
-                          default:
-                            text = const Text('', style: style);
-                            break;
+                        final index = value.toInt();
+                        if (index < 0 || index >= labels.length) {
+                          return const SizedBox.shrink();
                         }
+                        if (!_shouldShowLabel(index, labels.length)) {
+                          return const SizedBox.shrink();
+                        }
+
+                        const style = TextStyle(color: Colors.white70, fontSize: 12);
+                        final text = Text(labels[index], style: style);
                         return Padding(
                             padding: const EdgeInsets.only(top: 8), child: text);
                       },
@@ -81,7 +104,7 @@ class SleepChartCard extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 28,
                       getTitlesWidget: (value, meta) {
-                        if (value == 6 || value == 8) {
+                        if (value % 2 == 0 && value > 0 && value <= chartMaxY) {
                           return Text(
                             '${value.toInt()}h',
                             style: const TextStyle(
@@ -102,15 +125,9 @@ class SleepChartCard extends StatelessWidget {
                     strokeWidth: 1,
                   ),
                 ),
-                barGroups: [
-                  _buildBarGroup(0, 7.5),
-                  _buildBarGroup(1, 6.5),
-                  _buildBarGroup(2, 8.0),
-                  _buildBarGroup(3, 7.0),
-                  _buildBarGroup(4, 6.0),
-                  _buildBarGroup(5, 8.5),
-                  _buildBarGroup(6, 9.0),
-                ],
+                barGroups: List<BarChartGroupData>.generate(values.length, (index) {
+                  return _buildBarGroup(index, values[index]);
+                }),
               ),
             ),
           ),
@@ -125,7 +142,7 @@ class SleepChartCard extends StatelessWidget {
       barRods: [
         BarChartRodData(
           toY: y,
-          color: const Color(0xFF6A1B9A).withOpacity(0.8), // Purple matching theme
+          color: const Color(0xFF97CAD8).withOpacity(0.88),
           width: 12,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(4),
@@ -134,5 +151,14 @@ class SleepChartCard extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  bool _shouldShowLabel(int index, int total) {
+    if (total <= 8) {
+      return true;
+    }
+
+    final step = total <= 16 ? 2 : 5;
+    return index == 0 || index == total - 1 || index % step == 0;
   }
 }

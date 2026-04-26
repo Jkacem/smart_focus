@@ -2,10 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class FocusChartCard extends StatelessWidget {
-  const FocusChartCard({Key? key}) : super(key: key);
+  final List<String> labels;
+  final List<double> values;
+  final String periodLabel;
+
+  const FocusChartCard({
+    Key? key,
+    required this.labels,
+    required this.values,
+    required this.periodLabel,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    if (values.isEmpty || labels.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.15)),
+        ),
+        child: const SizedBox(
+          height: 120,
+          child: Center(
+            child: Text(
+              'Aucune donnee focus disponible',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final chartValues = values.length == 1 ? [values.first, values.first] : values;
+    final chartLabels = labels.length == 1 ? [labels.first, labels.first] : labels;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -16,13 +48,18 @@ class FocusChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Graphique Focus',
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Completion quotidienne - $periodLabel',
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -48,18 +85,26 @@ class FocusChartCard extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 30,
                       getTitlesWidget: (value, meta) {
-                        const days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-                        if (value.toInt() >= 0 && value.toInt() < days.length) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= chartLabels.length) {
+                          return const SizedBox.shrink();
+                        }
+                        if (!_shouldShowLabel(index, chartLabels.length)) {
+                          return const SizedBox.shrink();
+                        }
+
+                        final label = chartLabels[index];
+                        if (label.isNotEmpty) {
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(
-                              days[value.toInt()],
+                              label,
                               style: const TextStyle(
                                   color: Colors.white70, fontSize: 12),
                             ),
                           );
                         }
-                        return const Text('');
+                        return const SizedBox.shrink();
                       },
                     ),
                   ),
@@ -82,28 +127,25 @@ class FocusChartCard extends StatelessWidget {
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 6,
+                maxX: (chartValues.length - 1).toDouble(),
                 minY: 0,
                 maxY: 100,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: const [
-                      FlSpot(0, 65),
-                      FlSpot(1, 80),
-                      FlSpot(2, 70),
-                      FlSpot(3, 85),
-                      FlSpot(4, 60),
-                      FlSpot(5, 90),
-                      FlSpot(6, 75),
-                    ],
+                    spots: List<FlSpot>.generate(chartValues.length, (index) {
+                      return FlSpot(
+                        index.toDouble(),
+                        chartValues[index].clamp(0, 100).toDouble(),
+                      );
+                    }),
                     isCurved: true,
-                    color: Colors.blueAccent,
+                    color: const Color(0xFF4ADE80),
                     barWidth: 3,
                     isStrokeCapRound: true,
                     dotData: const FlDotData(show: false),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: Colors.blueAccent.withOpacity(0.2),
+                      color: const Color(0xFF4ADE80).withOpacity(0.2),
                     ),
                   ),
                 ],
@@ -113,5 +155,14 @@ class FocusChartCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  bool _shouldShowLabel(int index, int total) {
+    if (total <= 8) {
+      return true;
+    }
+
+    final step = total <= 16 ? 2 : 5;
+    return index == 0 || index == total - 1 || index % step == 0;
   }
 }

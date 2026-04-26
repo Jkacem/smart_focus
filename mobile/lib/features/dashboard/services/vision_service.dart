@@ -38,19 +38,34 @@ class VisionService {
   }
 
   /// Create or ensure a work session exists.
-  Future<WorkSessionInfo> createSession(String sessionId) async {
+  Future<WorkSessionInfo> createSession(
+    String sessionId, {
+    DateTime? startTime,
+    Map<String, dynamic>? metadataJson,
+  }) async {
+    final payload = <String, dynamic>{'id': sessionId};
+    if (startTime != null) {
+      payload['start_time'] = startTime.toIso8601String();
+    }
+    if (metadataJson != null && metadataJson.isNotEmpty) {
+      payload['metadata_json'] = metadataJson;
+    }
+
     final response = await _dio.post(
       '/api/v1/sessions',
-      data: {'id': sessionId},
+      data: payload,
     );
     return WorkSessionInfo.fromJson(response.data);
   }
 
   /// Finalize (stop) a session.
-  Future<WorkSessionInfo> finalizeSession(String sessionId) async {
+  Future<WorkSessionInfo> finalizeSession(
+    String sessionId, {
+    Map<String, dynamic>? summary,
+  }) async {
     final response = await _dio.post(
       '/api/v1/sessions/$sessionId/finalize',
-      data: {},
+      data: summary ?? const <String, dynamic>{},
     );
     return WorkSessionInfo.fromJson(response.data);
   }

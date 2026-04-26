@@ -87,6 +87,37 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
     # Auto-create a default profile
     db_profile = models.UserProfile(user_id=db_user.id)
     db.add(db_profile)
+
+
+# ══════════════════════════════════════════════
+# USER
+# ══════════════════════════════════════════════
+
+def get_user(db: Session, user_id: int) -> Optional[models.User]:
+    """Return a single User by its primary key or None."""
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+
+def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
+    """Lookup a user by email."""
+    return db.query(models.User).filter(models.User.email == email).first()
+
+
+def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
+    """Create a new User with a hashed password and a default profile."""
+    db_user = models.User(
+        email=user_in.email,
+        full_name=user_in.full_name,
+        hashed_password=hash_password(user_in.password),
+        role=user_in.role,
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+
+    # Auto-create a default profile
+    db_profile = models.UserProfile(user_id=db_user.id)
+    db.add(db_profile)
     db.commit()
 
     return db_user
@@ -94,7 +125,7 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
 
 def update_last_login(db: Session, user: models.User) -> None:
     """Set last_login to now."""
-    user.last_login = datetime.utcnow()
+    user.last_login = utc_now_naive()
     db.commit()
 
 
@@ -234,7 +265,7 @@ def get_sleep_stats(
     """Return aggregated stats for the given period (week=7 days, month=30 days)."""
     from datetime import timedelta
     days = {"week": 7, "month": 30}.get(period, 7)
-    since = datetime.utcnow() - timedelta(days=days)
+    since = utc_now_naive() - timedelta(days=days)
 
     records = (
         db.query(models.SleepRecord)
@@ -640,7 +671,7 @@ def update_study_session(
         new_status = payload["status"]
         session_obj.status = new_status
         if new_status == "completed":
-            session_obj.completed_at = datetime.utcnow()
+            session_obj.completed_at = utc_now_naive()
         else:
             session_obj.completed_at = None
 
@@ -663,7 +694,7 @@ def update_study_session(
 def complete_study_session(db: Session, session_obj: models.StudySession) -> models.StudySession:
     """Mark a session as completed."""
     session_obj.status = "completed"
-    session_obj.completed_at = datetime.utcnow()
+    session_obj.completed_at = utc_now_naive()
     db.commit()
     db.refresh(session_obj)
     return session_obj
@@ -750,11 +781,13 @@ def finalize_work_session(
 def create_snapshot(
     db: Session,
     payload: schemas.SnapshotCreate,
+    *,
+    user_id: int | None = None,
 ) -> models.Snapshot:
     """Insert a CV snapshot, auto-creating the parent session if needed."""
     session_obj = get_work_session(db, payload.session_id)
     if session_obj is None:
-        session_obj = create_work_session(db, payload.session_id)
+        session_obj = create_work_session(db, payload.session_id, user_id=user_id)
 
     scores = payload.scores or {}
     snapshot = models.Snapshot(
@@ -777,11 +810,13 @@ def create_snapshot(
 def create_focus_event(
     db: Session,
     payload: schemas.EventCreate,
+    *,
+    user_id: int | None = None,
 ) -> models.FocusEvent:
     """Insert a CV discrete event, auto-creating the parent session if needed."""
     session_obj = get_work_session(db, payload.session_id)
     if session_obj is None:
-        session_obj = create_work_session(db, payload.session_id)
+        session_obj = create_work_session(db, payload.session_id, user_id=user_id)
 
     focus_event = models.FocusEvent(
         session_id=session_obj.id,
@@ -809,12 +844,25 @@ def get_latest_snapshot(db: Session, session_id: str) -> models.Snapshot | None:
 
 def list_work_sessions(
     db: Session,
+    user_id: int,
     skip: int = 0,
     limit: int = 100,
 ) -> list[models.WorkSession]:
-    """List persisted CV work sessions."""
+    """List persisted CV work sessions for a specific user.
+
+    Also includes sessions with ``user_id = NULL`` which are created by
+    the pi_client (unauthenticated ingestion).
+    """
+    from sqlalchemy import or_
+
     return (
         db.query(models.WorkSession)
+        .filter(
+            or_(
+                models.WorkSession.user_id == user_id,
+                models.WorkSession.user_id.is_(None),
+            )
+        )
         .order_by(models.WorkSession.start_time.desc())
         .offset(skip)
         .limit(limit)

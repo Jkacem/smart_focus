@@ -4,10 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_focus/core/router/app_routes.dart';
 import 'package:smart_focus/features/auth/providers/user_profile_provider.dart';
 import 'package:smart_focus/features/auth/widgets/current_user_avatar.dart';
+import 'package:smart_focus/features/dashboard/models/vision_models.dart';
+import 'package:smart_focus/features/dashboard/providers/vision_provider.dart';
 import 'package:smart_focus/features/planning/models/planning_models.dart';
 import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
+
+import '../utils/session_utils.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -39,9 +43,423 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
+  Future<void> _onStartSessionPressed() async {
+    final planningSessions = await _todayPlanningSessions();
+    if (planningSessions.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Aucune session du planning disponible aujourd hui.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    await ref.read(workSessionsProvider.notifier).fetch();
+    final workSessionsAsync = ref.read(workSessionsProvider);
+    final workSessions = workSessionsAsync.when(
+      data: (value) => value,
+      loading: () => const <WorkSessionInfo>[],
+      error: (_, __) => const <WorkSessionInfo>[],
+    );
+    final todayWorkSessions = _todayWorkSessions(workSessions);
+    final workByPlanningId = _workSessionsByPlanningId(todayWorkSessions);
+    final usedWorkSessionIds = <String>{};
+    final options = planningSessions
+        .map(
+          (planning) {
+            final linked = workByPlanningId[planning.id];
+            final resolved = linked ??
+                _bestFallbackSessionForPlanning(
+                  planning: planning,
+                  sessions: todayWorkSessions,
+                  usedSessionIds: usedWorkSessionIds,
+                );
+            if (resolved != null) {
+              usedWorkSessionIds.add(resolved.id);
+            }
+            return _SessionStartOption(
+              planning: planning,
+              workSession: resolved,
+            );
+          },
+        )
+        .toList();
+
+    final selected = await _showSessionPicker(options: options);
+    if (selected == null || !mounted) return;
+
+    var selectedWorkSession = selected.workSession;
+    if (selectedWorkSession == null) {
+      selectedWorkSession = _preferredLiveSession(todayWorkSessions);
+      if (selectedWorkSession == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Aucune session CV detectee. Lancez main_cv puis reessayez.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    ref.read(activeWorkSessionIdProvider.notifier).state = selectedWorkSession.id;
+    ref.read(activePlanningSessionIdProvider.notifier).state = selected.planning.id;
+    ref.read(activePlanningSessionTitleProvider.notifier).state =
+        selected.planning.subject;
+    ref
+        .read(activeSessionRuntimeProvider.notifier)
+        .attachSession(selectedWorkSession.id);
+    final isPaused = ref.read(activeSessionRuntimeProvider).isPaused;
+    ref.read(isLivePollingPausedProvider.notifier).state = isPaused;
+    ref.invalidate(todayVisionSummaryProvider);
+    ref.invalidate(workSessionsProvider);
+
+    if (mounted) {
+      context.push(AppRoutes.session);
+    }
+  }
+
+  Future<List<PlanningSessionModel>> _todayPlanningSessions() async {
+    try {
+      final day = await ref.read(todayPlanningProvider.future);
+      final sessions = [...day.sessions];
+      sessions.sort((a, b) => a.start.compareTo(b.start));
+      return sessions;
+    } catch (_) {
+      return const <PlanningSessionModel>[];
+    }
+  }
+
+  Map<int, WorkSessionInfo> _workSessionsByPlanningId(
+    List<WorkSessionInfo> sessions,
+  ) {
+    final byPlanningId = <int, WorkSessionInfo>{};
+    for (final session in sessions) {
+      if (isSyntheticPlanningSessionId(session.id)) continue;
+      final planningId = planningSessionIdFromMetadata(session.metadataJson);
+      if (planningId == null) continue;
+
+      final previous = byPlanningId[planningId];
+      if (previous == null || _isBetterSessionCandidate(session, previous)) {
+        byPlanningId[planningId] = session;
+      }
+    }
+    return byPlanningId;
+  }
+
+  bool _isBetterSessionCandidate(WorkSessionInfo next, WorkSessionInfo current) {
+    if (next.isActive != current.isActive) {
+      return next.isActive;
+    }
+    final nextStart = next.startTime.isUtc ? next.startTime.toLocal() : next.startTime;
+    final currentStart =
+        current.startTime.isUtc ? current.startTime.toLocal() : current.startTime;
+    return nextStart.isAfter(currentStart);
+  }
+
+  WorkSessionInfo? _bestFallbackSessionForPlanning({
+    required PlanningSessionModel planning,
+    required List<WorkSessionInfo> sessions,
+    required Set<String> usedSessionIds,
+  }) {
+    WorkSessionInfo? best;
+    num bestScore = double.infinity;
+    final planningStart = planning.start;
+    final planningEnd = planning.end;
+
+    for (final session in sessions) {
+      if (usedSessionIds.contains(session.id)) continue;
+
+      final start = session.startTime.isUtc ? session.startTime.toLocal() : session.startTime;
+      final diffMinutes = start.difference(planningStart).inMinutes.abs();
+      final inPlanningWindow = !start.isBefore(
+            planningStart.subtract(const Duration(minutes: 90)),
+          ) &&
+          !start.isAfter(planningEnd.add(const Duration(minutes: 90)));
+      final score = diffMinutes -
+          (session.isActive ? 240 : 0) -
+          (inPlanningWindow ? 80 : 0);
+      if (score < bestScore) {
+        bestScore = score;
+        best = session;
+      }
+    }
+
+    if (best == null) return null;
+    final bestStart = best.startTime.isUtc ? best.startTime.toLocal() : best.startTime;
+    final bestDiffMinutes = bestStart.difference(planningStart).inMinutes.abs();
+    if (!best.isActive && bestDiffMinutes > 240) {
+      return null;
+    }
+    return best;
+  }
+
+  WorkSessionInfo? _preferredLiveSession(List<WorkSessionInfo> sessions) {
+    if (sessions.isEmpty) return null;
+    final sorted = [...sessions];
+    sorted.sort((a, b) {
+      if (a.isActive != b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+      final aStart = a.startTime.isUtc ? a.startTime.toLocal() : a.startTime;
+      final bStart = b.startTime.isUtc ? b.startTime.toLocal() : b.startTime;
+      return bStart.compareTo(aStart);
+    });
+    return sorted.first;
+  }
+
+  Future<_SessionStartOption?> _showSessionPicker({
+    required List<_SessionStartOption> options,
+  }) {
+    final hasActiveSession = options.any((option) => option.workSession?.isActive == true);
+    final linkedPlanningSessions =
+        options.where((option) => option.workSession != null).length;
+    final stateColor = hasActiveSession
+        ? const Color(0xFF8BD3A8)
+        : const Color(0xFFFFC857);
+    final stateLabel = hasActiveSession
+        ? 'Une session est deja active. Vous pouvez la reprendre.'
+        : 'Aucune session active. Choisissez une session a demarrer.';
+
+    return showModalBottomSheet<_SessionStartOption>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final media = MediaQuery.of(context);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, media.viewInsets.bottom + 16),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 780,
+                maxHeight: 680,
+              ),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A1628),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withOpacity(0.12)),
+                ),
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Demarrer une session',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.95),
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${options.length} sessions',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.66),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: stateColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: stateColor.withOpacity(0.26)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            hasActiveSession
+                                ? Icons.notifications_active_outlined
+                                : Icons.notifications_none_rounded,
+                            color: stateColor,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '$stateLabel\n$linkedPlanningSessions session(s) liee(s) au planning.',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.88),
+                                height: 1.35,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: options.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final option = options[index];
+                          final planning = option.planning;
+                          final linkedSession = option.workSession;
+                          final isActive = linkedSession?.isActive == true;
+                          final subtitle = _planningSessionSubtitle(planning);
+                          final statusLabel = linkedSession == null
+                              ? 'Etat: en attente capteur'
+                              : (isActive ? 'Etat: en cours' : 'Etat: sauvegardee');
+                          final statusColor = linkedSession == null
+                              ? const Color(0xFF97CAD8)
+                              : (isActive
+                                  ? const Color(0xFF8BD3A8)
+                                  : const Color(0xFFFFC857));
+
+                          return InkWell(
+                            onTap: () => Navigator.of(context).pop(option),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.06),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.14),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF97CAD8).withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.schedule_rounded,
+                                      color: Color(0xFF97CAD8),
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          planning.subject,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          subtitle,
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.72),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            _SessionPickerChip(
+                                              label: statusLabel,
+                                              color: statusColor,
+                                            ),
+                                            _SessionPickerChip(
+                                              label: 'Planning #${planning.id}',
+                                              color: const Color(0xFF97CAD8),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 16,
+                                    color: Colors.white.withOpacity(0.45),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<WorkSessionInfo> _todayWorkSessions(List<WorkSessionInfo> sessions) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final tomorrowStart = todayStart.add(const Duration(days: 1));
+
+    final filtered = sessions.where((session) {
+      if (isSyntheticPlanningSessionId(session.id)) {
+        return false;
+      }
+      final start = session.startTime.isUtc ? session.startTime.toLocal() : session.startTime;
+      return !start.isBefore(todayStart) && start.isBefore(tomorrowStart);
+    }).toList();
+
+    filtered.sort((a, b) {
+      if (a.isActive != b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+
+      final aTime = a.startTime.isUtc ? a.startTime.toLocal() : a.startTime;
+      final bTime = b.startTime.isUtc ? b.startTime.toLocal() : b.startTime;
+      return bTime.compareTo(aTime);
+    });
+
+    return filtered;
+  }
+
+  String _planningSessionSubtitle(PlanningSessionModel planning) {
+    final start = _formatTime(planning.start);
+    final end = _formatTime(planning.end);
+    final state = planning.statusLabel;
+    return '$start - $end  |  $state';
+  }
+
   @override
   Widget build(BuildContext context) {
     final todayPlanningAsync = ref.watch(todayPlanningProvider);
+    final dashboardSummaryAsync = ref.watch(todayVisionSummaryProvider);
+    final dashboardSummary = dashboardSummaryAsync.when(
+      data: (value) => value,
+      loading: () => const DashboardVisionSummary.empty(),
+      error: (_, __) => const DashboardVisionSummary.empty(),
+    );
     final userProfileState = ref.watch(userProfileProvider);
     final currentUser = userProfileState.profile;
     final now = DateTime.now();
@@ -53,7 +471,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         title: 'Dashboard',
         trailingWidget: _DashboardStartSessionButton(
           onPressed: () {
-            context.push(AppRoutes.session);
+            _onStartSessionPressed();
           },
         ),
       ),
@@ -120,18 +538,26 @@ class _HomePageState extends ConsumerState<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const _DashboardHeroScoreCard(),
+                  _DashboardHeroScoreCard(
+                    summary: dashboardSummary,
+                    isLoading: dashboardSummaryAsync.isLoading,
+                  ),
                   const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
                         child: _DashboardInsightCard(
-                          icon: Icons.nights_stay_rounded,
-                          title: 'Sommeil',
-                          value: '7h30',
-                          subtitle: 'Recuperation solide',
+                          icon: Icons.analytics_outlined,
+                          title: 'Focus moyen',
+                          value: dashboardSummary.focus != null
+                              ? '${dashboardSummary.focusPercent}%'
+                              : '--',
+                          subtitle:
+                              '${dashboardSummary.todaySessionCount} sessions suivies',
                           accent: const Color(0xFF97CAD8),
-                          chipLabel: 'Score 82',
+                          chipLabel: dashboardSummary.activeSessionCount > 0
+                              ? '${dashboardSummary.activeSessionCount} actives'
+                              : '${dashboardSummary.completedSessionCount} cloturees',
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -139,10 +565,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                         child: _DashboardInsightCard(
                           icon: Icons.self_improvement_rounded,
                           title: 'Pauses',
-                          value: '3',
-                          subtitle: 'Bon rythme aujourd hui',
+                          value: '${dashboardSummary.pauseCount}',
+                          subtitle: dashboardSummary.pauseCount > 0
+                              ? 'Detectees dans les sessions sauvegardees'
+                              : 'Aucune pause enregistree aujourd hui',
                           accent: const Color(0xFF8BD3A8),
-                          chipLabel: 'faites',
+                          chipLabel: dashboardSummary.stress != null
+                              ? 'Stress ${dashboardSummary.stressPercent}'
+                              : 'Suivi actif',
                         ),
                       ),
                     ],
@@ -234,6 +664,14 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  String _formatTime(DateTime dateTime) {
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+
+
   Widget _buildStarfield() {
     return SizedBox.expand(child: CustomPaint(painter: StarfieldPainter()));
   }
@@ -315,12 +753,19 @@ class _DashboardStartSessionButton extends StatelessWidget {
 }
 
 class _DashboardHeroScoreCard extends StatelessWidget {
-  const _DashboardHeroScoreCard();
+  final DashboardVisionSummary summary;
+  final bool isLoading;
+
+  const _DashboardHeroScoreCard({
+    required this.summary,
+    required this.isLoading,
+  });
 
   @override
   Widget build(BuildContext context) {
-    const score = 78;
-    const progress = 0.78;
+    final score = summary.scorePercent;
+    final progress = summary.scoreProgress;
+    final stabilityLabel = summary.hasData ? 'Temps reel' : 'En attente';
 
     return Container(
       width: double.infinity,
@@ -374,7 +819,9 @@ class _DashboardHeroScoreCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Une lecture rapide de votre rythme, focus et posture.',
+                      isLoading
+                          ? 'Mise a jour des statistiques...'
+                          : 'Calcule a partir des sessions sauvegardees.',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.68),
                         fontSize: 13,
@@ -394,7 +841,7 @@ class _DashboardHeroScoreCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  'Stable',
+                  stabilityLabel,
                   style: TextStyle(
                     color: const Color(0xFF97CAD8),
                     fontSize: 12,
@@ -451,25 +898,27 @@ class _DashboardHeroScoreCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 18),
-              const Expanded(
+              Expanded(
                 child: Column(
                   children: [
                     _DashboardMetricStrip(
                       label: 'Focus',
-                      value: '85%',
-                      accent: Color(0xFF97CAD8),
+                      value: summary.focus != null ? '${summary.focusPercent}%' : '--',
+                      accent: const Color(0xFF97CAD8),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     _DashboardMetricStrip(
                       label: 'Posture',
-                      value: '72%',
-                      accent: Color(0xFF8BD3A8),
+                      value: summary.posture != null
+                          ? '${summary.posturePercent}%'
+                          : '--',
+                      accent: const Color(0xFF8BD3A8),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     _DashboardMetricStrip(
-                      label: 'Regularite',
-                      value: 'Bonne',
-                      accent: Color(0xFFFFC857),
+                      label: 'Sessions',
+                      value: '${summary.todaySessionCount}',
+                      accent: const Color(0xFFFFC857),
                     ),
                   ],
                 ),
@@ -1239,6 +1688,46 @@ class _DashboardPlanningError extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SessionStartOption {
+  final PlanningSessionModel planning;
+  final WorkSessionInfo? workSession;
+
+  const _SessionStartOption({
+    required this.planning,
+    required this.workSession,
+  });
+}
+
+class _SessionPickerChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _SessionPickerChip({
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.28)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

@@ -16,10 +16,12 @@ import 'package:smart_focus/features/planning/models/planning_models.dart';
 import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/features/quiz/data/quiz_repository.dart';
 import 'package:smart_focus/features/quiz/models/quiz_models.dart';
+import 'package:smart_focus/features/sleep/models/sleep_models.dart';
 import 'package:smart_focus/features/sleep/services/sleep_service.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import 'package:smart_focus/shared/widgets/starfield_painter.dart';
 
+import '../providers/stats_dashboard_provider.dart';
 import '../widgets/focus_chart_card.dart';
 import '../widgets/general_score_card.dart';
 import '../widgets/planning_insights_card.dart';
@@ -71,6 +73,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
   @override
   Widget build(BuildContext context) {
     final insightsAsync = ref.watch(planningInsightsProvider(_selectedPeriod));
+    final dashboardAsync = ref.watch(statsDashboardProvider(_selectedPeriod));
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -100,7 +103,11 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
               color: Colors.black,
               onRefresh: () async {
                 ref.invalidate(planningInsightsProvider(_selectedPeriod));
-                await ref.read(planningInsightsProvider(_selectedPeriod).future);
+                ref.invalidate(statsDashboardProvider(_selectedPeriod));
+                await Future.wait([
+                  ref.read(planningInsightsProvider(_selectedPeriod).future),
+                  ref.read(statsDashboardProvider(_selectedPeriod).future),
+                ]);
               },
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -114,11 +121,11 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                     data: (insights) => PlanningInsightsCard(insights: insights),
                   ),
                   const SizedBox(height: 24),
-                  const GeneralScoreCard(),
-                  const SizedBox(height: 24),
-                  const FocusChartCard(),
-                  const SizedBox(height: 24),
-                  const SleepChartCard(),
+                  dashboardAsync.when(
+                    loading: _buildDashboardLoadingSection,
+                    error: (error, stackTrace) => _buildDashboardErrorSection(error),
+                    data: _buildDashboardDataSection,
+                  ),
                   const SizedBox(height: 24),
                   _buildSaveStatsBundleButton(),
                   const SizedBox(height: 10),
@@ -236,6 +243,87 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDashboardLoadingSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+      ),
+      child: const SizedBox(
+        height: 120,
+        child: Center(
+          child: CircularProgressIndicator(color: Color(0xFF97CAD8)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardErrorSection(Object error) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFB7185).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFB7185).withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Stats indisponibles',
+            style: TextStyle(
+              color: Color(0xFFFB7185),
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            error.toString().replaceFirst('Exception: ', ''),
+            style: TextStyle(color: Colors.white.withOpacity(0.82)),
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: () => ref.invalidate(statsDashboardProvider(_selectedPeriod)),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Recharger'),
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardDataSection(StatsDashboardData dashboardData) {
+    return Column(
+      children: [
+        GeneralScoreCard(
+          focusCompletionPercent: dashboardData.focusCompletionPercent,
+          completedMinutes: dashboardData.completedMinutes,
+          plannedMinutes: dashboardData.plannedMinutes,
+          avgSleepHours: dashboardData.avgSleepHours,
+          avgSleepScore: dashboardData.avgSleepScore,
+          periodLabel: dashboardData.periodLabel,
+        ),
+        const SizedBox(height: 24),
+        FocusChartCard(
+          labels: dashboardData.labels,
+          values: dashboardData.focusCompletionSeries,
+          periodLabel: dashboardData.periodLabel,
+        ),
+        const SizedBox(height: 24),
+        SleepChartCard(
+          labels: dashboardData.labels,
+          values: dashboardData.sleepHoursSeries,
+          periodLabel: dashboardData.periodLabel,
+          recordsCount: dashboardData.sleepRecordedDays,
+        ),
+      ],
     );
   }
 
@@ -484,7 +572,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('PDF pret. Utilisez le dialogue pour enregistrer/télécharger.'),
+          content: Text('PDF pret. Utilisez le dialogue pour enregistrer/telecharger.'),
         ),
       );
     } catch (error) {
@@ -549,6 +637,10 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
           pw.SizedBox(height: 16),
           _pdfComparisonSection(week: week, month: month),
           pw.SizedBox(height: 16),
+          _pdfDailySnapshotSection(week, maxRows: 10),
+          pw.SizedBox(height: 12),
+          _pdfDailySnapshotSection(month, maxRows: 14),
+          pw.SizedBox(height: 12),
           _pdfPeriodSection(week),
           pw.SizedBox(height: 12),
           _pdfPeriodSection(month),
@@ -823,6 +915,122 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     );
   }
 
+  pw.Widget _pdfDailySnapshotSection(
+    Map<String, dynamic> periodData, {
+    int maxRows = 12,
+  }) {
+    final label = periodData['label']?.toString() ?? 'Periode';
+    final rawPoints = (periodData['daily_points'] as List? ?? const [])
+        .whereType<Map>()
+        .map((point) => Map<String, dynamic>.from(point))
+        .toList();
+
+    if (rawPoints.isEmpty) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(12),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColor.fromHex('#C7D7E2')),
+          borderRadius: pw.BorderRadius.circular(10),
+        ),
+        child: pw.Text(
+          'Donnees quotidiennes indisponibles pour $label.',
+          style: const pw.TextStyle(fontSize: 10),
+        ),
+      );
+    }
+
+    final points = rawPoints.length > maxRows
+        ? rawPoints.sublist(rawPoints.length - maxRows)
+        : rawPoints;
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColor.fromHex('#C7D7E2')),
+        borderRadius: pw.BorderRadius.circular(10),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'Tendance quotidienne - $label',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromHex('#17304A'),
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(
+              color: PdfColor.fromHex('#D8E1E8'),
+              width: 0.5,
+            ),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(1.6),
+              1: const pw.FlexColumnWidth(1.2),
+              2: const pw.FlexColumnWidth(1.4),
+              3: const pw.FlexColumnWidth(1.2),
+            },
+            children: [
+              _pdfDailyRow(
+                date: 'Date',
+                focusPercent: 'Focus %',
+                focusMinutes: 'Minutes',
+                sleepHours: 'Sommeil h',
+                isHeader: true,
+              ),
+              ...points.map((point) {
+                final focusPercent = _asInt(point['focus_completion_percent']);
+                final focusMinutes = _asInt(point['focus_minutes']);
+                final sleepHours = _asDouble(point['sleep_hours']) ?? 0;
+                return _pdfDailyRow(
+                  date: point['label']?.toString() ?? point['date']?.toString() ?? '--',
+                  focusPercent: '$focusPercent',
+                  focusMinutes: '$focusMinutes',
+                  sleepHours: sleepHours.toStringAsFixed(1),
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.TableRow _pdfDailyRow({
+    required String date,
+    required String focusPercent,
+    required String focusMinutes,
+    required String sleepHours,
+    bool isHeader = false,
+  }) {
+    final textStyle = pw.TextStyle(
+      fontSize: 9,
+      fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+      color: isHeader ? PdfColor.fromHex('#17304A') : PdfColor.fromHex('#243B53'),
+    );
+
+    pw.Widget cell(String text) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+        child: pw.Text(text, style: textStyle),
+      );
+    }
+
+    return pw.TableRow(
+      decoration: isHeader
+          ? pw.BoxDecoration(color: PdfColor.fromHex('#EEF4F8'))
+          : const pw.BoxDecoration(),
+      children: [
+        cell(date),
+        cell(focusPercent),
+        cell(focusMinutes),
+        cell(sleepHours),
+      ],
+    );
+  }
+
   pw.Widget _pdfPeriodSection(Map<String, dynamic> periodData) {
     final label = periodData['label']?.toString() ?? 'Periode';
     final focus = _asMap(periodData['focus']);
@@ -922,6 +1130,9 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
 
     final insights = await planningRepository.getInsights(period: period);
     final sleepStats = await sleepService.getStats(period: period);
+    final sleepHistory = await sleepService.getHistory(
+      limit: period == 'month' ? 90 : 30,
+    );
     final sessions = await _loadSessionsInRange(
       planningRepository: planningRepository,
       start: range.start,
@@ -934,6 +1145,13 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     final notes = _collectSessionNotes(sessions);
     final focus = _buildFocusSummary(insights, sessionSummary);
     final sleep = _buildSleepSummary(sleepStats);
+    final dailyPoints = _buildDailyPoints(
+      sessions: sessions,
+      sleepRecords: sleepHistory,
+      start: range.start,
+      end: range.end,
+      days: range.days,
+    );
     final flashcards = _buildFlashcardSummary(
       dueCards: dueCards,
       sessions: sessions,
@@ -951,6 +1169,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       'sessions': sessionSummary,
       'quizzes': quizSummary,
       'flashcards': flashcards,
+      'daily_points': dailyPoints,
       'subjects': {
         'weakest': insights.weakestSubject,
         'strongest': insights.strongestSubject,
@@ -1013,6 +1232,62 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
       'trend': sleepStats.trend,
       'records': sleepStats.numRecords,
     };
+  }
+
+  List<Map<String, dynamic>> _buildDailyPoints({
+    required List<PlanningSessionModel> sessions,
+    required List<SleepRecord> sleepRecords,
+    required DateTime start,
+    required DateTime end,
+    required int days,
+  }) {
+    final sleepByDay = <String, List<double>>{};
+    for (final record in sleepRecords) {
+      final totalHours = record.totalHours;
+      if (totalHours == null) continue;
+
+      final day = DateTime(
+        record.sleepStart.year,
+        record.sleepStart.month,
+        record.sleepStart.day,
+      );
+      if (day.isBefore(start) || day.isAfter(end)) continue;
+
+      final key = _dayKey(day);
+      sleepByDay.putIfAbsent(key, () => <double>[]).add(totalHours);
+    }
+
+    final points = <Map<String, dynamic>>[];
+    for (var index = 0; index < days; index++) {
+      final day = start.add(Duration(days: index));
+      final daySessions = sessions.where((session) => _isSameDay(session.start, day)).toList();
+
+      final plannedMinutes = daySessions.fold<int>(0, (sum, session) {
+        return sum + session.duration.inMinutes;
+      });
+      final completedMinutes = daySessions.where((session) => session.isCompleted).fold<int>(
+        0,
+        (sum, session) => sum + session.duration.inMinutes,
+      );
+      final completionPercent = plannedMinutes <= 0
+          ? 0
+          : ((completedMinutes / plannedMinutes) * 100).round();
+
+      final daySleepEntries = sleepByDay[_dayKey(day)] ?? const <double>[];
+      final sleepHours = daySleepEntries.isEmpty
+          ? 0.0
+          : daySleepEntries.reduce((a, b) => a + b) / daySleepEntries.length;
+
+      points.add(<String, dynamic>{
+        'date': day.toIso8601String(),
+        'label': _shortDateLabel(day),
+        'focus_completion_percent': completionPercent,
+        'focus_minutes': completedMinutes,
+        'sleep_hours': sleepHours,
+      });
+    }
+
+    return points;
   }
 
   Map<String, dynamic> _buildSessionSummary(List<PlanningSessionModel> sessions) {
@@ -1157,6 +1432,24 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
 
   String _periodLabel(String period) {
     return period == 'month' ? 'Mois' : 'Semaine';
+  }
+
+  bool _isSameDay(DateTime first, DateTime second) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
+  }
+
+  String _dayKey(DateTime day) {
+    final month = day.month.toString().padLeft(2, '0');
+    final date = day.day.toString().padLeft(2, '0');
+    return '${day.year}-$month-$date';
+  }
+
+  String _shortDateLabel(DateTime day) {
+    final month = day.month.toString().padLeft(2, '0');
+    final date = day.day.toString().padLeft(2, '0');
+    return '$date/$month';
   }
 
   String _formatMinutes(int minutes) {

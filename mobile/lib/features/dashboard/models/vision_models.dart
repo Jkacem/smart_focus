@@ -59,6 +59,7 @@ class WorkSessionInfo {
   });
 
   factory WorkSessionInfo.fromJson(Map<String, dynamic> json) {
+    final rawMetadata = json['metadata_json'];
     return WorkSessionInfo(
       id: json['id'] as String,
       userId: json['user_id'] as int?,
@@ -67,7 +68,77 @@ class WorkSessionInfo {
           ? DateTime.parse(json['end_time'] as String)
           : null,
       isActive: json['is_active'] as bool,
-      metadataJson: json['metadata_json'] as Map<String, dynamic>?,
+      metadataJson: rawMetadata is Map
+          ? Map<String, dynamic>.from(rawMetadata as Map)
+          : null,
     );
+  }
+
+  Map<String, dynamic>? get finalSummary {
+    final metadata = metadataJson;
+    if (metadata == null) return null;
+    final raw = metadata['final_summary'];
+    if (raw is! Map) return null;
+    return Map<String, dynamic>.from(raw as Map);
+  }
+}
+
+class DashboardVisionSummary {
+  final int todaySessionCount;
+  final int completedSessionCount;
+  final int activeSessionCount;
+  final double? score;
+  final double? focus;
+  final double? posture;
+  final double? stress;
+  final int pauseCount;
+
+  const DashboardVisionSummary({
+    required this.todaySessionCount,
+    required this.completedSessionCount,
+    required this.activeSessionCount,
+    required this.score,
+    required this.focus,
+    required this.posture,
+    required this.stress,
+    required this.pauseCount,
+  });
+
+  const DashboardVisionSummary.empty()
+      : todaySessionCount = 0,
+        completedSessionCount = 0,
+        activeSessionCount = 0,
+        score = null,
+        focus = null,
+        posture = null,
+        stress = null,
+        pauseCount = 0;
+
+  bool get hasData =>
+      score != null ||
+      focus != null ||
+      posture != null ||
+      stress != null ||
+      todaySessionCount > 0;
+
+  int get scorePercent => _clampPercent(score);
+  int get focusPercent => _clampPercent(focus);
+  int get posturePercent => _clampPercent(posture);
+  int get stressPercent => _clampPercent(stress);
+
+  double get scoreProgress {
+    final normalized = scorePercent / 100;
+    if (normalized <= 0) {
+      return 0.05;
+    }
+    return normalized.clamp(0.0, 1.0);
+  }
+
+  static int _clampPercent(double? value) {
+    if (value == null) return 0;
+    final rounded = value.round();
+    if (rounded < 0) return 0;
+    if (rounded > 100) return 100;
+    return rounded;
   }
 }
