@@ -8,6 +8,20 @@ import '../../../core/network/app_exception.dart';
 import '../data/planning_repository.dart';
 import '../models/planning_models.dart';
 
+class PlanningGenerationContext {
+  final int? documentId;
+  final List<int>? examIds;
+  final String? weekType;
+  final Map<String, dynamic>? preferences;
+
+  const PlanningGenerationContext({
+    this.documentId,
+    this.examIds,
+    this.weekType,
+    this.preferences,
+  });
+}
+
 class PlanningState {
   final DateTime selectedDate;
   final List<PlanningSessionModel> sessions;
@@ -263,6 +277,8 @@ class PlanningNotifier extends StateNotifier<PlanningState> {
 final planningProvider = StateNotifierProvider<PlanningNotifier, PlanningState>((ref) {
   return PlanningNotifier(ref.watch(planningRepositoryProvider));
 });
+
+final planningGenerationContextProvider = StateProvider<PlanningGenerationContext?>((ref) => null);
 
 final planningInsightsProvider = FutureProvider.family
     .autoDispose<PlanningInsightsModel, String>((ref, period) async {

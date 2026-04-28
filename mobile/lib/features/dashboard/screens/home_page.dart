@@ -91,20 +91,25 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (selected == null || !mounted) return;
 
     var selectedWorkSession = selected.workSession;
-    if (selectedWorkSession == null) {
-      selectedWorkSession = _preferredLiveSession(todayWorkSessions);
-      if (selectedWorkSession == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Aucune session CV detectee. Lancez main_cv puis reessayez.',
-              ),
+    final freshestActive = _latestActiveSession(todayWorkSessions);
+    if (freshestActive != null &&
+        (selectedWorkSession == null ||
+            !selectedWorkSession.isActive ||
+            _isSessionNewer(freshestActive, selectedWorkSession))) {
+      selectedWorkSession = freshestActive;
+    }
+
+    if (selectedWorkSession == null || !selectedWorkSession.isActive) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Aucune session CV active detectee. Lancez main_cv puis reessayez.',
             ),
-          );
-        }
-        return;
+          ),
+        );
       }
+      return;
     }
 
     ref.read(activeWorkSessionIdProvider.notifier).state = selectedWorkSession.id;
@@ -211,6 +216,23 @@ class _HomePageState extends ConsumerState<HomePage> {
       return bStart.compareTo(aStart);
     });
     return sorted.first;
+  }
+
+  WorkSessionInfo? _latestActiveSession(List<WorkSessionInfo> sessions) {
+    final active = sessions.where((session) => session.isActive).toList();
+    if (active.isEmpty) return null;
+    active.sort(
+      (a, b) => _sessionLocalStart(b).compareTo(_sessionLocalStart(a)),
+    );
+    return active.first;
+  }
+
+  DateTime _sessionLocalStart(WorkSessionInfo session) {
+    return session.startTime.isUtc ? session.startTime.toLocal() : session.startTime;
+  }
+
+  bool _isSessionNewer(WorkSessionInfo candidate, WorkSessionInfo current) {
+    return _sessionLocalStart(candidate).isAfter(_sessionLocalStart(current));
   }
 
   Future<_SessionStartOption?> _showSessionPicker({

@@ -356,6 +356,15 @@ def _build_planning_insights(
         weakest_subject=weakest_subject,
     )
 
+    focus_stats = crud.get_daily_focus_stats(db, current_user.id, reference_day)
+    if focus_stats is None:
+        focus_stats = crud.get_recent_focus_stats(db, current_user.id, reference_day)
+    avg_focus_score = (
+        round(focus_stats["avg_focus_score"], 2)
+        if focus_stats is not None
+        else None
+    )
+
     return schemas.PlanningInsightsOut(
         period=period,
         total_study_minutes=total_study_minutes,
@@ -364,6 +373,7 @@ def _build_planning_insights(
         completion_rate=completion_rate,
         avg_sleep_hours=avg_sleep_hours,
         avg_sleep_score=avg_sleep_score,
+        avg_focus_score=avg_focus_score,
         sleep_study_correlation=sleep_study_correlation,
         weakest_subject=weakest_subject,
         strongest_subject=strongest_subject,
@@ -380,12 +390,102 @@ def _load_planning_document(
     db: Session,
     current_user: User,
     document_id: int | None,
+    *,
+    target_day: date | None = None,
+    week_type: str | None = None,
 ) -> tuple[str | None, str | None]:
     doc = _get_owned_document(db, current_user, document_id)
+    if doc is None:
+        from sqlalchemy import func, or_
+
+        csv_docs = (
+            db.query(ChatDocument)
+            .filter(
+                ChatDocument.user_id == current_user.id,
+                or_(
+                    func.lower(ChatDocument.filename).like("%.csv"),
+                    func.lower(ChatDocument.file_path).like("%.csv"),
+                ),
+            )
+            .order_by(ChatDocument.created_at.desc(), ChatDocument.id.desc())
+            .all()
+        )
+
+        if target_day is not None and csv_docs:
+            def _candidate_week_types() -> list[str | None]:
+                if week_type in {"A", "B"}:
+                    return [week_type]
+                # Try auto + both explicit variants and keep the best fit.
+                return [None, "A", "B"]
+
+            best_doc: ChatDocument | None = None
+            best_score = -1
+            for candidate in csv_docs:
+                for candidate_week in _candidate_week_types():
+                    try:
+                        parsed = parse_csv_schedule(
+                            file_path=candidate.file_path,
+                            target_date=target_day,
+                            week_type=candidate_week,
+                        )
+                    except Exception:
+                        continue
+                    score = len(parsed)
+                    if score > best_score:
+                        best_score = score
+                        best_doc = candidate
+            doc = best_doc if best_doc is not None else csv_docs[0]
+        elif csv_docs:
+            doc = csv_docs[0]
+        else:
+            doc = None
+
+        if doc is not None:
+            logger.info(
+                "No planning document_id provided, using CSV document id=%d (%s)",
+                doc.id,
+                doc.filename,
+            )
     if doc is None:
         return None, None
 
     return doc.chroma_collection, doc.file_path
+
+
+def _resolve_week_type_for_day(
+    *,
+    file_path: str,
+    target_day: date,
+    requested_week_type: str | None,
+) -> str | None:
+    if requested_week_type in {"A", "B"}:
+        return requested_week_type
+
+    # If week type is unspecified, prefer the variant that actually yields
+    # classes for the requested day.
+    best_week: str | None = None
+    best_count = -1
+    for candidate_week in (None, "A", "B"):
+        try:
+            parsed = parse_csv_schedule(
+                file_path=file_path,
+                target_date=target_day,
+                week_type=candidate_week,
+            )
+        except Exception:
+            continue
+        count = len(parsed)
+        if count > best_count:
+            best_count = count
+            best_week = candidate_week
+
+    if best_week in {"A", "B"}:
+        logger.info(
+            "Resolved week_type=%s for %s based on CSV class coverage.",
+            best_week,
+            target_day.isoformat(),
+        )
+    return best_week
 
 
 def _get_owned_document(
@@ -506,6 +606,154 @@ def _get_sleep_profile(
         profile["max_sessions"],
     )
     return profile
+
+
+def _get_focus_profile(
+    db: Session,
+    user_id: int,
+    target_day: date,
+) -> dict[str, Any] | None:
+    """Return revision parameters calibrated on dashboard-like daily focus score.
+
+    Primary source is today's global focus score across work sessions
+    (same aggregation logic used by the dashboard). Falls back to the latest
+    finalized session score when no day-level data is available.
+    """
+    focus_stats = crud.get_daily_focus_stats(db, user_id, target_day)
+    source = "daily_global"
+    if focus_stats is None:
+        focus_stats = crud.get_recent_focus_stats(db, user_id, target_day)
+        source = "latest_session"
+    if focus_stats is None:
+        logger.info(
+            "Focus profile for user %d on %s: no CV data available",
+            user_id,
+            target_day.isoformat(),
+        )
+        return None
+
+    avg_score_raw = float(focus_stats["avg_focus_score"])
+    # Snapshots may arrive either as ratio [0..1] or percent [0..100].
+    # Normalize to percent so thresholds stay stable.
+    avg_score = avg_score_raw * 100 if avg_score_raw <= 1.0 else avg_score_raw
+    avg_score = max(0.0, min(100.0, avg_score))
+
+    if avg_score >= 70:
+        profile = {
+            "max_session_min": 50,
+            "break_min": 10,
+            "max_sessions": 6,
+            "priority": "high",
+            "label": "Bonne concentration",
+        }
+    elif avg_score < 40:
+        profile = {
+            "max_session_min": 25,
+            "break_min": 20,
+            "max_sessions": 3,
+            "priority": "low",
+            "label": "Concentration faible",
+        }
+    else:
+        profile = {
+            "max_session_min": 35,
+            "break_min": 15,
+            "max_sessions": 4,
+            "priority": "medium",
+            "label": "Concentration moyenne",
+        }
+
+    logger.info(
+        "Focus profile for user %d on %s: source=%s avg_score_raw=%.3f avg_score_pct=%.1f -> %s (max %d min x %d sessions)",
+        user_id,
+        target_day.isoformat(),
+        source,
+        avg_score_raw,
+        avg_score,
+        profile["label"],
+        profile["max_session_min"],
+        profile["max_sessions"],
+    )
+    return profile
+
+
+def _merge_profiles(
+    sleep_profile: dict[str, Any],
+    focus_profile: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Merge sleep and focus profiles with adaptive intensity.
+
+    Rules:
+    - If either profile is ``low``: use restrictive values.
+    - Otherwise, if either profile is ``high``: allow longer/denser revision.
+    - Medium + medium keeps a balanced profile.
+    """
+    if focus_profile is None:
+        return sleep_profile
+
+    sleep_priority = str(sleep_profile.get("priority", "medium"))
+    focus_priority = str(focus_profile.get("priority", "medium"))
+
+    if "low" in {sleep_priority, focus_priority}:
+        merged = {
+            "max_session_min": min(
+                sleep_profile["max_session_min"],
+                focus_profile["max_session_min"],
+            ),
+            "break_min": max(
+                sleep_profile["break_min"],
+                focus_profile["break_min"],
+            ),
+            "max_sessions": min(
+                sleep_profile["max_sessions"],
+                focus_profile["max_sessions"],
+            ),
+            "priority": "low",
+            "label": f"{sleep_profile['label']} + {focus_profile['label']}",
+        }
+    elif "high" in {sleep_priority, focus_priority}:
+        merged = {
+            "max_session_min": max(
+                sleep_profile["max_session_min"],
+                focus_profile["max_session_min"],
+            ),
+            "break_min": min(
+                sleep_profile["break_min"],
+                focus_profile["break_min"],
+            ),
+            "max_sessions": max(
+                sleep_profile["max_sessions"],
+                focus_profile["max_sessions"],
+            ),
+            "priority": "high",
+            "label": f"{sleep_profile['label']} + {focus_profile['label']}",
+        }
+    else:
+        merged = {
+            "max_session_min": round(
+                (sleep_profile["max_session_min"] + focus_profile["max_session_min"]) / 2
+            ),
+            "break_min": round(
+                (sleep_profile["break_min"] + focus_profile["break_min"]) / 2
+            ),
+            "max_sessions": round(
+                (sleep_profile["max_sessions"] + focus_profile["max_sessions"]) / 2
+            ),
+            "priority": "medium",
+            "label": f"{sleep_profile['label']} + {focus_profile['label']}",
+        }
+
+    logger.info(
+        "Merged profile: sleep=%s focus=%s -> %s (max %d min x %d sessions, break %d min)",
+        sleep_priority,
+        focus_priority,
+        merged["priority"],
+        merged["label"],
+        merged["max_session_min"],
+        merged["max_sessions"],
+        merged["break_min"],
+    )
+    return merged
 
 
 def _compute_free_slots(
@@ -1541,20 +1789,27 @@ def _generate_sessions_for_day(
     )
 
     if doc_file_path and is_csv_schedule(doc_file_path):
+        resolved_week_type = _resolve_week_type_for_day(
+            file_path=doc_file_path,
+            target_day=target_day,
+            requested_week_type=week_type,
+        )
         logger.info(
-            "Planning generation for %s is using CSV timetable path: %s",
+            "Planning generation for %s is using CSV timetable path: %s (week_type=%s requested=%s)",
             target_day.isoformat(),
             doc_file_path,
+            resolved_week_type,
+            week_type,
         )
         class_sessions = parse_csv_schedule(
             file_path=doc_file_path,
             target_date=target_day,
-            week_type=week_type,
+            week_type=resolved_week_type,
         )
         revision_source_sessions = class_sessions or _collect_recent_schedule_subjects(
             file_path=doc_file_path,
             target_day=target_day,
-            week_type=week_type,
+            week_type=resolved_week_type,
         )
         planned_course_revision_counts = (
             _planned_course_revision_counts(
@@ -1587,6 +1842,8 @@ def _generate_sessions_for_day(
 
         if revision_source_sessions or exams or due_flashcard_subjects or quiz_performance:
             sleep_profile = _get_sleep_profile(db, current_user.id, target_day)
+            focus_profile = _get_focus_profile(db, current_user.id, target_day)
+            sleep_profile = _merge_profiles(sleep_profile, focus_profile)
             preferred_schedule = (
                 current_user.profile.preferred_schedule
                 if current_user.profile
@@ -1670,6 +1927,8 @@ def generate_planning(
         db,
         current_user,
         body.document_id,
+        target_day=body.date,
+        week_type=body.week_type,
     )
     selected_exams = _get_selected_exams(db, current_user, body.date, body.exam_ids)
 
@@ -1707,12 +1966,14 @@ def generate_week_planning(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    target_days = _week_days(body.date)
     collection_name, doc_file_path = _load_planning_document(
         db,
         current_user,
         body.document_id,
+        target_day=target_days[0],
+        week_type=body.week_type,
     )
-    target_days = _week_days(body.date)
     days_out: list[schemas.PlanningDayOut] = []
     selected_exams = _get_selected_exams(
         db,
