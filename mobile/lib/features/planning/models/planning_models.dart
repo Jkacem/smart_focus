@@ -81,7 +81,6 @@ class PlanningInsightsModel {
   final double completionRate;
   final double? avgSleepHours;
   final double? avgSleepScore;
-  final double? avgFocusScore;
   final String sleepStudyCorrelation;
   final String? weakestSubject;
   final String? strongestSubject;
@@ -95,7 +94,6 @@ class PlanningInsightsModel {
     required this.completionRate,
     required this.avgSleepHours,
     required this.avgSleepScore,
-    required this.avgFocusScore,
     required this.sleepStudyCorrelation,
     required this.weakestSubject,
     required this.strongestSubject,
@@ -111,7 +109,6 @@ class PlanningInsightsModel {
       completionRate: (json['completion_rate'] as num?)?.toDouble() ?? 0,
       avgSleepHours: (json['avg_sleep_hours'] as num?)?.toDouble(),
       avgSleepScore: (json['avg_sleep_score'] as num?)?.toDouble(),
-      avgFocusScore: (json['avg_focus_score'] as num?)?.toDouble(),
       sleepStudyCorrelation:
           json['sleep_study_correlation']?.toString() ?? 'insufficient_data',
       weakestSubject: json['weakest_subject']?.toString(),
@@ -205,7 +202,6 @@ class PlanningSessionModel {
   final String sessionFlashcardsStatus;
   final bool isAiGenerated;
   final DateTime? completedAt;
-  final double? focusScore;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -231,7 +227,6 @@ class PlanningSessionModel {
     required this.sessionFlashcardsStatus,
     required this.isAiGenerated,
     required this.completedAt,
-    required this.focusScore,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -262,7 +257,6 @@ class PlanningSessionModel {
       completedAt: json['completed_at'] == null
           ? null
           : _parseDateTime(json['completed_at'].toString()),
-      focusScore: (json['focus_score'] as num?)?.toDouble(),
       createdAt: _parseDateTime(json['created_at']?.toString()),
       updatedAt: _parseDateTime(json['updated_at']?.toString()),
     );

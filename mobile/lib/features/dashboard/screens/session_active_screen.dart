@@ -25,8 +25,6 @@ class SessionActiveScreen extends ConsumerStatefulWidget {
 class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
   Timer? _uiTimer;
   bool _isStopping = false;
-  bool _isSyncingSessionDiscovery = false;
-  DateTime? _lastSessionSyncAt;
 
   VisionSnapshot? _minuteSnapshot;
   DateTime? _minuteSnapshotAt;
@@ -39,7 +37,6 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       ref.read(activeSessionRuntimeProvider.notifier).tick();
-      _syncActiveSessionIfNeeded();
       _refreshMinuteSnapshot();
       setState(() {});
     });
@@ -52,10 +49,35 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     if (currentId != null && isSyntheticPlanningSessionId(currentId)) {
       ref.read(activeWorkSessionIdProvider.notifier).state = null;
       currentId = null;
-      _clearMinuteSnapshotCache();
     }
 
-    await _syncActiveSessionIfNeeded(force: true);
+    if (currentId == null) {
+      try {
+        final service = ref.read(visionServiceProvider);
+        final sessions = await service.listSessions(limit: 200);
+        final active = sessions
+            .where(
+              (session) =>
+                  session.isActive && !isSyntheticPlanningSessionId(session.id),
+            )
+            .toList();
+        if (active.isNotEmpty) {
+          final selected = active.first;
+          ref.read(activeWorkSessionIdProvider.notifier).state = selected.id;
+
+          final planningId =
+              planningSessionIdFromMetadata(selected.metadataJson);
+          ref.read(activePlanningSessionIdProvider.notifier).state = planningId;
+
+          final planningTitle =
+              planningSessionTitleFromMetadata(selected.metadataJson);
+          ref.read(activePlanningSessionTitleProvider.notifier).state =
+              planningTitle;
+        }
+      } catch (e) {
+        debugPrint('[SessionActive] Session discovery failed: $e');
+      }
+    }
 
     currentId = ref.read(activeWorkSessionIdProvider);
     ref.read(activeSessionRuntimeProvider.notifier).attachSession(currentId);
@@ -99,7 +121,6 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
       _uiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
         ref.read(activeSessionRuntimeProvider.notifier).tick();
-        _syncActiveSessionIfNeeded();
         _refreshMinuteSnapshot();
         setState(() {});
       });
@@ -124,85 +145,6 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     if (shouldSeed || shouldRefresh) {
       _minuteSnapshot = latest;
       _minuteSnapshotAt = now;
-    }
-  }
-
-  void _clearMinuteSnapshotCache() {
-    _minuteSnapshot = null;
-    _minuteSnapshotAt = null;
-  }
-
-  DateTime _sessionLocalStart(WorkSessionInfo session) {
-    return session.startTime.isUtc ? session.startTime.toLocal() : session.startTime;
-  }
-
-  Future<void> _syncActiveSessionIfNeeded({bool force = false}) async {
-    if (!mounted || _isSyncingSessionDiscovery) return;
-    final now = DateTime.now();
-    if (!force &&
-        _lastSessionSyncAt != null &&
-        now.difference(_lastSessionSyncAt!) < const Duration(seconds: 8)) {
-      return;
-    }
-
-    _isSyncingSessionDiscovery = true;
-    _lastSessionSyncAt = now;
-    try {
-      final service = ref.read(visionServiceProvider);
-      final sessions = await service.listSessions(limit: 200);
-      final activeSessions = sessions
-          .where(
-            (session) =>
-                session.isActive && !isSyntheticPlanningSessionId(session.id),
-          )
-          .toList()
-        ..sort(
-          (a, b) => _sessionLocalStart(b).compareTo(_sessionLocalStart(a)),
-        );
-
-      final currentId = ref.read(activeWorkSessionIdProvider);
-      WorkSessionInfo? currentSession;
-      if (currentId != null) {
-        for (final session in sessions) {
-          if (session.id == currentId) {
-            currentSession = session;
-            break;
-          }
-        }
-      }
-
-      if (activeSessions.isEmpty) {
-        if (currentSession != null && !currentSession.isActive) {
-          ref.read(activeWorkSessionIdProvider.notifier).state = null;
-          ref.read(activeSessionRuntimeProvider.notifier).clear();
-          _clearMinuteSnapshotCache();
-        }
-        return;
-      }
-
-      final freshestActive = activeSessions.first;
-      final shouldSwitch = currentSession == null ||
-          !currentSession.isActive ||
-          currentSession.id != freshestActive.id;
-      if (!shouldSwitch) return;
-
-      ref.read(activeWorkSessionIdProvider.notifier).state = freshestActive.id;
-      final planningId = planningSessionIdFromMetadata(freshestActive.metadataJson);
-      if (planningId != null) {
-        ref.read(activePlanningSessionIdProvider.notifier).state = planningId;
-      }
-      final planningTitle = planningSessionTitleFromMetadata(freshestActive.metadataJson);
-      if (planningTitle != null && planningTitle.trim().isNotEmpty) {
-        ref.read(activePlanningSessionTitleProvider.notifier).state = planningTitle;
-      }
-      ref.read(activeSessionRuntimeProvider.notifier).attachSession(freshestActive.id);
-      final isPaused = ref.read(activeSessionRuntimeProvider).isPaused;
-      ref.read(isLivePollingPausedProvider.notifier).state = isPaused;
-      _clearMinuteSnapshotCache();
-    } catch (e) {
-      debugPrint('[SessionActive] Session sync failed: $e');
-    } finally {
-      _isSyncingSessionDiscovery = false;
     }
   }
 
@@ -346,10 +288,9 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     runtimeNotifier.tick();
     final runtime = ref.read(activeSessionRuntimeProvider);
 
-    WorkSessionInfo? finalizedSession;
     if (workSessionId != null) {
       try {
-        finalizedSession = await service.finalizeSession(
+        await service.finalizeSession(
           workSessionId,
           summary: _buildFinalizeSummary(snapshot, runtime),
         );
@@ -389,185 +330,7 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     ref.invalidate(workSessionsProvider);
 
     if (mounted) {
-      final avgFocusScore = _extractAvgFocusScore(finalizedSession);
-      if (avgFocusScore != null) {
-        await _showFocusScoreDialog(avgFocusScore);
-      }
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-    }
-  }
-
-  double? _extractAvgFocusScore(WorkSessionInfo? session) {
-    final summary = session?.finalSummary;
-    if (summary == null) return null;
-    final raw = summary['avg_focus_score'] ?? summary['final_score'];
-    if (raw is num) return raw.toDouble();
-    if (raw is String) return double.tryParse(raw);
-    return null;
-  }
-
-  Future<void> _showFocusScoreDialog(double avgFocusScore) async {
-    if (!mounted) return;
-
-    final scorePercent = avgFocusScore.round();
-    final isLowFocus = avgFocusScore < 50;
-    final scoreColor = avgFocusScore >= 70
-        ? const Color(0xFF8BD3A8)
-        : avgFocusScore >= 40
-            ? const Color(0xFFFFC857)
-            : const Color(0xFFFB7185);
-    final scoreLabel = avgFocusScore >= 70
-        ? 'Bonne concentration'
-        : avgFocusScore >= 40
-            ? 'Concentration moyenne'
-            : 'Concentration faible';
-
-    final shouldRegenerate = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        backgroundColor: const Color(0xFF0A1628),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: Colors.white.withOpacity(0.12)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: scoreColor.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Center(
-                  child: Text(
-                    '$scorePercent',
-                    style: TextStyle(
-                      color: scoreColor,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Session terminee',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.95),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Score focus moyen: $scorePercent%\n$scoreLabel',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.72),
-                  fontSize: 14,
-                  height: 1.4,
-                ),
-              ),
-              if (isLowFocus) ...[
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFC857).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFFFC857).withOpacity(0.26),
-                    ),
-                  ),
-                  child: Text(
-                    'Votre concentration etait basse. Regenerer le planning '
-                    'ajustera les prochaines sessions avec des durees plus '
-                    'courtes et des pauses plus longues.',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
-                      fontSize: 12,
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(ctx).pop(false),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white.withOpacity(0.7),
-                        side: BorderSide(
-                          color: Colors.white.withOpacity(0.2),
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Fermer'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(ctx).pop(true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF97CAD8),
-                        foregroundColor: const Color(0xFF0A1628),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text(
-                        'Regenerer',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (shouldRegenerate == true && mounted) {
-      try {
-        final now = DateTime.now();
-        // Use the default daily generation path so the backend resolves the
-        // proper timetable source (latest CSV fallback) and avoids stale
-        // dialog context (non-CSV doc / forced week type) after a session stop.
-        await ref.read(planningRepositoryProvider).generatePlanning(
-              date: DateTime(now.year, now.month, now.day),
-            );
-        ref.invalidate(todayPlanningProvider);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Planning regenere avec votre profil de focus.'),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur: $e')),
-          );
-        }
-      }
+      Navigator.of(context).pop();
     }
   }
 

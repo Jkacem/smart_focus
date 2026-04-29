@@ -384,7 +384,6 @@ class StudySession(Base):
     notes = Column(String(2000), nullable=True)
     is_ai_generated = Column(Boolean, nullable=False, default=False)
     completed_at = Column(DateTime, nullable=True)
-    focus_score = Column(Float, nullable=True)  # avg CV focus score (0-100)
 
     # Optional link to an uploaded document (what was studied during this session)
     document_id = Column(

@@ -795,33 +795,25 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                 FilledButton(
                   onPressed: () async {
                     final preferences = preferencesController.text.trim();
-                    final preferencesPayload = preferences.isEmpty
-                        ? null
-                        : <String, dynamic>{'focus_subjects': preferences};
-                    final selectedExamIdList = selectedExamIds.toList();
-
-                    dialogRef.read(planningGenerationContextProvider.notifier).state =
-                        PlanningGenerationContext(
-                      documentId: selectedDocumentId,
-                      examIds: selectedExamIdList,
-                      weekType: weekType,
-                      preferences: preferencesPayload,
-                    );
 
                     try {
                       if (generateWholeWeek) {
                         await planningNotifier.generatePlanningForWeek(
                           documentId: selectedDocumentId,
-                          examIds: selectedExamIdList,
+                          examIds: selectedExamIds.toList(),
                           weekType: weekType,
-                          preferences: preferencesPayload,
+                          preferences: preferences.isEmpty
+                              ? null
+                              : {'focus_subjects': preferences},
                         );
                       } else {
                         await planningNotifier.generatePlanning(
                           documentId: selectedDocumentId,
-                          examIds: selectedExamIdList,
+                          examIds: selectedExamIds.toList(),
                           weekType: weekType,
-                          preferences: preferencesPayload,
+                          preferences: preferences.isEmpty
+                              ? null
+                              : {'focus_subjects': preferences},
                         );
                       }
                       if (!context.mounted) return;

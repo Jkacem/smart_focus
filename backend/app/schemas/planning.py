@@ -75,7 +75,6 @@ class StudySessionOut(BaseModel):
     notes: Optional[str]
     is_ai_generated: bool
     completed_at: Optional[datetime]
-    focus_score: Optional[float] = None
     document_id: Optional[int] = None
     document_name: Optional[str] = None
     document_ids: list[int] = []
@@ -115,7 +114,6 @@ class PlanningInsightsOut(BaseModel):
     completion_rate: float
     avg_sleep_hours: Optional[float] = None
     avg_sleep_score: Optional[float] = None
-    avg_focus_score: Optional[float] = None
     sleep_study_correlation: str
     weakest_subject: Optional[str] = None
     strongest_subject: Optional[str] = None
