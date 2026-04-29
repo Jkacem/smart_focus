@@ -21,7 +21,13 @@ def create_snapshot(
     db: Session = Depends(get_db),
 ):
     """Ingest a real-time CV snapshot payload (called by pi_client)."""
-    snapshot = crud.create_snapshot(db, payload)
+    try:
+        snapshot = crud.create_snapshot(db, payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     return {"status": "ok", "id": snapshot.id}
 
 
@@ -31,7 +37,13 @@ def create_event(
     db: Session = Depends(get_db),
 ):
     """Ingest a real-time CV discrete event payload (called by pi_client)."""
-    focus_event = crud.create_focus_event(db, payload)
+    try:
+        focus_event = crud.create_focus_event(db, payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     return {"status": "ok", "id": focus_event.id}
 
 

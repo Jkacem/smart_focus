@@ -25,6 +25,10 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(planningProvider.notifier).refresh();
+    });
   }
 
   void _onItemTapped(int index) {

@@ -12,7 +12,11 @@ import '../utils/session_utils.dart';
 final activeWorkSessionIdProvider = StateProvider<String?>((ref) => null);
 final activePlanningSessionIdProvider = StateProvider<int?>((ref) => null);
 final activePlanningSessionTitleProvider = StateProvider<String?>((ref) => null);
+final activePlanningSessionSelectedAtProvider =
+    StateProvider<DateTime?>((ref) => null);
 final isLivePollingPausedProvider = StateProvider<bool>((ref) => false);
+
+const localPlanningRuntimeSessionId = '__local_planning_runtime__';
 
 class ActiveSessionRuntimeState {
   final String? sessionId;
@@ -53,6 +57,17 @@ class ActiveSessionRuntimeNotifier
     extends StateNotifier<ActiveSessionRuntimeState> {
   ActiveSessionRuntimeNotifier() : super(const ActiveSessionRuntimeState());
 
+  void startPendingSession({bool paused = false}) {
+    final now = DateTime.now();
+    state = ActiveSessionRuntimeState(
+      sessionId: localPlanningRuntimeSessionId,
+      elapsedSeconds: 0,
+      isPaused: paused,
+      pauseCount: 0,
+      lastTickAt: paused ? null : now,
+    );
+  }
+
   void attachSession(String? sessionId, {bool paused = false}) {
     if (sessionId == null || isSyntheticPlanningSessionId(sessionId)) {
       clear();
@@ -66,9 +81,15 @@ class ActiveSessionRuntimeNotifier
       return;
     }
 
+    final preservedElapsedSeconds =
+        state.hasSession ? state.elapsedSeconds : 0;
+    final preservedPauseCount = state.hasSession ? state.pauseCount : 0;
+
     state = ActiveSessionRuntimeState(
       sessionId: sessionId,
+      elapsedSeconds: preservedElapsedSeconds,
       isPaused: paused,
+      pauseCount: preservedPauseCount,
       lastTickAt: paused ? null : DateTime.now(),
     );
   }
@@ -369,4 +390,3 @@ int _extractPauseCount(Map<String, dynamic>? summary) {
   if (value is String) return int.tryParse(value) ?? 0;
   return 0;
 }
-
