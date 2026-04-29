@@ -39,6 +39,7 @@ abstract class PlanningRepository {
   Future<PlanningSessionModel> updateSessionStatus(int sessionId, String status);
   Future<PlanningSessionModel> updateSessionDocuments(int sessionId, List<int> documentIds);
   Future<PlanningSessionModel> rescheduleSession(int sessionId);
+  Future<PlanningDayModel> recalculateTodayPlan();
   Future<void> deleteSession(int sessionId);
 }
 
@@ -143,6 +144,11 @@ class PlanningRepositoryImpl implements PlanningRepository {
   @override
   Future<PlanningSessionModel> rescheduleSession(int sessionId) {
     return _service.rescheduleSession(sessionId);
+  }
+
+  @override
+  Future<PlanningDayModel> recalculateTodayPlan() {
+    return _service.recalculateTodayPlan();
   }
 
   @override

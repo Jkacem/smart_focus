@@ -757,6 +757,28 @@ def get_work_session(db: Session, session_id: str) -> models.WorkSession | None:
     )
 
 
+def get_latest_finalized_work_session_for_day(
+    db: Session,
+    *,
+    user_id: int,
+    day: date,
+) -> models.WorkSession | None:
+    """Return latest finalized work session for one user/day."""
+    start_of_day = datetime.combine(day, time.min)
+    end_of_day = datetime.combine(day, time.max)
+    return (
+        db.query(models.WorkSession)
+        .filter(
+            models.WorkSession.user_id == user_id,
+            models.WorkSession.end_time.isnot(None),
+            models.WorkSession.end_time >= start_of_day,
+            models.WorkSession.end_time <= end_of_day,
+        )
+        .order_by(models.WorkSession.end_time.desc())
+        .first()
+    )
+
+
 def finalize_work_session(
     db: Session,
     session_id: str,
@@ -847,24 +869,22 @@ def list_work_sessions(
     user_id: int,
     skip: int = 0,
     limit: int = 100,
+    include_unassigned_active: bool = False,
 ) -> list[models.WorkSession]:
-    """List persisted CV work sessions for a specific user.
+    """List CV work sessions for a user with optional active discovery."""
+    query = db.query(models.WorkSession).filter(models.WorkSession.user_id == user_id)
 
-    Also includes sessions with ``user_id = NULL`` which are created by
-    the pi_client (unauthenticated ingestion).
-    """
-    from sqlalchemy import or_
+    if include_unassigned_active:
+        from sqlalchemy import or_
 
-    return (
-        db.query(models.WorkSession)
-        .filter(
+        query = db.query(models.WorkSession).filter(
             or_(
                 models.WorkSession.user_id == user_id,
-                models.WorkSession.user_id.is_(None),
+                (
+                    models.WorkSession.user_id.is_(None)
+                    & models.WorkSession.is_active.is_(True)
+                ),
             )
         )
-        .order_by(models.WorkSession.start_time.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+
+    return query.order_by(models.WorkSession.start_time.desc()).offset(skip).limit(limit).all()

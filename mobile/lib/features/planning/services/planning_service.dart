@@ -99,6 +99,11 @@ class PlanningService {
     );
   }
 
+  Future<PlanningDayModel> recalculateTodayPlan() async {
+    final response = await _dio.post('/api/v1/planning/recalculate/today');
+    return PlanningDayModel.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<PlanningSessionModel> createSession({
     required String subject,
     required DateTime start,

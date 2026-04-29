@@ -274,6 +274,35 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     };
   }
 
+  Future<bool> _askRegenerateTodayPlan() async {
+    final decision = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Regenerer le planning ?'),
+          content: const Text(
+            'Voulez-vous regenerer le planning de la journee avec les donnees de focus collectees ?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Non'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Oui'),
+            ),
+          ],
+        );
+      },
+    );
+    return decision ?? false;
+  }
+
+  Future<void> _recalculateTodayPlanAutomatically() async {
+    await ref.read(planningRepositoryProvider).recalculateTodayPlan();
+  }
+
   Future<void> _stopSessionAndExit(VisionSnapshot? snapshot) async {
     if (_isStopping) return;
 
@@ -319,6 +348,34 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
       }
     }
 
+    if (mounted) {
+      final shouldRegenerate = await _askRegenerateTodayPlan();
+      if (shouldRegenerate) {
+        try {
+          await _recalculateTodayPlanAutomatically();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Planning du jour recalcule sans toucher les slots CSV.',
+                ),
+              ),
+            );
+          }
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Impossible de regenerer automatiquement le planning du jour.',
+                ),
+              ),
+            );
+          }
+        }
+      }
+    }
+
     runtimeNotifier.clear();
     ref.read(activeWorkSessionIdProvider.notifier).state = null;
     ref.read(activePlanningSessionIdProvider.notifier).state = null;
@@ -328,6 +385,8 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     ref.invalidate(todayVisionSummaryProvider);
     ref.invalidate(todayPlanningProvider);
     ref.invalidate(workSessionsProvider);
+    ref.invalidate(planningProvider);
+    await ref.read(planningProvider.notifier).refresh();
 
     if (mounted) {
       Navigator.of(context).pop();

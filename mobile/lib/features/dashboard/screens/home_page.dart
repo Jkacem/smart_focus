@@ -6,6 +6,7 @@ import 'package:smart_focus/features/auth/providers/user_profile_provider.dart';
 import 'package:smart_focus/features/auth/widgets/current_user_avatar.dart';
 import 'package:smart_focus/features/dashboard/models/vision_models.dart';
 import 'package:smart_focus/features/dashboard/providers/vision_provider.dart';
+import 'package:smart_focus/features/dashboard/services/vision_service.dart';
 import 'package:smart_focus/features/planning/models/planning_models.dart';
 import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
@@ -56,7 +57,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       return;
     }
 
-    await ref.read(workSessionsProvider.notifier).fetch();
+    await ref
+        .read(workSessionsProvider.notifier)
+        .fetch(includeUnassignedActive: true);
     final workSessionsAsync = ref.read(workSessionsProvider);
     final workSessions = workSessionsAsync.when(
       data: (value) => value,
@@ -107,13 +110,36 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
     }
 
-    ref.read(activeWorkSessionIdProvider.notifier).state = selectedWorkSession.id;
+    WorkSessionInfo linkedWorkSession;
+    try {
+      linkedWorkSession = await ref.read(visionServiceProvider).createSession(
+        selectedWorkSession.id,
+        metadataJson: {
+          'planning_session_id': selected.planning.id,
+          'planning_session_subject': selected.planning.subject,
+          'allow_unauth_finalize': true,
+        },
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Impossible de lier la session CV a votre compte. Reessayez.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    ref.read(activeWorkSessionIdProvider.notifier).state = linkedWorkSession.id;
     ref.read(activePlanningSessionIdProvider.notifier).state = selected.planning.id;
     ref.read(activePlanningSessionTitleProvider.notifier).state =
         selected.planning.subject;
     ref
         .read(activeSessionRuntimeProvider.notifier)
-        .attachSession(selectedWorkSession.id);
+        .attachSession(linkedWorkSession.id);
     final isPaused = ref.read(activeSessionRuntimeProvider).isPaused;
     ref.read(isLivePollingPausedProvider.notifier).state = isPaused;
     ref.invalidate(todayVisionSummaryProvider);
@@ -463,6 +489,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     final userProfileState = ref.watch(userProfileProvider);
     final currentUser = userProfileState.profile;
     final now = DateTime.now();
+    final hasRunningSession =
+        ref.watch(activeWorkSessionIdProvider) != null ||
+        dashboardSummary.activeSessionCount > 0;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -470,6 +499,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       appBar: CustomAppBar(
         title: 'Dashboard',
         trailingWidget: _DashboardStartSessionButton(
+          hasRunningSession: hasRunningSession,
           onPressed: () {
             _onStartSessionPressed();
           },
@@ -709,8 +739,12 @@ class _HomePageState extends ConsumerState<HomePage> {
 
 class _DashboardStartSessionButton extends StatelessWidget {
   final VoidCallback onPressed;
+  final bool hasRunningSession;
 
-  const _DashboardStartSessionButton({required this.onPressed});
+  const _DashboardStartSessionButton({
+    required this.onPressed,
+    required this.hasRunningSession,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -727,18 +761,20 @@ class _DashboardStartSessionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.white.withOpacity(0.12)),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.play_arrow_rounded,
-                color: Color(0xFF0A1628),
+                hasRunningSession
+                    ? Icons.play_circle_outline_rounded
+                    : Icons.play_arrow_rounded,
+                color: const Color(0xFF0A1628),
                 size: 18,
               ),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               Text(
-                'Session',
-                style: TextStyle(
+                hasRunningSession ? 'Reprendre' : 'Session',
+                style: const TextStyle(
                   color: Color(0xFF0A1628),
                   fontSize: 13,
                   fontWeight: FontWeight.w800,

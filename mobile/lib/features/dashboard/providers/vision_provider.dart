@@ -219,10 +219,13 @@ class WorkSessionsNotifier
     fetch();
   }
 
-  Future<void> fetch() async {
+  Future<void> fetch({bool includeUnassignedActive = false}) async {
     state = const AsyncLoading();
     try {
-      final sessions = await _service.listSessions(limit: 200);
+      final sessions = await _service.listSessions(
+        limit: 200,
+        includeUnassignedActive: includeUnassignedActive,
+      );
       state = AsyncData(sessions);
     } catch (e, st) {
       state = AsyncError(e, st);

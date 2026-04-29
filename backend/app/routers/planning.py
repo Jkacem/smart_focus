@@ -508,6 +508,197 @@ def _get_sleep_profile(
     return profile
 
 
+def _extract_focus_score_from_work_session(work_session: Any | None) -> float | None:
+    if work_session is None:
+        return None
+    metadata = work_session.metadata_json or {}
+    if not isinstance(metadata, dict):
+        return None
+    summary = metadata.get("final_summary")
+    if not isinstance(summary, dict):
+        return None
+    raw = summary.get("final_score")
+    if raw is None:
+        return None
+    try:
+        score = float(raw)
+    except (TypeError, ValueError):
+        return None
+    # Accept both 0..1 ratios and 0..100 percentages from upstream CV clients.
+    if 0.0 <= score <= 1.0:
+        score *= 100.0
+    return max(0.0, min(100.0, score))
+
+
+def _apply_focus_profile_adjustment(
+    sleep_profile: dict[str, Any],
+    *,
+    focus_score: float | None,
+) -> dict[str, Any]:
+    if focus_score is None:
+        return sleep_profile
+
+    adjusted = dict(sleep_profile)
+    if focus_score < 45:
+        adjusted["max_session_min"] = max(20, int(adjusted["max_session_min"]) - 10)
+        adjusted["break_min"] = min(25, int(adjusted["break_min"]) + 5)
+        adjusted["max_sessions"] = max(2, int(adjusted["max_sessions"]) - 1)
+        adjusted["priority"] = "medium"
+        adjusted["label"] = f"{adjusted['label']} + Focus faible"
+    elif focus_score >= 80:
+        adjusted["max_session_min"] = min(70, int(adjusted["max_session_min"]) + 5)
+        adjusted["break_min"] = max(8, int(adjusted["break_min"]) - 2)
+        adjusted["max_sessions"] = min(8, int(adjusted["max_sessions"]) + 1)
+        adjusted["label"] = f"{adjusted['label']} + Focus eleve"
+
+    return adjusted
+
+
+def _focus_timing_profile(focus_score: float | None) -> tuple[float, int]:
+    """Return (duration_factor, break_minutes) for remaining revisions."""
+    if focus_score is None:
+        return 1.0, 12
+    if focus_score < 45:
+        return 0.82, 16
+    if focus_score >= 80:
+        return 1.12, 9
+    return 1.0, 12
+
+
+def _is_adjustable_revision_session(session_obj: StudySession, now: datetime) -> bool:
+    if not session_obj.is_ai_generated:
+        return False
+    if session_obj.status in {"completed", "cancelled"}:
+        return False
+    if session_obj.end <= now:
+        return False
+    lowered = session_obj.subject.strip().lower()
+    return lowered.startswith("revision")
+
+
+def _recalculate_today_revision_slots(
+    *,
+    db: Session,
+    current_user: User,
+    target_day: date,
+) -> schemas.PlanningDayOut:
+    sessions = crud.get_study_sessions_by_date(db, current_user.id, target_day)
+    if not sessions:
+        return _to_day_response(target_day, sessions)
+
+    now = utc_now_naive()
+    latest_focus_session = crud.get_latest_finalized_work_session_for_day(
+        db,
+        user_id=current_user.id,
+        day=target_day,
+    )
+    focus_score = _extract_focus_score_from_work_session(latest_focus_session)
+    duration_factor, adaptive_break_min = _focus_timing_profile(focus_score)
+    sleep_profile = _get_sleep_profile(db, current_user.id, target_day)
+    adjusted_profile = _apply_focus_profile_adjustment(
+        sleep_profile,
+        focus_score=focus_score,
+    )
+    break_min = int(adjusted_profile.get("break_min", adaptive_break_min))
+    max_session_min = int(adjusted_profile.get("max_session_min", 50))
+
+    preferred_min = 20
+    if focus_score is not None and focus_score >= 80:
+        preferred_min = 25
+    elif focus_score is not None and focus_score < 45:
+        preferred_min = 15
+
+    sorted_sessions = sorted(sessions, key=lambda item: item.start)
+    adjustable = [s for s in sorted_sessions if _is_adjustable_revision_session(s, now)]
+    if not adjustable:
+        return _to_day_response(target_day, sorted_sessions)
+
+    adjustable_ids = {item.id for item in adjustable}
+    fixed_blocks = [
+        {
+            "subject": session_obj.subject,
+            "start": session_obj.start,
+            "end": session_obj.end,
+        }
+        for session_obj in sorted_sessions
+        if session_obj.id not in adjustable_ids
+    ]
+    free_slots = _compute_free_slots(target_day, fixed_blocks)
+
+    trimmed_slots: list[tuple[datetime, datetime]] = []
+    for slot_start, slot_end in free_slots:
+        bounded_start = slot_start
+        if target_day == now.date():
+            bounded_start = max(slot_start, _align_to_slot_boundary(now))
+        if slot_end > bounded_start:
+            trimmed_slots.append((bounded_start, slot_end))
+
+    if not trimmed_slots:
+        return _to_day_response(target_day, sorted_sessions)
+
+    desired_minutes = []
+    for session_obj in adjustable:
+        current_minutes = max(int((session_obj.end - session_obj.start).total_seconds() // 60), 15)
+        scaled_minutes = int(round(current_minutes * duration_factor))
+        desired_minutes.append(max(preferred_min, min(max_session_min, scaled_minutes)))
+
+    def _layout_with_minimum(
+        min_floor: int,
+    ) -> list[tuple[datetime, datetime]] | None:
+        placements: list[tuple[datetime, datetime]] = []
+        slot_idx = 0
+        cursor: datetime | None = None
+        break_delta = timedelta(minutes=break_min)
+
+        for desired in desired_minutes:
+            while slot_idx < len(trimmed_slots):
+                slot_start, slot_end = trimmed_slots[slot_idx]
+                if cursor is None or cursor < slot_start:
+                    cursor = slot_start
+                available_minutes = int((slot_end - cursor).total_seconds() // 60)
+                if available_minutes < min_floor:
+                    slot_idx += 1
+                    cursor = None
+                    continue
+
+                session_minutes = min(desired, available_minutes)
+                if session_minutes < min_floor:
+                    slot_idx += 1
+                    cursor = None
+                    continue
+
+                start_at = cursor
+                end_at = start_at + timedelta(minutes=session_minutes)
+                placements.append((start_at, end_at))
+                cursor = end_at + break_delta
+                break
+            else:
+                return None
+
+        return placements
+
+    candidate_floors = [preferred_min, 20, 15]
+    placements: list[tuple[datetime, datetime]] | None = None
+    for floor in dict.fromkeys(candidate_floors):
+        placements = _layout_with_minimum(floor)
+        if placements is not None:
+            break
+
+    if placements is None:
+        return _to_day_response(target_day, sorted_sessions)
+
+    for session_obj, (start_at, end_at) in zip(adjustable, placements):
+        session_obj.start = start_at
+        session_obj.end = end_at
+
+    db.commit()
+    for session_obj in sorted_sessions:
+        db.refresh(session_obj)
+
+    refreshed = crud.get_study_sessions_by_date(db, current_user.id, target_day)
+    return _to_day_response(target_day, refreshed)
+
+
 def _compute_free_slots(
     target_day: date,
     class_sessions: list[dict[str, Any]],
@@ -1587,6 +1778,16 @@ def _generate_sessions_for_day(
 
         if revision_source_sessions or exams or due_flashcard_subjects or quiz_performance:
             sleep_profile = _get_sleep_profile(db, current_user.id, target_day)
+            latest_focus_session = crud.get_latest_finalized_work_session_for_day(
+                db,
+                user_id=current_user.id,
+                day=target_day,
+            )
+            focus_score = _extract_focus_score_from_work_session(latest_focus_session)
+            sleep_profile = _apply_focus_profile_adjustment(
+                sleep_profile,
+                focus_score=focus_score,
+            )
             preferred_schedule = (
                 current_user.profile.preferred_schedule
                 if current_user.profile
@@ -1658,6 +1859,23 @@ def get_today(
     day = date.today()
     sessions = crud.get_study_sessions_by_date(db, current_user.id, day)
     return _to_day_response(day, sessions)
+
+
+@router.post("/recalculate/today", response_model=schemas.PlanningDayOut)
+def recalculate_today(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Adjust only remaining AI revision slots for today.
+
+    Keeps CSV/course/manual slots untouched and updates durations/breaks
+    inside existing AI revision windows based on latest finalized focus score.
+    """
+    return _recalculate_today_revision_slots(
+        db=db,
+        current_user=current_user,
+        target_day=date.today(),
+    )
 
 
 @router.post("/generate", response_model=schemas.PlanningDayOut, status_code=status.HTTP_201_CREATED)

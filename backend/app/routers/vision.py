@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
-from app.deps import get_current_user, get_db
+from app.deps import get_current_user, get_current_user_optional, get_db
 from app.models.models import User
 
 router = APIRouter(prefix="/api/v1", tags=["Vision"])
@@ -39,6 +39,7 @@ def create_event(
 def create_session(
     payload: schemas.WorkSessionCreate,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Create or ensure the CV work session exists (called by pi_client).
 
@@ -48,6 +49,18 @@ def create_session(
     """
     session_obj = crud.get_work_session(db, payload.id)
     if session_obj:
+        # Claim unassigned sessions when a logged-in user starts from mobile.
+        if current_user is not None and session_obj.user_id is None:
+            session_obj.user_id = current_user.id
+        if (
+            current_user is not None
+            and session_obj.user_id is not None
+            and session_obj.user_id != current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Session does not belong to the current user.",
+            )
         # Merge incoming metadata into existing session (#5)
         if payload.metadata_json:
             merged = dict(session_obj.metadata_json or {})
@@ -60,6 +73,7 @@ def create_session(
     session_obj = crud.create_work_session(
         db,
         session_id=payload.id,
+        user_id=current_user.id if current_user is not None else None,
         metadata_json=payload.metadata_json,
     )
     if payload.start_time is not None:
@@ -78,12 +92,17 @@ def create_session(
 def list_sessions(
     skip: int = 0,
     limit: int = Query(default=100, le=500),
+    include_unassigned_active: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List CV work sessions for the authenticated user."""
     return crud.list_work_sessions(
-        db, user_id=current_user.id, skip=skip, limit=limit,
+        db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+        include_unassigned_active=include_unassigned_active,
     )
 
 
@@ -94,6 +113,18 @@ def get_latest_snapshot(
     current_user: User = Depends(get_current_user),
 ):
     """Fetch the most recent snapshot for a session."""
+    session_obj = crud.get_work_session(db, session_id)
+    if session_obj is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found.",
+        )
+    if session_obj.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Session does not belong to the current user.",
+        )
+
     snapshot = crud.get_latest_snapshot(db, session_id)
     if snapshot is None:
         raise HTTPException(
@@ -108,9 +139,33 @@ def finalize_session(
     session_id: str,
     payload: schemas.SessionFinalizePayload,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     """Finalize a session and persist final summary metrics."""
+    existing_session = crud.get_work_session(db, session_id)
+    if existing_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found.",
+        )
+    if current_user is not None:
+        if existing_session.user_id not in (None, current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Session does not belong to the current user.",
+            )
+        if existing_session.user_id is None:
+            existing_session.user_id = current_user.id
+            db.commit()
+    else:
+        metadata = existing_session.metadata_json or {}
+        allow_unauth_finalize = bool(metadata.get("allow_unauth_finalize"))
+        if not allow_unauth_finalize:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to finalize this session.",
+            )
+
     session_obj = crud.finalize_work_session(
         db,
         session_id=session_id,

@@ -12,10 +12,16 @@ class VisionService {
   final Dio _dio;
 
   /// Fetch the list of CV work sessions.
-  Future<List<WorkSessionInfo>> listSessions({int limit = 20}) async {
+  Future<List<WorkSessionInfo>> listSessions({
+    int limit = 20,
+    bool includeUnassignedActive = false,
+  }) async {
     final response = await _dio.get(
       '/api/v1/sessions',
-      queryParameters: {'limit': limit},
+      queryParameters: {
+        'limit': limit,
+        if (includeUnassignedActive) 'include_unassigned_active': true,
+      },
     );
     return (response.data as List)
         .map((json) => WorkSessionInfo.fromJson(json))
