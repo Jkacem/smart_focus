@@ -2,15 +2,6 @@
 
 /// Data classes for CV monitoring snapshots from the backend.
 
-DateTime _parseBackendDateTime(String raw) {
-  final normalized = raw.trim();
-  final hasExplicitTimezone = normalized.endsWith('Z') ||
-      normalized.contains(RegExp(r'[+-]\d{2}:\d{2}$'));
-  return DateTime.parse(
-    hasExplicitTimezone ? normalized : '${normalized}Z',
-  );
-}
-
 class VisionSnapshot {
   final int id;
   final String sessionId;
@@ -38,7 +29,7 @@ class VisionSnapshot {
     return VisionSnapshot(
       id: json['id'] as int,
       sessionId: json['session_id'] as String,
-      timestamp: _parseBackendDateTime(json['timestamp'] as String),
+      timestamp: DateTime.parse(json['timestamp'] as String),
       workMode: json['work_mode'] as String?,
       attentionScore: (json['attention_score'] as num?)?.toDouble(),
       postureScore: (json['posture_score'] as num?)?.toDouble(),
@@ -72,9 +63,9 @@ class WorkSessionInfo {
     return WorkSessionInfo(
       id: json['id'] as String,
       userId: json['user_id'] as int?,
-      startTime: _parseBackendDateTime(json['start_time'] as String),
+      startTime: DateTime.parse(json['start_time'] as String),
       endTime: json['end_time'] != null
-          ? _parseBackendDateTime(json['end_time'] as String)
+          ? DateTime.parse(json['end_time'] as String)
           : null,
       isActive: json['is_active'] as bool,
       metadataJson: rawMetadata is Map

@@ -824,18 +824,10 @@ def create_snapshot(
     *,
     user_id: int | None = None,
 ) -> models.Snapshot:
-    """Insert a CV snapshot for an existing active work session."""
+    """Insert a CV snapshot, auto-creating the parent session if needed."""
     session_obj = get_work_session(db, payload.session_id)
     if session_obj is None:
-        raise ValueError(
-            f"Work session '{payload.session_id}' does not exist. "
-            "Start the session before sending snapshots."
-        )
-    if not session_obj.is_active:
-        raise ValueError(
-            f"Work session '{payload.session_id}' is not active. "
-            "Start a new session before sending snapshots."
-        )
+        session_obj = create_work_session(db, payload.session_id, user_id=user_id)
 
     scores = payload.scores or {}
     snapshot = models.Snapshot(
@@ -861,18 +853,10 @@ def create_focus_event(
     *,
     user_id: int | None = None,
 ) -> models.FocusEvent:
-    """Insert a CV event for an existing active work session."""
+    """Insert a CV discrete event, auto-creating the parent session if needed."""
     session_obj = get_work_session(db, payload.session_id)
     if session_obj is None:
-        raise ValueError(
-            f"Work session '{payload.session_id}' does not exist. "
-            "Start the session before sending events."
-        )
-    if not session_obj.is_active:
-        raise ValueError(
-            f"Work session '{payload.session_id}' is not active. "
-            "Start a new session before sending events."
-        )
+        session_obj = create_work_session(db, payload.session_id, user_id=user_id)
 
     focus_event = models.FocusEvent(
         session_id=session_obj.id,
@@ -898,56 +882,6 @@ def get_latest_snapshot(db: Session, session_id: str) -> models.Snapshot | None:
     )
 
 
-_STALE_WORK_SESSION_AFTER = timedelta(minutes=2)
-
-
-def _close_stale_work_sessions(
-    db: Session,
-    sessions: list[models.WorkSession],
-) -> None:
-    """Auto-close active CV sessions that have gone silent.
-
-    The pi_client currently cannot always finalize with auth, so stale
-    ``is_active=True`` rows can accumulate and confuse the mobile app into
-    treating old sessions as still running. We consider a session stale when
-    its latest snapshot (or its start_time if it never produced one) is older
-    than ``_STALE_WORK_SESSION_AFTER``.
-    """
-    from sqlalchemy import func
-
-    active_sessions = [session for session in sessions if session.is_active]
-    if not active_sessions:
-        return
-
-    active_ids = [session.id for session in active_sessions]
-    latest_rows = (
-        db.query(
-            models.Snapshot.session_id,
-            func.max(models.Snapshot.timestamp),
-        )
-        .filter(models.Snapshot.session_id.in_(active_ids))
-        .group_by(models.Snapshot.session_id)
-        .all()
-    )
-    latest_by_session_id = {
-        session_id: timestamp for session_id, timestamp in latest_rows
-    }
-
-    cutoff = utc_now_naive() - _STALE_WORK_SESSION_AFTER
-    did_change = False
-
-    for session in active_sessions:
-        last_activity = latest_by_session_id.get(session.id) or session.start_time
-        if last_activity >= cutoff:
-            continue
-        session.is_active = False
-        session.end_time = session.end_time or last_activity
-        did_change = True
-
-    if did_change:
-        db.commit()
-
-
 def list_work_sessions(
     db: Session,
     user_id: int,
@@ -961,7 +895,7 @@ def list_work_sessions(
     """
     from sqlalchemy import or_
 
-    sessions = (
+    return (
         db.query(models.WorkSession)
         .filter(
             or_(
@@ -974,8 +908,6 @@ def list_work_sessions(
         .limit(limit)
         .all()
     )
-    _close_stale_work_sessions(db, sessions)
-    return sessions
 
 
 def get_recent_focus_stats(

@@ -23,13 +23,6 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   int _selectedIndex = 0;
 
-  Future<void> _refreshDashboardData() async {
-    ref.invalidate(todayVisionSummaryProvider);
-    ref.invalidate(todayPlanningProvider);
-    ref.invalidate(workSessionsProvider);
-    await ref.read(workSessionsProvider.notifier).fetch();
-  }
-
   void _onItemTapped(int index) {
     if (index == 0) {
       context.go(AppRoutes.dashboard);
@@ -97,22 +90,42 @@ class _HomePageState extends ConsumerState<HomePage> {
     final selected = await _showSessionPicker(options: options);
     if (selected == null || !mounted) return;
 
+    var selectedWorkSession = selected.workSession;
+    final freshestActive = _latestActiveSession(todayWorkSessions);
+    if (freshestActive != null &&
+        (selectedWorkSession == null ||
+            !selectedWorkSession.isActive ||
+            _isSessionNewer(freshestActive, selectedWorkSession))) {
+      selectedWorkSession = freshestActive;
+    }
+
+    if (selectedWorkSession == null || !selectedWorkSession.isActive) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Aucune session CV active detectee. Lancez main_cv puis reessayez.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    ref.read(activeWorkSessionIdProvider.notifier).state = selectedWorkSession.id;
     ref.read(activePlanningSessionIdProvider.notifier).state = selected.planning.id;
     ref.read(activePlanningSessionTitleProvider.notifier).state =
         selected.planning.subject;
-    ref.read(activePlanningSessionSelectedAtProvider.notifier).state =
-        DateTime.now();
-
-    ref.read(activeWorkSessionIdProvider.notifier).state = null;
-    ref.read(activeSessionRuntimeProvider.notifier).startPendingSession();
-    ref.read(isLivePollingPausedProvider.notifier).state = false;
-
-    await _refreshDashboardData();
+    ref
+        .read(activeSessionRuntimeProvider.notifier)
+        .attachSession(selectedWorkSession.id);
+    final isPaused = ref.read(activeSessionRuntimeProvider).isPaused;
+    ref.read(isLivePollingPausedProvider.notifier).state = isPaused;
+    ref.invalidate(todayVisionSummaryProvider);
+    ref.invalidate(workSessionsProvider);
 
     if (mounted) {
-      await context.push(AppRoutes.session);
-      if (!mounted) return;
-      await _refreshDashboardData();
+      context.push(AppRoutes.session);
     }
   }
 
@@ -191,8 +204,35 @@ class _HomePageState extends ConsumerState<HomePage> {
     return best;
   }
 
+  WorkSessionInfo? _preferredLiveSession(List<WorkSessionInfo> sessions) {
+    if (sessions.isEmpty) return null;
+    final sorted = [...sessions];
+    sorted.sort((a, b) {
+      if (a.isActive != b.isActive) {
+        return a.isActive ? -1 : 1;
+      }
+      final aStart = a.startTime.isUtc ? a.startTime.toLocal() : a.startTime;
+      final bStart = b.startTime.isUtc ? b.startTime.toLocal() : b.startTime;
+      return bStart.compareTo(aStart);
+    });
+    return sorted.first;
+  }
+
+  WorkSessionInfo? _latestActiveSession(List<WorkSessionInfo> sessions) {
+    final active = sessions.where((session) => session.isActive).toList();
+    if (active.isEmpty) return null;
+    active.sort(
+      (a, b) => _sessionLocalStart(b).compareTo(_sessionLocalStart(a)),
+    );
+    return active.first;
+  }
+
   DateTime _sessionLocalStart(WorkSessionInfo session) {
     return session.startTime.isUtc ? session.startTime.toLocal() : session.startTime;
+  }
+
+  bool _isSessionNewer(WorkSessionInfo candidate, WorkSessionInfo current) {
+    return _sessionLocalStart(candidate).isAfter(_sessionLocalStart(current));
   }
 
   Future<_SessionStartOption?> _showSessionPicker({
@@ -215,35 +255,26 @@ class _HomePageState extends ConsumerState<HomePage> {
       backgroundColor: Colors.transparent,
       builder: (context) {
         final media = MediaQuery.of(context);
-        return Consumer(
-          builder: (context, modalRef, _) {
-            final activeWorkSessionId =
-                modalRef.watch(activeWorkSessionIdProvider);
-            final activePlanningSessionId =
-                modalRef.watch(activePlanningSessionIdProvider);
-            final runtime = modalRef.watch(activeSessionRuntimeProvider);
-
-            return Padding(
-              padding:
-                  EdgeInsets.fromLTRB(16, 16, 16, media.viewInsets.bottom + 16),
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 780,
-                    maxHeight: 680,
-                  ),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0A1628),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.white.withOpacity(0.12)),
-                    ),
-                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, media.viewInsets.bottom + 16),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 780,
+                maxHeight: 680,
+              ),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A1628),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white.withOpacity(0.12)),
+                ),
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
                       children: [
                         Text(
@@ -306,29 +337,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                           final planning = option.planning;
                           final linkedSession = option.workSession;
                           final isActive = linkedSession?.isActive == true;
-                          final isCurrentlySelected =
-                              activePlanningSessionId == planning.id ||
-                              (activeWorkSessionId != null &&
-                                  linkedSession?.id == activeWorkSessionId);
                           final subtitle = _planningSessionSubtitle(planning);
-                          final statusLabel = isCurrentlySelected && runtime.isPaused
-                              ? 'Etat: en pause'
-                              : isCurrentlySelected && runtime.hasSession
-                                  ? 'Etat: en cours'
-                                  : linkedSession == null
-                                      ? 'Etat: en attente capteur'
-                                      : (isActive
-                                          ? 'Etat: en cours'
-                                          : 'Etat: sauvegardee');
-                          final statusColor = isCurrentlySelected && runtime.isPaused
-                              ? const Color(0xFFFFC857)
-                              : isCurrentlySelected && runtime.hasSession
+                          final statusLabel = linkedSession == null
+                              ? 'Etat: en attente capteur'
+                              : (isActive ? 'Etat: en cours' : 'Etat: sauvegardee');
+                          final statusColor = linkedSession == null
+                              ? const Color(0xFF97CAD8)
+                              : (isActive
                                   ? const Color(0xFF8BD3A8)
-                                  : linkedSession == null
-                                      ? const Color(0xFF97CAD8)
-                                      : (isActive
-                                          ? const Color(0xFF8BD3A8)
-                                          : const Color(0xFFFFC857));
+                                  : const Color(0xFFFFC857));
 
                           return InkWell(
                             onTap: () => Navigator.of(context).pop(option),
@@ -413,13 +430,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                         },
                       ),
                     ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );

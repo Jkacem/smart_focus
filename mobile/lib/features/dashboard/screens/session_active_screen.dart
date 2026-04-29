@@ -23,7 +23,6 @@ class SessionActiveScreen extends ConsumerStatefulWidget {
 }
 
 class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
-  static const Duration _liveSnapshotFreshness = Duration(seconds: 12);
   Timer? _uiTimer;
   bool _isStopping = false;
   bool _isSyncingSessionDiscovery = false;
@@ -59,14 +58,7 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     await _syncActiveSessionIfNeeded(force: true);
 
     currentId = ref.read(activeWorkSessionIdProvider);
-    final runtimeNotifier = ref.read(activeSessionRuntimeProvider.notifier);
-    final runtime = ref.read(activeSessionRuntimeProvider);
-    if (currentId != null) {
-      runtimeNotifier.attachSession(currentId, paused: runtime.isPaused);
-    } else if (!runtime.hasSession &&
-        ref.read(activePlanningSessionIdProvider) != null) {
-      runtimeNotifier.startPendingSession();
-    }
+    ref.read(activeSessionRuntimeProvider.notifier).attachSession(currentId);
     final isPaused = ref.read(activeSessionRuntimeProvider).isPaused;
     ref.read(isLivePollingPausedProvider.notifier).state = isPaused;
 
@@ -122,7 +114,7 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
 
   void _refreshMinuteSnapshot() {
     final latest = ref.read(liveSnapshotProvider).value;
-    if (!_isSnapshotFresh(latest)) return;
+    if (latest == null) return;
 
     final now = DateTime.now();
     final shouldSeed = _minuteSnapshot == null || _minuteSnapshotAt == null;
@@ -140,79 +132,16 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     _minuteSnapshotAt = null;
   }
 
-  bool _isSameDay(DateTime left, DateTime right) {
-    return left.year == right.year &&
-        left.month == right.month &&
-        left.day == right.day;
-  }
-
-  Future<void> _refreshSessionDerivedState({
-    bool refreshPlanningState = false,
-    DateTime? planningDate,
-  }) async {
-    ref.invalidate(todayVisionSummaryProvider);
-    ref.invalidate(todayPlanningProvider);
-    ref.invalidate(workSessionsProvider);
-
-    await ref.read(workSessionsProvider.notifier).fetch();
-
-    if (!refreshPlanningState) {
-      return;
-    }
-
-    final targetDate = planningDate ?? DateTime.now();
-    final planningState = ref.read(planningProvider);
-    final planningNotifier = ref.read(planningProvider.notifier);
-    final selectedDate = planningState.selectedDate;
-
-    if (_isSameDay(selectedDate, targetDate)) {
-      await planningNotifier.loadDay(targetDate, showLoading: false);
-      return;
-    }
-
-    ref.invalidate(planningProvider);
-  }
-
   DateTime _sessionLocalStart(WorkSessionInfo session) {
     return session.startTime.isUtc ? session.startTime.toLocal() : session.startTime;
-  }
-
-  bool _isSnapshotFresh(VisionSnapshot? snapshot, {DateTime? now}) {
-    if (snapshot == null) return false;
-    final current = now ?? DateTime.now();
-    final timestamp =
-        snapshot.timestamp.isUtc ? snapshot.timestamp.toLocal() : snapshot.timestamp;
-    return current.difference(timestamp) <= _liveSnapshotFreshness;
-  }
-
-  Future<WorkSessionInfo?> _freshestLiveSession(
-    VisionService service,
-    List<WorkSessionInfo> activeSessions,
-  ) async {
-    for (final session in activeSessions) {
-      try {
-        final snapshot = await service.getLatestSnapshot(session.id);
-        if (_isSnapshotFresh(snapshot)) {
-          return session;
-        }
-      } catch (_) {
-        continue;
-      }
-    }
-    return null;
   }
 
   Future<void> _syncActiveSessionIfNeeded({bool force = false}) async {
     if (!mounted || _isSyncingSessionDiscovery) return;
     final now = DateTime.now();
-    final currentId = ref.read(activeWorkSessionIdProvider);
-    final selectedPlanningSessionId = ref.read(activePlanningSessionIdProvider);
-    final minSyncInterval = (currentId == null && selectedPlanningSessionId != null)
-        ? const Duration(seconds: 2)
-        : const Duration(seconds: 8);
     if (!force &&
         _lastSessionSyncAt != null &&
-        now.difference(_lastSessionSyncAt!) < minSyncInterval) {
+        now.difference(_lastSessionSyncAt!) < const Duration(seconds: 8)) {
       return;
     }
 
@@ -231,6 +160,7 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
           (a, b) => _sessionLocalStart(b).compareTo(_sessionLocalStart(a)),
         );
 
+      final currentId = ref.read(activeWorkSessionIdProvider);
       WorkSessionInfo? currentSession;
       if (currentId != null) {
         for (final session in sessions) {
@@ -244,22 +174,13 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
       if (activeSessions.isEmpty) {
         if (currentSession != null && !currentSession.isActive) {
           ref.read(activeWorkSessionIdProvider.notifier).state = null;
-          ref.read(isLivePollingPausedProvider.notifier).state = false;
+          ref.read(activeSessionRuntimeProvider.notifier).clear();
           _clearMinuteSnapshotCache();
         }
         return;
       }
 
-      final freshestActive = await _freshestLiveSession(service, activeSessions);
-      if (freshestActive == null) {
-        if (currentSession != null) {
-          ref.read(activeWorkSessionIdProvider.notifier).state = null;
-          ref.read(isLivePollingPausedProvider.notifier).state = false;
-          _clearMinuteSnapshotCache();
-        }
-        return;
-      }
-
+      final freshestActive = activeSessions.first;
       final shouldSwitch = currentSession == null ||
           !currentSession.isActive ||
           currentSession.id != freshestActive.id;
@@ -267,14 +188,11 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
 
       ref.read(activeWorkSessionIdProvider.notifier).state = freshestActive.id;
       final planningId = planningSessionIdFromMetadata(freshestActive.metadataJson);
-      if (planningId != null && selectedPlanningSessionId == null) {
+      if (planningId != null) {
         ref.read(activePlanningSessionIdProvider.notifier).state = planningId;
       }
-      final currentPlanningTitle = ref.read(activePlanningSessionTitleProvider);
       final planningTitle = planningSessionTitleFromMetadata(freshestActive.metadataJson);
-      if ((currentPlanningTitle == null || currentPlanningTitle.trim().isEmpty) &&
-          planningTitle != null &&
-          planningTitle.trim().isNotEmpty) {
+      if (planningTitle != null && planningTitle.trim().isNotEmpty) {
         ref.read(activePlanningSessionTitleProvider.notifier).state = planningTitle;
       }
       ref.read(activeSessionRuntimeProvider.notifier).attachSession(freshestActive.id);
@@ -300,17 +218,9 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     required VisionSnapshot? snapshot,
     required bool isLoading,
     required bool isPaused,
-    required bool hasSelectedPlanningSession,
-    required bool hasStartedLocally,
   }) {
     if (_isStopping) return 'Finalisation en cours';
     if (isPaused) return 'Session en pause';
-    if (activeSessionId == null && hasSelectedPlanningSession && hasStartedLocally) {
-      return 'Session demarree (en attente de donnees)';
-    }
-    if (activeSessionId == null && hasSelectedPlanningSession) {
-      return 'Session choisie, en attente du demarrage';
-    }
     if (activeSessionId == null) return 'Aucune session active';
     if (snapshot != null) return 'Session suivie en direct';
     if (isLoading) return 'Connexion au capteur...';
@@ -321,7 +231,6 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     required VisionSnapshot? snapshot,
     required bool hasLiveData,
     required bool isPaused,
-    required bool hasSelectedPlanningSession,
   }) {
     if (_isStopping) {
       return const _SessionNotice(
@@ -337,16 +246,6 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
         title: 'Session en pause',
         message: 'Reprenez la session pour relancer le suivi automatique.',
         icon: Icons.pause_circle_outline_rounded,
-        color: Color(0xFFFFC857),
-      );
-    }
-
-    if (hasSelectedPlanningSession && !hasLiveData) {
-      return const _SessionNotice(
-        title: 'Session selectionnee',
-        message:
-            'Demarrez main_cv.py pour lancer la session CV et recevoir les donnees.',
-        icon: Icons.play_circle_outline_rounded,
         color: Color(0xFFFFC857),
       );
     }
@@ -403,14 +302,6 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
   void _togglePause() {
     if (_isStopping) return;
     final runtime = ref.read(activeSessionRuntimeProvider);
-    if (!runtime.hasSession) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Aucune session CV active a mettre en pause.'),
-        ),
-      );
-      return;
-    }
     final notifier = ref.read(activeSessionRuntimeProvider.notifier);
     if (runtime.isPaused) {
       notifier.resume();
@@ -477,7 +368,7 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
       }
     }
 
-    if (planningSessionId != null && finalizedSession != null) {
+    if (planningSessionId != null) {
       try {
         await ref
             .read(planningRepositoryProvider)
@@ -491,10 +382,11 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     ref.read(activeWorkSessionIdProvider.notifier).state = null;
     ref.read(activePlanningSessionIdProvider.notifier).state = null;
     ref.read(activePlanningSessionTitleProvider.notifier).state = null;
-    ref.read(activePlanningSessionSelectedAtProvider.notifier).state = null;
     ref.read(isLivePollingPausedProvider.notifier).state = false;
 
-    await _refreshSessionDerivedState(refreshPlanningState: true);
+    ref.invalidate(todayVisionSummaryProvider);
+    ref.invalidate(todayPlanningProvider);
+    ref.invalidate(workSessionsProvider);
 
     if (mounted) {
       final avgFocusScore = _extractAvgFocusScore(finalizedSession);
@@ -658,14 +550,10 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
         // Use the default daily generation path so the backend resolves the
         // proper timetable source (latest CSV fallback) and avoids stale
         // dialog context (non-CSV doc / forced week type) after a session stop.
-        final planningDate = DateTime(now.year, now.month, now.day);
         await ref.read(planningRepositoryProvider).generatePlanning(
-              date: planningDate,
+              date: DateTime(now.year, now.month, now.day),
             );
-        await _refreshSessionDerivedState(
-          refreshPlanningState: true,
-          planningDate: planningDate,
-        );
+        ref.invalidate(todayPlanningProvider);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -688,30 +576,22 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
     final snapshotAsync = ref.watch(liveSnapshotProvider);
     final liveSnapshot = snapshotAsync.value;
     final activeSessionId = ref.watch(activeWorkSessionIdProvider);
-    final activePlanningSessionId = ref.watch(activePlanningSessionIdProvider);
     final planningSessionTitle = ref.watch(activePlanningSessionTitleProvider);
     final runtime = ref.watch(activeSessionRuntimeProvider);
     final isPaused = runtime.isPaused;
-    final hasSelectedPlanningSession = activePlanningSessionId != null;
-    final hasFreshLiveData = _isSnapshotFresh(liveSnapshot);
-    final hasStartedLocally = runtime.hasSession;
 
     _refreshMinuteSnapshot();
-    final displaySnapshot =
-        hasFreshLiveData ? (_minuteSnapshot ?? liveSnapshot) : null;
+    final displaySnapshot = _minuteSnapshot ?? liveSnapshot;
     final sessionStateLabel = _sessionStateLabel(
       activeSessionId: activeSessionId,
-      snapshot: hasFreshLiveData ? liveSnapshot : null,
+      snapshot: liveSnapshot,
       isLoading: snapshotAsync.isLoading,
       isPaused: isPaused,
-      hasSelectedPlanningSession: hasSelectedPlanningSession,
-      hasStartedLocally: hasStartedLocally,
     );
     final notice = _noticeFor(
       snapshot: displaySnapshot,
-      hasLiveData: hasFreshLiveData,
+      hasLiveData: liveSnapshot != null,
       isPaused: isPaused,
-      hasSelectedPlanningSession: hasSelectedPlanningSession,
     );
     final resolvedTitle = (planningSessionTitle != null &&
             planningSessionTitle.trim().isNotEmpty)
@@ -738,7 +618,7 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
             _SessionActionIcon(
               icon: Icons.stop_rounded,
               color: const Color(0xFFFB7185),
-              onPressed: () => _stopSessionAndExit(displaySnapshot),
+              onPressed: () => _stopSessionAndExit(liveSnapshot ?? displaySnapshot),
             ),
           ],
         ),
@@ -783,7 +663,7 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
                       ),
                       const SizedBox(height: 18),
                       _SessionStatusCard(
-                        hasData: hasFreshLiveData,
+                        hasData: liveSnapshot != null,
                         sessionId: activeSessionId,
                         stateLabel: sessionStateLabel,
                         notice: notice,
@@ -793,7 +673,8 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
                         isPaused: isPaused,
                         isStopping: _isStopping,
                         onPauseToggle: _togglePause,
-                        onStop: () => _stopSessionAndExit(displaySnapshot),
+                        onStop: () =>
+                            _stopSessionAndExit(liveSnapshot ?? displaySnapshot),
                       ),
                     ],
                   ),
