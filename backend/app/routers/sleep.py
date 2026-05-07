@@ -88,6 +88,16 @@ def update_alarm(
 # ─────────────────────────────────────────────
 # GET /alarm  – Configuration actuelle
 # ─────────────────────────────────────────────
+@router.post("/admin/recalculate-scores", response_model=dict)
+def recalculate_scores(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Recalculate sleep_score for all existing records using the current formula."""
+    count = crud.recalculate_all_sleep_scores(db)
+    return {"updated": count}
+
+
 @router.get("/alarm", response_model=schemas.AlarmConfigResponse)
 def get_alarm(
     db: Session = Depends(get_db),

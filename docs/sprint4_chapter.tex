@@ -1,0 +1,350 @@
+
+\chapter{Sprint 4 : Système IoT et alertes intelligentes}
+\label{chap:sprint4}
+
+\section{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Le quatrième et dernier sprint du projet \textit{Smart Focus} est consacré à l'intégration du dispositif matériel de monitoring et à la mise en place du système d'alertes intelligentes. Il vise à connecter le boîtier IoT équipé d'une caméra et de capteurs à l'application mobile, permettant ainsi un suivi en temps réel du comportement de l'utilisateur.
+
+Ce sprint assure la capture continue des données visuelles par le module de vision par ordinateur, leur transmission au backend et leur exploitation par l'application mobile. Il met également en place un système d'alertes basé sur le niveau de concentration et les données de sommeil, capable d'adapter dynamiquement le comportement du système et le planning de travail de l'utilisateur.
+
+L'objectif est de boucler le cycle complet du système : de la détection comportementale en temps réel jusqu'à l'adaptation proactive du planning, en passant par le feedback immédiat via l'application mobile.
+
+\section{Backlog du Sprint 4}
+
+Le backlog du Sprint 4 regroupe les fonctionnalités relatives à l'intégration matérielle, au suivi temps réel et aux alertes intelligentes. Ces éléments constituent la brique finale du système, reliant les modules d'intelligence artificielle développés précédemment au dispositif physique de monitoring.
+
+Le tableau~\ref{tab:backlogs4} présente le backlog détaillé du quatrième sprint.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|p{3cm}|p{6cm}|p{4cm}|}
+\hline
+\textbf{ID} & \textbf{Fonctionnalité} & \textbf{User Story} & \textbf{Tâche} \\
+\hline
+
+US3 & Capture vidéo (Raspberry Pi)
+& En tant que système, je souhaite capturer les images en temps réel afin d'analyser le comportement de l'utilisateur
+& Intégration du module pi\_client pour la capture du flux vidéo via caméra et l'envoi des snapshots au backend \\ \hline
+
+US8 & Affichage temps réel
+& En tant qu'utilisateur, je souhaite visualiser mes scores de concentration en temps réel sur l'application mobile
+& Implémentation du polling des snapshots et de l'affichage dynamique des métriques comportementales \\ \hline
+
+US7 & Génération d'alertes intelligentes
+& En tant que système, je souhaite déclencher des alertes lorsque la concentration baisse afin d'améliorer la productivité
+& Développement du système d'alertes basé sur les seuils de concentration et les données de sommeil \\ \hline
+
+US15 & Suivi du sommeil et adaptation
+& En tant qu'utilisateur, je souhaite que mon planning s'adapte à la qualité de mon sommeil
+& Intégration de l'adaptation automatique des sessions selon le score de sommeil et le focus score \\ \hline
+
+\end{tabular}
+\caption{Backlog du Sprint 4}
+\label{tab:backlogs4}
+\end{table}
+
+
+
+\section{Spécifications fonctionnelles}
+
+\subsection{Diagramme de cas d'utilisation du Sprint 4}
+
+Le diagramme de cas d'utilisation suivant illustre les principales interactions entre les différents acteurs (utilisateur, boîtier IoT, service ML) et le système durant le quatrième sprint. Il couvre les fonctionnalités de capture vidéo, de suivi temps réel, d'alertes intelligentes et d'adaptation du planning.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{images/usecasesprint4.jpg}
+\caption{Diagramme de cas d'utilisation du Sprint 4}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Description textuelle des cas d'utilisation}
+
+Les cas d'utilisation du quatrième sprint sont présentés sous forme de fiches descriptives. Chaque tableau synthétise les interactions entre les acteurs et le système, en mettant en évidence les étapes principales ainsi que les conditions de déroulement.
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Capturer et transmettre les données visuelles}
+
+Le module pi\_client assure la capture continue du flux vidéo via la caméra du boîtier IoT. Les images sont analysées localement par le pipeline de vision par ordinateur (MediaPipe, OpenCV) puis les métriques comportementales sont transmises au backend sous forme de snapshots. Le Tableau~\ref{tab:uc_capture} présente ce processus.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Boîtier IoT (Raspberry Pi) \\ \hline
+
+\textbf{Objectif} & Capturer les données visuelles et transmettre les métriques au backend \\ \hline
+
+\textbf{Conditions initiales} & Boîtier allumé, caméra fonctionnelle, connexion réseau active \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item Initialisation de la caméra et du pipeline de vision
+    \item Capture continue du flux vidéo via OpenCV
+    \item Analyse par MediaPipe (détection faciale et pose corporelle)
+    \item Calcul des scores comportementaux (attention, posture, vigilance)
+    \item Calcul du score global de concentration (focus)
+    \item Envoi du snapshot au backend via l'API REST
+    \item Création ou rattachement à une session de travail existante
+\end{itemize} \\ \hline
+
+\textbf{Cas d'erreur} & Perte de connexion → mise en file d'attente locale des snapshots \\ \hline
+
+\textbf{Résultat} & Snapshot enregistré dans la base de données avec les métriques \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Capturer et transmettre les données visuelles »}
+\label{tab:uc_capture}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Visualiser les scores en temps réel}
+
+L'application mobile offre une vue dynamique des métriques de concentration durant une session de travail active. Les données sont récupérées périodiquement depuis le backend et affichées dans un tableau de bord interactif. Le Tableau~\ref{tab:uc_realtime} détaille ce processus.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+
+\textbf{Objectif} & Suivre en temps réel son niveau de concentration durant une session \\ \hline
+
+\textbf{Conditions initiales} & Session de travail active, snapshots en cours de réception \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item Accès au tableau de bord de la session active
+    \item Polling périodique du dernier snapshot via l'API REST
+    \item Affichage dynamique des métriques (attention, posture, vigilance, focus)
+    \item Mise à jour des jauges et indicateurs visuels
+    \item Affichage de l'évolution temporelle du score de concentration
+    \item Détection et signalement des états critiques (fatigue, distraction)
+\end{itemize} \\ \hline
+
+\textbf{Cas d'erreur} & Aucun snapshot disponible → affichage d'un message d'attente \\ \hline
+
+\textbf{Résultat} & Tableau de bord mis à jour en temps réel \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Visualiser les scores en temps réel »}
+\label{tab:uc_realtime}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Générer des alertes intelligentes}
+
+Le système d'alertes intelligentes surveille en continu les métriques de concentration et déclenche des notifications adaptées lorsque l'utilisateur présente des signes de fatigue ou de distraction prolongée. Le Tableau~\ref{tab:uc_alerts} présente ce mécanisme.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Système \\ \hline
+
+\textbf{Objectif} & Alerter l'utilisateur en cas de baisse significative de la concentration \\ \hline
+
+\textbf{Conditions initiales} & Session de travail active avec monitoring en cours \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item Analyse continue des snapshots reçus
+    \item Évaluation du score de focus par rapport aux seuils définis
+    \item Score $< 45$ : alerte de faible concentration
+    \item Score $\geq 80$ : signal de bonne concentration
+    \item Génération d'événements de type focus\_event dans la base de données
+    \item Envoi de notifications visuelles sur l'application mobile
+    \item Adaptation des recommandations selon la tendance observée
+\end{itemize} \\ \hline
+
+\textbf{Cas d'erreur} & Données insuffisantes → pas d'alerte générée \\ \hline
+
+\textbf{Résultat} & Utilisateur alerté et système adapté au niveau de concentration \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Générer des alertes intelligentes »}
+\label{tab:uc_alerts}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Adapter le planning selon le focus et le sommeil}
+
+Le système adapte dynamiquement le planning de l'utilisateur en combinant les données de sommeil et les scores de concentration observés. Cette adaptation concerne la durée des sessions, les pauses et le nombre maximal de sessions. Le Tableau~\ref{tab:uc_adapt} décrit ce processus.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Système \\ \hline
+
+\textbf{Objectif} & Ajuster automatiquement le planning en fonction de l'état réel de l'utilisateur \\ \hline
+
+\textbf{Conditions initiales} & Planning existant, données de sommeil et/ou session de monitoring finalisée \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item Récupération du dernier score de sommeil de l'utilisateur
+    \item Récupération du focus score de la dernière session finalisée
+    \item Application du profil sommeil (paramètres de base)
+    \item Ajustement par le focus score (modulation des durées et pauses)
+    \item Score sommeil $\geq 80$ + focus $\geq 80$ : sessions de 55 min, pauses de 8 min
+    \item Score sommeil $< 50$ + focus $< 45$ : sessions de 15 min, pauses de 25 min
+    \item Recalcul et repositionnement des sessions de révision futures
+    \item Persistance des modifications dans la base de données
+\end{itemize} \\ \hline
+
+\textbf{Cas d'erreur} & Données insuffisantes → utilisation du profil par défaut \\ \hline
+
+\textbf{Résultat} & Planning adapté au niveau de fatigue et de concentration \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Adapter le planning selon le focus et le sommeil »}
+\label{tab:uc_adapt}
+\end{table}
+
+L'adaptation du planning repose sur une double modulation des paramètres de session. Le tableau~\ref{tab:adaptation_combined} résume les combinaisons possibles :
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Score sommeil} & \textbf{Score focus} & \textbf{Durée max/session} & \textbf{Pause} & \textbf{Nb max sessions} \\
+\hline
+$\geq 80$ & $\geq 80$ & 55 min & 8 min & 7 \\ \hline
+$\geq 80$ & $< 45$ & 40 min & 15 min & 5 \\ \hline
+50 -- 79 & — & 35 min & 15 min & 4 \\ \hline
+$< 50$ & $\geq 80$ & 30 min & 18 min & 3 \\ \hline
+$< 50$ & $< 45$ & 15 min & 25 min & 1 \\ \hline
+\end{tabular}
+\caption{Adaptation combinée des sessions selon le sommeil et la concentration}
+\label{tab:adaptation_combined}
+\end{table}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conception}
+\subsection{Diagrammes de séquence}
+
+Les diagrammes de séquence suivants illustrent les interactions entre les composants du système pour les fonctionnalités du Sprint 4, impliquant le boîtier IoT, le backend, la base de données et l'application mobile.
+
+%----------------------------------------
+\subsubsection{Processus de capture et d'ingestion des snapshots}
+
+Le processus de capture constitue le flux principal du monitoring temps réel. Comme illustré dans la Figure~\ref{fig:seq_snapshot}, le boîtier IoT capture les images via la caméra, les analyse localement avec MediaPipe pour calculer les scores comportementaux, puis transmet chaque snapshot au backend via l'API REST. Le backend persiste les données et les rend disponibles pour l'application mobile.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/seq_snapshot.jpg}
+\caption{Diagramme de séquence de la capture et de l'ingestion des snapshots}
+\label{fig:seq_snapshot}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Processus d'affichage temps réel sur mobile}
+
+L'affichage temps réel dans l'application mobile repose sur un mécanisme de polling périodique. Comme montré dans la Figure~\ref{fig:seq_realtime_mobile}, l'application interroge régulièrement le backend pour récupérer le dernier snapshot de la session active. Les métriques sont ensuite mises à jour dynamiquement dans l'interface utilisateur.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/seq_realtime_mobile.jpg}
+\caption{Diagramme de séquence de l'affichage temps réel sur mobile}
+\label{fig:seq_realtime_mobile}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Processus de finalisation et d'adaptation du planning}
+
+Le processus de finalisation d'une session de monitoring déclenche l'adaptation automatique du planning. Comme illustré dans la Figure~\ref{fig:seq_finalize_adapt}, lorsqu'une session est finalisée, le backend calcule le score moyen de concentration, récupère le profil de sommeil et recalcule les créneaux de révision restants en appliquant les ajustements combinés sommeil/focus.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/seq_finalize_adapt.jpg}
+\caption{Diagramme de séquence de la finalisation et de l'adaptation du planning}
+\label{fig:seq_finalize_adapt}
+\end{figure}
+
+
+\subsection{Diagramme de classes du Sprint 4}
+
+Le diagramme de classes présenté dans la Figure~\ref{fig:class_sprint4} décrit la structure des modules développés durant ce sprint.
+
+La classe \textit{WorkSession} représente une session de monitoring IoT et est associée à des \textit{Snapshot} contenant les métriques comportementales (attention, posture, vigilance, focus) et à des \textit{FocusEvent} représentant les événements discrets de concentration.
+
+La classe \textit{SleepRecord} stocke les données de sommeil de l'utilisateur et influence directement les paramètres de planification via le service de profil sommeil.
+
+Les services \textit{VisionService}, \textit{AlertService} et \textit{AdaptationService} orchestrent respectivement l'ingestion des données, la génération des alertes et l'adaptation du planning.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/class_sprint4.jpg}
+\caption{Diagramme de classes du Sprint 4}
+\label{fig:class_sprint4}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Implémentation}
+
+Cette section présente les principales interfaces développées dans le cadre du Sprint 4. Elles illustrent les fonctionnalités de monitoring temps réel, de suivi du sommeil et d'alertes intelligentes.
+
+%--------------------------------------
+
+\subsection{Interfaces de l'application mobile}
+
+Les interfaces développées dans le cadre du Sprint 4 permettent à l'utilisateur de suivre en temps réel son niveau de concentration, de consulter l'impact du sommeil sur son planning et de recevoir des alertes adaptées.
+
+%----------------------------------------
+\subsubsection{Interface de monitoring temps réel}
+
+L'interface de session active affiche en temps réel les métriques comportementales de l'utilisateur. Elle présente les scores d'attention, de posture, de vigilance et le score global de concentration sous forme de jauges dynamiques et d'indicateurs visuels.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\textwidth]{images/monitoring1.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/monitoring2.jpg}
+\caption{Interface de monitoring temps réel : scores et métriques comportementales}
+\label{fig:monitoring_screens}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interface du tableau de bord et statistiques}
+
+Le tableau de bord principal agrège les données de concentration, les sessions complétées et les tendances sur la semaine. Il offre une vue synthétique des performances de l'utilisateur avec des graphiques interactifs.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\textwidth]{images/dashboard1.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/dashboard2.jpg}
+\caption{Interface du tableau de bord : vue globale et statistiques hebdomadaires}
+\label{fig:dashboard_screens}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interface de suivi du sommeil}
+
+L'interface de suivi du sommeil permet à l'utilisateur d'enregistrer ses nuits, de consulter ses statistiques de sommeil et de visualiser l'impact de la qualité du sommeil sur la planification de ses sessions. L'alarme intelligente est configurable selon différents modes (graduel, normal, silencieux).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\textwidth]{images/sleep1.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/sleep2.jpg}
+\caption{Interface de suivi du sommeil : historique et configuration de l'alarme}
+\label{fig:sleep_screens}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+Ce quatrième sprint a permis de compléter le système \textit{Smart Focus} en intégrant le dispositif matériel de monitoring et le système d'alertes intelligentes. La boucle de rétroaction est désormais complète : le boîtier IoT capture les données comportementales, le backend les analyse et adapte le planning, tandis que l'application mobile offre un suivi en temps réel.
+
+L'adaptation dynamique du planning, combinant les données de sommeil et les scores de concentration, constitue une fonctionnalité différenciante majeure du système. Elle permet de personnaliser l'expérience de chaque utilisateur en fonction de son état réel, garantissant ainsi une productivité optimale tout en préservant le bien-être.
+

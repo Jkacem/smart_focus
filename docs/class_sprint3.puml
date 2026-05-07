@@ -1,0 +1,148 @@
+@startuml class_sprint3
+skinparam classAttributeIconSize 0
+skinparam classBorderColor #2C3E50
+skinparam classBackgroundColor #ECF0F1
+skinparam classArrowColor #2C3E50
+skinparam noteBorderColor #F39C12
+skinparam noteBackgroundColor #FDEBD0
+skinparam packageBorderColor #7F8C8D
+skinparam packageBackgroundColor #FDFEFE
+
+title Diagramme de classes — Sprint 3
+
+' ========================
+' DATA MODELS
+' ========================
+
+package "Modèles de données" {
+
+    class ChatDocument {
+        +id : int
+        +user_id : int
+        +filename : String
+        +file_path : String
+        +chroma_collection : String
+        +page_count : int
+        +created_at : DateTime
+    }
+
+    class ChatMessage {
+        +id : int
+        +user_id : int
+        +document_id : int
+        +question : String
+        +answer : String
+        +sources : JSON
+        +created_at : DateTime
+    }
+
+    class Quiz {
+        +id : int
+        +user_id : int
+        +document_id : int
+        +title : String
+        +num_questions : int
+        +score : int
+        +completed_at : DateTime
+        +created_at : DateTime
+        +document_ids() : List[int]
+        +document_names() : List[str]
+    }
+
+    class QuizQuestion {
+        +id : int
+        +quiz_id : int
+        +question_text : String
+        +options : JSON
+        +correct_index : int
+        +explanation : String
+        +user_answer_index : int
+    }
+
+    class Flashcard {
+        +id : int
+        +user_id : int
+        +document_id : int
+        +front : String
+        +back : String
+        +ease_factor : float
+        +interval : int
+        +repetitions : int
+        +next_review : DateTime
+        +created_at : DateTime
+    }
+
+    class StudySession {
+        +id : int
+        +user_id : int
+        +subject : String
+        +start : DateTime
+        +end : DateTime
+        +priority : String
+        +status : String
+        +is_ai_generated : boolean
+        +date : Date
+        +document_id : int
+        +notes : String
+        +completed_at : DateTime
+    }
+}
+
+' ========================
+' SERVICES
+' ========================
+
+package "Services métier" {
+
+    class RAGService {
+        -_embeddings : HuggingFaceEmbeddings
+        -_chroma_path : str
+        +ingest_pdf(file_path, collection_name) : int
+        +query_rag(question, collection_names, k) : Dict
+        +query_general(question) : Dict
+        +generate_quiz(collection_name, num_questions) : List[Dict]
+        +generate_quiz_from_collections(collections, n) : List[Dict]
+        +generate_flashcards(collection_name, num_cards) : List[Dict]
+        +delete_collection(collection_name) : void
+    }
+
+    class PlanningService {
+        +generate_daily_schedule(day, profile, preferences) : List[Dict]
+        +_compute_free_slots(day, class_sessions) : List[Tuple]
+        +_build_revision_sessions(day, slots, profile) : List[Dict]
+        +_get_sleep_profile(sleep_score) : Dict
+        +_apply_focus_profile_adjustment(profile, focus_score) : Dict
+        +_personalize_with_ai(sessions, class_sessions) : List[Dict]
+    }
+
+    class SM2Service {
+        +review(flashcard, quality) : Flashcard
+        +_compute_new_interval(interval, repetitions, ease_factor) : int
+        +_compute_new_ease_factor(ease_factor, quality) : float
+        +get_due_flashcards(user_id, date) : List[Flashcard]
+    }
+
+    class DocumentService {
+        +save_upload(file, user_id) : Tuple[str, str]
+        +delete_file(file_path) : void
+    }
+}
+
+' ========================
+' RELATIONS
+' ========================
+
+ChatDocument "1" --> "0..*" ChatMessage : contient >
+ChatDocument "1" --> "0..*" Quiz : génère >
+ChatDocument "1" --> "0..*" Flashcard : source de >
+Quiz "1" *-- "1..*" QuizQuestion : composé de >
+StudySession "0..*" --> "0..1" ChatDocument : liée à >
+
+RAGService ..> ChatDocument : utilise (ChromaDB)
+RAGService ..> Quiz : crée les questions
+RAGService ..> Flashcard : crée les cartes
+PlanningService ..> StudySession : planifie
+SM2Service ..> Flashcard : met à jour (SM-2)
+DocumentService ..> ChatDocument : persiste
+
+@enduml

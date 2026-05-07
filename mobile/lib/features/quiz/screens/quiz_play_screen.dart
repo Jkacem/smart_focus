@@ -36,9 +36,10 @@ class _QuizPlayScreenState extends ConsumerState<QuizPlayScreen> {
 
       if (result != null && mounted) {
         ref.invalidate(quizzesProvider);
+        ref.read(lastQuizResultProvider.notifier).state = result;
         await ref.read(planningProvider.notifier).refresh();
         if (!mounted) return;
-        context.pushReplacement(AppRoutes.quizResult(quiz.id), extra: result);
+        context.pushReplacement(AppRoutes.quizResult(quiz.id));
       }
     } catch (e) {
       if (mounted) {

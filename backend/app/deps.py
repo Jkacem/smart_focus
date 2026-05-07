@@ -2,16 +2,20 @@
 FastAPI dependencies — database session & auth.
 """
 
+import secrets
 from typing import Generator
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import SessionLocal
 from app.models import User
 from app.utils.security import decode_token
+
+_pi_key_header = APIKeyHeader(name="Authorization", auto_error=False)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
@@ -50,6 +54,23 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
     return user
+
+
+def verify_pi_key(authorization: str | None = Security(_pi_key_header)) -> None:
+    """Validate the Pi client's shared API key from the Authorization header.
+
+    The Pi must send:  Authorization: Bearer <PI_API_KEY>
+    If PI_API_KEY is not configured in settings, the check is skipped (dev mode).
+    """
+    if not settings.PI_API_KEY:
+        return  # key not configured — allow in dev without enforcement
+    expected = f"Bearer {settings.PI_API_KEY}"
+    if authorization is None or not secrets.compare_digest(authorization, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing Pi API key.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 def get_current_user_optional(

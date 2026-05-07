@@ -40,9 +40,11 @@ dependencies:
   fl_chart: ^1.1.1
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  flutter_secure_storage: ^9.2.4
   google_fonts: ^8.0.2
   socket_io_client: ^3.1.4
   flutter_local_notifications: ^20.1.0
+  timezone: ^0.10.1
   file_picker: ^10.3.10
   intl: ^0.20.2
   alarm: ^5.2.1

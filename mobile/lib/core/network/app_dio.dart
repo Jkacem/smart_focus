@@ -3,13 +3,15 @@ import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_riverpod/legacy.dart';
+
+import '../storage/token_storage.dart';
 
 typedef RetryDataFactory = Future<dynamic> Function();
 
-final authBoxProvider = Provider<Box<dynamic>>((ref) {
-  return Hive.box('auth');
-});
+/// Incremented each time a 401 response is received.
+/// router_notifier.dart listens to this and calls logout().
+final unauthorizedEventProvider = StateProvider<int>((_) => 0);
 
 final apiBaseUrlProvider = Provider<String>((ref) {
   const configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
@@ -25,12 +27,14 @@ final apiBaseUrlProvider = Provider<String>((ref) {
 class ApiClient {
   ApiClient({
     required String baseUrl,
-    required Box<dynamic> authBox,
+    required TokenStorage tokenStorage,
+    this.onUnauthorized,
   }) : _baseUrl = baseUrl,
-       _authBox = authBox;
+       _tokenStorage = tokenStorage;
 
   final String _baseUrl;
-  final Box<dynamic> _authBox;
+  final TokenStorage _tokenStorage;
+  final void Function()? onUnauthorized;
 
   Dio createDio() {
     final dio = Dio(
@@ -44,14 +48,19 @@ class ApiClient {
 
     dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-          final token = _authBox.get('access_token');
+        onRequest: (options, handler) async {
+          final token = await _tokenStorage.getAccessToken();
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
           handler.next(options);
         },
         onError: (error, handler) async {
+          if (error.response?.statusCode == 401) {
+            onUnauthorized?.call();
+            return handler.next(error);
+          }
+
           final retried = error.requestOptions.extra['retried_with_alt_host'] == true;
           final fallbackBaseUrl = _alternateBaseUrl(error.requestOptions.baseUrl);
 
@@ -126,7 +135,9 @@ class ApiClient {
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(
     baseUrl: ref.watch(apiBaseUrlProvider),
-    authBox: ref.watch(authBoxProvider),
+    tokenStorage: ref.watch(tokenStorageProvider),
+    onUnauthorized: () =>
+        ref.read(unauthorizedEventProvider.notifier).state++,
   );
 });
 

@@ -108,3 +108,6 @@ final quizSubmitProvider =
         return QuizSubmitNotifier(repository);
       },
     );
+
+// Holds the last quiz result so it survives GoRouter navigation without extras.
+final lastQuizResultProvider = StateProvider<QuizResultModel?>((ref) => null);

@@ -1,0 +1,287 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+' ========================
+' Authentification
+' ========================
+class User {
+  +id : int
+  +email : String
+  +hashed_password : String
+  +full_name : String
+  +role : String
+  +is_active : boolean
+  +created_at : DateTime
+  +last_login : DateTime
+  +register()
+  +login()
+  +logout()
+  +updateProfile()
+  +getToken()
+  +refreshToken()
+}
+
+class UserProfile {
+  +id : int
+  +user_id : int
+  +daily_focus_goal : int
+  +preferred_schedule : String
+  +avatar_data_url : String
+  +notif_enabled : boolean
+  +notif_preferences : JSON
+  +updated_at : DateTime
+  +updateGoals()
+  +getPreferences()
+  +updateAvatar()
+}
+
+' ========================
+' Vision / Monitoring CV
+' ========================
+class WorkSession {
+  +id : String
+  +user_id : int
+  +start_time : DateTime
+  +end_time : DateTime
+  +is_active : boolean
+  +metadata_json : JSON
+  +create()
+  +finalize()
+  +claimUser()
+  +mergeMetadata()
+  +getLatestSnapshot()
+}
+
+class Snapshot {
+  +id : int
+  +session_id : String
+  +timestamp : DateTime
+  +work_mode : String
+  +attention_score : float
+  +posture_score : float
+  +vigilance_score : float
+  +stress_risk_score : float
+  +global_focus_score : float
+  +raw_payload_json : JSON
+  +ingest()
+  +extractScores()
+}
+
+class FocusEvent {
+  +id : int
+  +session_id : String
+  +timestamp : DateTime
+  +event_type : String
+  +level : String
+  +description : String
+  +raw_payload_json : JSON
+  +ingest()
+  +trigger()
+  +acknowledge()
+}
+
+' ========================
+' Planning
+' ========================
+class StudySession {
+  +id : int
+  +user_id : int
+  +date : Date
+  +start : DateTime
+  +end : DateTime
+  +subject : String
+  +priority : String
+  +status : String
+  +notes : String
+  +is_ai_generated : boolean
+  +completed_at : DateTime
+  +document_id : int
+  +created_at : DateTime
+  +updated_at : DateTime
+  +create()
+  +update()
+  +complete()
+  +reschedule()
+  +getDocumentIds()
+  +getDocumentNames()
+  +getQuizStatus()
+  +getFlashcardsStatus()
+}
+
+class Exam {
+  +id : int
+  +user_id : int
+  +document_id : int
+  +title : String
+  +exam_date : Date
+  +created_at : DateTime
+  +updated_at : DateTime
+  +create()
+  +update()
+  +delete()
+  +getDocumentName()
+}
+
+' ========================
+' RAG Chatbot
+' ========================
+class ChatDocument {
+  +id : int
+  +user_id : int
+  +filename : String
+  +file_path : String
+  +chroma_collection : String
+  +page_count : int
+  +created_at : DateTime
+  +upload()
+  +parse()
+  +index()
+  +delete()
+  +deleteCollection()
+}
+
+class ChatMessage {
+  +id : int
+  +user_id : int
+  +document_id : int
+  +question : String
+  +answer : String
+  +sources : JSON
+  +created_at : DateTime
+  +send()
+  +generateResponse()
+  +getSources()
+}
+
+class Quiz {
+  +id : int
+  +user_id : int
+  +document_id : int
+  +session_id : int
+  +title : String
+  +num_questions : int
+  +score : int
+  +completed_at : DateTime
+  +created_at : DateTime
+  +generate()
+  +submit()
+  +evaluate()
+  +getDocumentIds()
+  +getDocumentNames()
+}
+
+class QuizQuestion {
+  +id : int
+  +quiz_id : int
+  +question_text : String
+  +options : JSON
+  +correct_index : int
+  +explanation : String
+  +user_answer_index : int
+  +isCorrect()
+}
+
+class Flashcard {
+  +id : int
+  +user_id : int
+  +document_id : int
+  +source_session_id : int
+  +front : String
+  +back : String
+  +ease_factor : float
+  +interval : int
+  +repetitions : int
+  +next_review : DateTime
+  +created_at : DateTime
+  +generate()
+  +review()
+  +updateSM2()
+  +isDue()
+  +delete()
+}
+
+' ========================
+' Sleep
+' ========================
+class SleepRecord {
+  +id : int
+  +user_id : int
+  +sleep_start : DateTime
+  +sleep_end : DateTime
+  +total_hours : float
+  +deep_sleep_hours : float
+  +light_sleep_hours : float
+  +sleep_score : int
+  +raw_sensor_data : JSON
+  +created_at : DateTime
+  +record()
+  +calculateScore()
+  +getStats()
+}
+
+' ========================
+' Services IA
+' ========================
+class PlanningAIService {
+  +generateDailySchedule()
+  +generateWeeklySchedule()
+  +computeFreeSlots()
+  +fitSessionsIntoSlots()
+  +assignSubjectsViaAI()
+  +extractTimetableFromCollection()
+  +deterministicFallback()
+  +recalculateToday()
+}
+
+class SM2Service {
+  +review()
+  +calculateNextReview()
+}
+
+class GeminiClient {
+  +geminiGenerate()
+}
+
+' ========================
+' Relationships
+' ========================
+
+' -- User relationships --
+User "1" --> "1" UserProfile : possède
+User "1" --> "*" WorkSession : démarre
+User "1" --> "*" StudySession : planifie
+User "1" --> "*" Exam : définit
+User "1" --> "*" ChatDocument : uploade
+User "1" --> "*" ChatMessage : envoie
+User "1" --> "*" Quiz : passe
+User "1" --> "*" Flashcard : révise
+User "1" --> "*" SleepRecord : enregistre
+
+' -- Vision/CV --
+WorkSession "1" --> "*" Snapshot : contient
+WorkSession "1" --> "*" FocusEvent : génère
+
+' -- Planning --
+StudySession "*" -- "*" ChatDocument : étudie
+StudySession "1" --> "0..1" Quiz : génère quiz
+StudySession "1" --> "*" Flashcard : génère flashcards
+
+Exam "*" --> "0..1" ChatDocument : concerne
+
+' -- RAG / Chatbot --
+ChatDocument "1" --> "*" ChatMessage : contexte pour
+ChatDocument "1" --> "*" Quiz : source de
+ChatDocument "1" --> "*" Flashcard : produit
+
+Quiz "1" *--> "*" QuizQuestion : contient
+Quiz "*" -- "*" ChatDocument : sources multiples
+
+' -- Services --
+PlanningAIService ..> StudySession : génère
+PlanningAIService ..> UserProfile : consulte
+PlanningAIService ..> ChatDocument : extrait emploi du temps
+PlanningAIService ..> GeminiClient : utilise
+
+SM2Service ..> Flashcard : calcule next_review
+
+@enduml

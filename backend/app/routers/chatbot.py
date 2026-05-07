@@ -9,6 +9,8 @@ Endpoints:
     GET    /chatbot/history           Chat history for current user
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -27,6 +29,7 @@ from app.schemas.chatbot import (
 from app.services import document_service, rag_service
 from app.services.schedule_parser import is_csv_schedule
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chatbot", tags=["Chatbot"])
 
 
@@ -47,6 +50,12 @@ async def upload_document(
 ):
     """Upload a PDF document (for RAG) or a CSV schedule template (for planning)."""
 
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file has no filename.",
+        )
+
     filename_lower = file.filename.lower()
     is_pdf = filename_lower.endswith(".pdf")
     is_csv = filename_lower.endswith(".csv")
@@ -58,8 +67,14 @@ async def upload_document(
             detail="Only PDF and CSV files are accepted.",
         )
 
-    # 1. Save file to disk
-    file_path, collection_name = document_service.save_upload(file, current_user.id)
+    # 1. Save file to disk (raises ValueError if file exceeds MAX_UPLOAD_MB)
+    try:
+        file_path, collection_name = document_service.save_upload(file, current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=str(e),
+        )
 
     page_count = None
     if is_pdf:
@@ -71,9 +86,10 @@ async def upload_document(
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
         except Exception as e:
             document_service.delete_file(file_path)
+            logger.error("PDF ingestion failed for user %s: %s", current_user.id, e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to process PDF: {str(e)}",
+                detail="Failed to process PDF.",
             )
         msg = f"✅ '{file.filename}' ingested successfully ({page_count} pages)."
     else:
@@ -181,9 +197,10 @@ def chat(
         try:
             result = rag_service.query_general(question=request.question)
         except Exception as e:
+            logger.error("General AI query failed for user %s: %s", current_user.id, e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"General AI query failed: {str(e)}",
+                detail="AI query failed. Please try again later.",
             )
         db_document_id = None
     else:
@@ -212,9 +229,10 @@ def chat(
                 collection_names=collection_names,
             )
         except Exception as e:
+            logger.error("RAG query failed for user %s: %s", current_user.id, e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"RAG query failed: {str(e)}",
+                detail="RAG query failed. Please try again later.",
             )
 
     answer   = result["answer"]

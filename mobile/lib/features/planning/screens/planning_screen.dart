@@ -21,6 +21,7 @@ class PlanningScreen extends ConsumerStatefulWidget {
 
 class _PlanningScreenState extends ConsumerState<PlanningScreen> {
   int _selectedIndex = 1;
+  bool _isDialogShowing = false;
 
   @override
   void initState() {
@@ -58,6 +59,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       extendBody: true,
+      resizeToAvoidBottomInset: false,
       appBar: CustomAppBar(
         title: 'Mon Planning',
         trailingWidget: Container(
@@ -135,6 +137,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
           ),
           SizedBox.expand(child: CustomPaint(painter: StarfieldPainter())),
           SafeArea(
+            bottom: false,
             child: Column(
               children: [
                 if (planningState.isMutating)
@@ -199,7 +202,7 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                     onRefresh: planningNotifier.refresh,
                     color: Colors.black,
                     child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: EdgeInsets.only(left: 16, right: 16, bottom: MediaQuery.of(context).padding.bottom + 16),
                       itemCount: planningState.sessions.length + 2,
                       itemBuilder: (context, index) {
                         if (index == 0) {
@@ -273,11 +276,17 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
                                 _toggleSessionCompletion(session, planningNotifier),
                             onPrimaryAction: _primaryAction(session, planningNotifier),
                             onTap: _sessionTapAction(session, planningNotifier),
-                            onManageDocument: () => _showSessionDocumentDialog(
-                              context,
-                              session,
-                              planningNotifier,
-                            ),
+                            onManageDocument: () {
+                              if (_isDialogShowing) return;
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted || _isDialogShowing) return;
+                                _showSessionDocumentDialog(
+                                  context,
+                                  session,
+                                  planningNotifier,
+                                );
+                              });
+                            },
                             onGenerateQuiz: _quizAction(session, planningNotifier),
                             onGenerateFlashcards: _flashcardAction(
                               session,
@@ -514,8 +523,10 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
     PlanningSessionModel session,
     PlanningNotifier planningNotifier,
   ) async {
+    _isDialogShowing = true;
     List<int> selectedDocumentIds = List<int>.from(session.resolvedDocumentIds);
 
+    try {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -576,6 +587,9 @@ class _PlanningScreenState extends ConsumerState<PlanningScreen> {
         );
       },
     );
+    } finally {
+      _isDialogShowing = false;
+    }
   }
 
   Future<void> _showGeneratePlanningDialog(

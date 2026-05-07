@@ -35,6 +35,7 @@ class QuizGenerateScreen extends ConsumerStatefulWidget {
 
 class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
   int _numQuestions = 10;
+  late final QuizGeneratorNotifier _generatorNotifier;
 
   bool get _fromSession => widget.sessionId != null;
   bool get _fromMultipleDocuments => (widget.documentIds?.length ?? 0) > 1;
@@ -42,9 +43,10 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
   @override
   void initState() {
     super.initState();
+    _generatorNotifier = ref.read(quizGeneratorProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(quizGeneratorProvider.notifier).reset();
+      _generatorNotifier.reset();
     });
   }
 
@@ -80,7 +82,7 @@ class _QuizGenerateScreenState extends ConsumerState<QuizGenerateScreen> {
 
   @override
   void dispose() {
-    ref.read(quizGeneratorProvider.notifier).reset();
+    _generatorNotifier.reset();
     super.dispose();
   }
 

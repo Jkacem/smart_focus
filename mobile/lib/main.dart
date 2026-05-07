@@ -1,20 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:smart_focus/core/router/app_router.dart';
+import 'package:smart_focus/core/router/app_transitions.dart';
 import 'package:alarm/alarm.dart';
+import 'package:smart_focus/core/services/notification_service.dart';
 import 'package:smart_focus/features/sleep/screens/alarm_ring_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize local alarm service
   await Alarm.init();
-
-  // Initialize Hive for token storage
-  await Hive.initFlutter();
-  await Hive.openBox('auth');
+  await NotificationService.instance.initialize();
 
   runApp(const ProviderScope(child: KaranApp()));
 }
@@ -35,8 +32,8 @@ class _KaranAppState extends ConsumerState<KaranApp> {
     _ringSubscription = Alarm.ringStream.stream.listen((alarmSettings) {
       // When the alarm fires, push the ring screen via the root navigator
       rootNavigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => AlarmRingScreen(alarmSettings: alarmSettings),
+        AppTransitions.route(
+          child: AlarmRingScreen(alarmSettings: alarmSettings),
         ),
       );
     });

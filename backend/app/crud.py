@@ -87,37 +87,6 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
     # Auto-create a default profile
     db_profile = models.UserProfile(user_id=db_user.id)
     db.add(db_profile)
-
-
-# ══════════════════════════════════════════════
-# USER
-# ══════════════════════════════════════════════
-
-def get_user(db: Session, user_id: int) -> Optional[models.User]:
-    """Return a single User by its primary key or None."""
-    return db.query(models.User).filter(models.User.id == user_id).first()
-
-
-def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
-    """Lookup a user by email."""
-    return db.query(models.User).filter(models.User.email == email).first()
-
-
-def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
-    """Create a new User with a hashed password and a default profile."""
-    db_user = models.User(
-        email=user_in.email,
-        full_name=user_in.full_name,
-        hashed_password=hash_password(user_in.password),
-        role=user_in.role,
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-
-    # Auto-create a default profile
-    db_profile = models.UserProfile(user_id=db_user.id)
-    db.add(db_profile)
     db.commit()
 
     return db_user
@@ -187,11 +156,20 @@ def _compute_score(total_hours: Optional[float], deep_hours: Optional[float]) ->
     """Simple heuristic sleep score (0-100) based on total and deep sleep hours."""
     if total_hours is None:
         return None
-    # Target: 8 h total, 2 h deep
-    score = min(total_hours / 8.0, 1.0) * 70
-    if deep_hours is not None:
-        score += min(deep_hours / 2.0, 1.0) * 30
+    if not deep_hours:  # None or 0 → no real measurement, score from total hours only
+        return round(min(total_hours / 8.0, 1.0) * 100)
+    # Real deep sleep data available: 70 pts from total, 30 pts from deep (target 2h)
+    score = min(total_hours / 8.0, 1.0) * 70 + min(deep_hours / 2.0, 1.0) * 30
     return round(min(score, 100))
+
+
+def recalculate_all_sleep_scores(db: Session) -> int:
+    """Recompute sleep_score for every existing SleepRecord. Returns count updated."""
+    records = db.query(models.SleepRecord).filter(models.SleepRecord.total_hours.isnot(None)).all()
+    for record in records:
+        record.sleep_score = _compute_score(record.total_hours, record.deep_sleep_hours)
+    db.commit()
+    return len(records)
 
 
 def get_latest_sleep_record(

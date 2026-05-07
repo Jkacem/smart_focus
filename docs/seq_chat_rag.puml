@@ -1,0 +1,44 @@
+@startuml seq_chat_rag
+' ============================================================
+' BCE : Boundary → Control → Entity
+' Boundary  🖥️  Interface chatbot
+' Control   ⚙️  ChatbotController / RAGService / GeminiClient
+' Entity    🗄️  Base Vectorielle (ChromaDB) / Base de Données
+' ============================================================
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 8
+skinparam sequenceParticipantBorderColor #2C3E50
+skinparam sequenceParticipantBackgroundColor #ECF0F1
+skinparam noteBorderColor #F39C12
+skinparam noteBackgroundColor #FDEBD0
+
+title Processus de chat RAG
+
+actor Utilisateur
+participant B   as "🖥️ Interface chatbot"       <<Boundary>>
+participant C   as "⚙️ ChatbotController"        <<Control>>
+participant RAG as "⚙️ RAGService"              <<Control>>
+participant LLM as "⚙️ GeminiClient"            <<Control>>
+participant EV  as "🗄️ Base Vectorielle"         <<Entity>>
+participant E   as "🗄️ Base de Données"          <<Entity>>
+
+Utilisateur -> B : Poser une question
+B -> C : envoyerQuestion(question, documentIds)
+C -> RAG : rechercherContexte(question, collections)
+
+RAG -> RAG : Générer embedding de la question
+RAG -> EV  : rechercheSimilarité(embedding, k=5)
+EV  --> RAG : 5 chunks les plus pertinents
+
+RAG -> RAG : Construire le prompt\n(système + contexte + question)
+RAG -> LLM : générerRéponse(prompt)
+LLM --> RAG : Réponse générée
+RAG -> RAG : Extraire les sources
+RAG --> C : Réponse + sources
+
+C -> E : sauvegarderMessage(question, réponse, sources)
+C --> B : Réponse avec sources
+B --> Utilisateur : Afficher réponse + sources citées 📄
+
+@enduml

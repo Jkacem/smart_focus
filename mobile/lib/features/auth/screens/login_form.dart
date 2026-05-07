@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/core/router/app_routes.dart';
-import 'package:smart_focus/features/auth/screens/sign_form.dart';
 import 'package:smart_focus/features/chatbot/providers/chat_provider.dart';
 import 'package:smart_focus/shared/widgets/index.dart';
 import '../providers/auth_provider.dart';
@@ -254,13 +253,7 @@ class _LoginFormScreenState extends ConsumerState<LoginFormScreen> {
                           Center(
                             child: GestureDetector(
                               onTap: () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const SignFormScreen(),
-                                  ),
-                                );
+                                context.go(AppRoutes.register);
                               },
                               child: RichText(
                                 text: const TextSpan(

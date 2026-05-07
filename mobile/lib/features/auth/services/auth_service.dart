@@ -1,14 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../core/network/app_dio.dart';
+import '../../../core/storage/token_storage.dart';
 import '../models/current_user_profile.dart';
 
 class AuthService {
-  AuthService(this._dio);
+  AuthService(this._dio, this._tokenStorage);
 
   final Dio _dio;
+  final TokenStorage _tokenStorage;
 
   /// Login: FastAPI expects form-data (OAuth2PasswordRequestForm)
   Future<Map<String, dynamic>> login(String email, String password) async {
@@ -79,18 +80,14 @@ class AuthService {
       throw const FormatException('Missing refresh token in response');
     }
 
-    final box = Hive.box('auth');
-    await box.put('access_token', accessToken);
-    await box.put('refresh_token', refreshToken);
-    if (tokenType is String && tokenType.isNotEmpty) {
-      await box.put('token_type', tokenType);
-    }
+    await _tokenStorage.saveTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      tokenType: tokenType is String ? tokenType : null,
+    );
   }
 
-  Future<void> logout() async {
-    final box = Hive.box('auth');
-    await box.deleteAll(['access_token', 'refresh_token', 'token_type']);
-  }
+  Future<void> logout() => _tokenStorage.clearTokens();
 
   Future<CurrentUserProfile> getCurrentUserProfile() async {
     final response = await _dio.get('/auth/me/profile');
@@ -118,5 +115,8 @@ class AuthService {
 }
 
 final authServiceProvider = Provider<AuthService>((ref) {
-  return AuthService(ref.watch(dioProvider));
+  return AuthService(
+    ref.watch(dioProvider),
+    ref.watch(tokenStorageProvider),
+  );
 });

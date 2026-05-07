@@ -14,7 +14,7 @@ class DocumentSection extends ConsumerStatefulWidget {
 class _DocumentSectionState extends ConsumerState<DocumentSection> {
   static const double _maxExpandedHeight = 260;
 
-  bool _isExpanded = true;
+  bool _isExpanded = false;
   bool _isUploading = false;
   late final ScrollController _documentsScrollController;
 

@@ -7,18 +7,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
-from app.deps import get_current_user, get_current_user_optional, get_db
+from app.deps import get_current_user, get_current_user_optional, get_db, verify_pi_key
 from app.models.models import User
 
 router = APIRouter(prefix="/api/v1", tags=["Vision"])
 
 
-# ── Ingestion endpoints (pi_client, no auth required) ──────────────
+# ── Ingestion endpoints (pi_client — requires PI_API_KEY) ──────────
 
 @router.post("/vision/snapshots", status_code=status.HTTP_201_CREATED)
 def create_snapshot(
     payload: schemas.SnapshotCreate,
     db: Session = Depends(get_db),
+    _: None = Depends(verify_pi_key),
 ):
     """Ingest a real-time CV snapshot payload (called by pi_client)."""
     snapshot = crud.create_snapshot(db, payload)
@@ -29,6 +30,7 @@ def create_snapshot(
 def create_event(
     payload: schemas.EventCreate,
     db: Session = Depends(get_db),
+    _: None = Depends(verify_pi_key),
 ):
     """Ingest a real-time CV discrete event payload (called by pi_client)."""
     focus_event = crud.create_focus_event(db, payload)

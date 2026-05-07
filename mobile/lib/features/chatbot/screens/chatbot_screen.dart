@@ -93,6 +93,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           SizedBox.expand(child: CustomPaint(painter: StarfieldPainter())),
         // Main Content
           SafeArea(
+            bottom: false,
             child: Column(
               children: [
                 const DocumentSection(),
@@ -148,9 +149,16 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     error: (err, st) => Center(child: Text("Erreur: $err", style: const TextStyle(color: Colors.red))),
                   ),
                 ),
-                _buildQuickActions(context),
+                Offstage(
+                  offstage: MediaQuery.of(context).viewInsets.bottom > 0,
+                  child: _buildQuickActions(context),
+                ),
                 _buildMessageInput(),
-                const SizedBox(height: 10), // Nav Bar padding
+                SizedBox(
+                  height: MediaQuery.viewInsetsOf(context).bottom > 0
+                      ? 0
+                      : MediaQuery.viewPaddingOf(context).bottom + 94,
+                ),
               ],
             ),
           ),

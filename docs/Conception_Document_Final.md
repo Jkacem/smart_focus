@@ -1,7 +1,7 @@
 # 📋 Document de Conception Finale – Smart Focus & Life Assistant
 
-**Version** : 1.0  
-**Date** : 01 Mars 2026  
+**Version** : 2.0  
+**Date** : 02 Mai 2026  
 **Auteur** : Personne 2 – Application Flutter & IA/NLP  
 **Projet** : Smart Focus & Life Assistant – PFE 2025/2026  
 
@@ -10,12 +10,12 @@
 ## 1. Résumé Exécutif
 
 **Smart Focus & Life Assistant** est un système intelligent tout-en-un combinant :
-- Un **boîtier IoT ESP32-CAM** (capture posture, fatigue, vitaux)
-- Un **backend FastAPI** avec ML et IA (posture, RAG, planning)
+- Un **pi_client Python** (analyse comportementale via caméra avec MediaPipe/OpenCV)
+- Un **backend FastAPI** avec IA (RAG, Planning, Ingestion vision)
 - Une **application mobile Flutter** (dashboard, chatbot, planning adaptatif)
 
 Le projet est développé en binôme :
-- **Personne 1** → Hardware ESP32, ML vision (posture, fatigue)
+- **Personne 1** → Pipeline de vision par ordinateur (pi_client, MediaPipe, OpenCV)
 - **Personne 2** → Application Flutter, Backend FastAPI, IA/RAG, Planning
 
 ---
@@ -24,13 +24,15 @@ Le projet est développé en binôme :
 
 | # | Livrable | Fichier | Statut |
 |---|----------|---------|--------|
-| 1 | Plan de conception | `implementation_plan.md` | ✅ Fait |
-| 2 | Architecture système | `Conception_Architecture_Systeme.md` | ✅ Fait |
-| 3 | ERD PostgreSQL | `Conception_ERD_PostgreSQL.md` | ✅ Fait |
-| 4 | Endpoints API | `Conception_Endpoints_API.md` | ✅ Fait |
-| 5 | Wireframes Flutter | `Conception_Wireframes_Flutter.md` | ✅ Fait |
-| 6 | Flux RAG Chatbot | `Conception_Flux_RAG_Chatbot.md` | ✅ Fait |
-| 7 | **Ce document** | `Conception_Document_Final.md` | ✅ Fait |
+| 1 | Architecture système | `Conception_Architecture_Systeme.md` | ✅ Mis à jour v2.0 |
+| 2 | ERD PostgreSQL | `Conception_ERD_PostgreSQL.md` | ✅ Mis à jour v2.0 |
+| 3 | Diagramme de classes | `Conception_DiagrammeClasses.md` | ✅ Mis à jour v3.0 |
+| 4 | Endpoints API | `Conception_Endpoints_API.md` | ✅ Mis à jour v3.0 |
+| 5 | Cas d'utilisation | `Conception_CasUtilisation.md` | ✅ v2.0 |
+| 6 | Diagrammes de séquence | `Conception_DiagrammeSequence.md` | ✅ v1.0 |
+| 7 | Wireframes Flutter | `Conception_Wireframes_Flutter.md` | ✅ v1.0 |
+| 8 | Flux RAG Chatbot | `Conception_Flux_RAG_Chatbot.md` | ✅ v1.0 |
+| 9 | **Ce document** | `Conception_Document_Final.md` | ✅ Mis à jour v2.0 |
 
 ---
 
@@ -40,49 +42,47 @@ Le système est organisé en **4 couches** :
 
 ```mermaid
 graph LR
-    ESP["🔧 ESP32-CAM\n(IoT Hardware)"]
+    PI["🔧 pi_client\n(Python + MediaPipe + OpenCV)"]
     BACK["⚙️ FastAPI Backend\n(Python 3.11)"]
-    DATA["🗄️ Data Layer\nPostgreSQL · Redis · ChromaDB"]
+    DATA["🗄️ Data Layer\nPostgreSQL · ChromaDB"]
     APP["📱 Flutter App\n(Dart 3.2 + Riverpod)"]
 
-    ESP <-->|"HTTP/WS"| BACK
+    PI -->|"HTTP POST\n(snapshots JSON)"| BACK
     BACK <--> DATA
-    APP <-->|"HTTPS/WS"| BACK
+    APP <-->|"HTTPS REST\n(polling)"| BACK
 ```
 
-**Flux principal** : ESP32 envoie les frames caméra → backend ML analyse (posture, fatigue) → score focus calculé → push WebSocket vers Flutter en temps réel.
+**Flux principal** : pi_client capture vidéo → MediaPipe/OpenCV analyse localement (posture, fatigue, attention, stress) → snapshots JSON envoyés au backend REST → Flutter poll périodiquement le dernier snapshot pour affichage temps réel.
 
 ---
 
 ## 4. Base de Données (Synthèse)
 
-**24 tables PostgreSQL** organisées en 7 modules :
+**16 tables PostgreSQL** organisées en 6 modules :
 
 | Module | Tables Principales |
 |--------|-------------------|
-| Utilisateurs | `users`, `user_profiles`, `esp32_devices` |
-| Focus | `focus_sessions`, `focus_scores`, `focus_alerts` |
-| Posture | `posture_analyses`, `posture_alerts`, `posture_stats` |
-| Planning | `plannings`, `planned_sessions` |
-| Chatbot RAG | `documents`, `document_chunks`, `chat_conversations`, `chat_messages`, `quizzes`, `quiz_questions`, `flashcards` |
+| Utilisateurs | `users`, `user_profiles` |
+| Vision/CV | `work_sessions`, `snapshots`, `focus_events` |
+| Planning | `study_sessions`, `exams`, `study_session_documents` |
+| Chatbot RAG | `chat_documents`, `chat_messages`, `quizzes`, `quiz_questions`, `quiz_documents`, `flashcards` |
 | Sommeil | `sleep_records`, `smart_alarms` |
-| Statistiques | `daily_stats`, `weekly_reports` |
 
 ---
 
 ## 5. API REST (Synthèse)
 
-**6 groupes d'endpoints** + WebSocket :
+**7 groupes d'endpoints** :
 
 | Groupe | URL Préfixe | Endpoints Clés |
 |--------|-------------|----------------|
-| Auth | `/api/v1/auth` | register, login, refresh, me |
-| Focus | `/api/v1/focus` | start, stop, frame, stats |
-| Planning | `/api/v1/planning` | today, generate (IA), sessions |
-| Chatbot | `/api/v1/chatbot` | ask, documents/upload, quiz, flashcards |
-| Sommeil | `/api/v1/sleep` | log, stats, alarm |
-| Device | `/api/v1/device` | register, status, command |
-| WebSocket | `/ws/realtime` | push scores, alertes temps réel |
+| Auth | `/api/v1/auth` | register, login, refresh, me, me/profile |
+| Vision | `/api/v1/vision` + `/api/v1/sessions` | snapshots, events, sessions, latest, finalize |
+| Planning | `/api/v1/planning` | today, generate, generate/week, recalculate/today, sessions, insights, exams |
+| Chatbot | `/chatbot` | upload, chat, documents, history |
+| Quiz | `/api/v1/quiz` | generate, generate-from-session, list, submit |
+| Flashcards | `/api/v1/flashcards` | generate, generate-from-session, deck, due, review |
+| Sommeil | `/api/v1/sleep` | log, stats, history, alarm |
 
 ---
 
@@ -90,31 +90,46 @@ graph LR
 
 Le chatbot RAG fonctionne en 3 phases :
 
-1. **Ingestion** : Upload PDF → parsing → chunking (500 tokens) → embeddings OpenAI → ChromaDB
-2. **Requête** : Question → embedding → recherche sémantique (MMR, top-5) → contexte construit
-3. **Génération** : Prompt (system + contexte + historique) → GPT-3.5-turbo → réponse + sources
+1. **Ingestion** : Upload PDF → parsing PyMuPDF → chunking → embeddings HuggingFace (all-MiniLM-L6-v2, local) → ChromaDB
+2. **Requête** : Question → embedding → recherche sémantique ChromaDB (top-k) → contexte construit
+3. **Génération** : Prompt (system + contexte + question) → Groq llama-3.3-70b-versatile → réponse + sources
 
-**Quiz** : génération automatique QCM depuis les chunks du document.  
+**Quiz** : génération automatique QCM depuis les chunks du document (multi-documents supporté).  
 **Flashcards** : carte recto/verso avec algorithme de répétition espacée SM-2.
+
+---
+
+## 6.1 Pipeline Planning (Synthèse)
+
+La génération planning suit une logique **hybride déterministe + IA** :
+
+1. **Calcul déterministe** : collecte des blocs existants (sessions manuelles + cours extraits), calcul des créneaux libres (8h-22h, buffer 15min), fit des sessions selon le focus_goal du profil
+2. **IA pour la personnalisation** : Groq assigne les sujets et priorités aux créneaux pré-calculés (les horaires ne sont jamais modifiés par l'IA)
+3. **Extraction timetable** : PDF via RAG+Groq, CSV via parsing déterministe
+4. **Fallback déterministe** : en cas d'échec IA, rotation round-robin des matières
+
+Un endpoint dédié `POST /api/v1/planning/recalculate/today` recale uniquement les sessions IA de révision restantes du jour.
 
 ---
 
 ## 7. Application Flutter (Synthèse)
 
-**7 écrans principaux** :
+**9 features** avec écrans dédiés :
 
-| Écran | Décrit dans | Fonctionnalités clés |
-|-------|-------------|---------------------|
-| Auth | Wireframes §1 | Login / Register |
-| Dashboard | Wireframes §2 | Score focus, planning du jour, météo sommeil |
-| Session Focus | Wireframes §3 | Timer, score temps réel, alertes, poses |
-| Planning | Wireframes §4 | Calendrier, IA generate, CRUD sessions |
-| Chatbot | Wireframes §5 | Chat RAG, upload docs, quiz, flashcards |
-| Statistiques | Wireframes §6 | Graphiques (fl_chart), recommandations IA |
-| Paramètres | Wireframes §7 | Profil, objectifs, config IoT |
+| Feature | Écrans | Fonctionnalités clés |
+|---------|--------|---------------------|
+| Auth | Welcome, Login, Register | Login / Register avec JWT refresh |
+| Dashboard | HomePage, SessionActive | Score focus polling, planning du jour, session CV active |
+| Planning | PlanningScreen | Calendrier, IA generate, CRUD sessions, exams |
+| Chatbot | ChatbotScreen | Chat RAG, upload docs PDF/CSV |
+| Quiz | Generate, Play, Result | Quiz QCM multi-docs, depuis session, scoring |
+| Flashcards | Generate, Deck, Review | Cartes SM-2, deck par document/session, révision |
+| Sleep | Dashboard, AlarmSettings, AlarmRing | Log sommeil, stats, alarme locale Flutter |
+| Statistics | StatisticsScreen | Graphiques, tendances |
+| Settings | SettingsScreen | Profil, objectifs, avatar |
 
 **State Management** : Riverpod 2.4 (providers par fonctionnalité)  
-**Navigation** : GoRouter avec MainShell (BottomNav)  
+**Navigation** : GoRouter (routes déclaratives)  
 **API Calls** : Dio 5.3 + Interceptor JWT refresh automatique
 
 ---
@@ -126,37 +141,40 @@ Le chatbot RAG fonctionne en 3 phases :
 | FastAPI | Django REST | Performance async, OpenAPI auto-généré |
 | PostgreSQL | MySQL | JSONB natif, meilleure performance queries complexes |
 | ChromaDB | Pinecone | Open-source, local, pas de coût cloud |
-| LangChain | LlamaIndex | Écosystème plus riche, RAG chains flexibles |
-| GPT-3.5-turbo | GPT-4 | Coût x10 moins cher, suffisant pour QA pédagogique |
-| Redis | Memcached | Support pub/sub pour WebSocket future |
+| Groq llama-3.3-70b-versatile | Modèles Gemini/OpenAI | Gratuit, faible latence, très performant pour QA pédagogique |
+| pi_client Python | ESP32-CAM embarqué | ML local plus puissant, plus facile à débugger, pipeline CV complet |
+| HTTP Polling | WebSocket | Plus simple à implémenter, suffisant pour ~3-5s refresh |
 | Riverpod | BLoC | API plus intuitive, provider-first, meilleur async |
 | Dio | http | Interceptors JWT, FormData multipart, retry |
+| GoRouter | Navigator 2.0 | Routing déclaratif, deep linking, type-safe |
 
 ---
 
 ## 9. Plan de Développement – Personne 2
 
-### Phase 1 – Fondations (Semaines 1-3)
+### Phase 1 – Fondations (Semaines 1-3) ✅
 - [x] Setup backend FastAPI + PostgreSQL
 - [x] Modèles SQLAlchemy + migrations Alembic
 - [x] Auth JWT (register, login, refresh)
 - [x] Structure Flutter + Riverpod + GoRouter
 
-### Phase 2 – Features Core (Semaines 4-7)
-- [ ] Session focus + WebSocket temps réel
-- [ ] Dashboard Flutter + charts
-- [ ] Planning CRUD + génération IA basique
+### Phase 2 – Features Core (Semaines 4-7) ✅
+- [x] Session focus (polling pi_client via Vision router)
+- [x] Dashboard Flutter (home_page avec bottom navigation)
+- [x] Planning CRUD + génération IA (pipeline hybride)
 
-### Phase 3 – IA & Intégration (Semaines 8-11)
-- [ ] Pipeline RAG complet (LangChain + ChromaDB)
-- [ ] Quiz auto-générés + Flashcards SM-2
-- [ ] Planning adaptatif (IA + données sommeil)
-- [ ] Intégration résultats ML Personne 1
+### Phase 3 – IA & Intégration (Semaines 8-11) ✅
+- [x] Pipeline RAG complet (Groq + HuggingFace embeddings + ChromaDB)
+- [x] Quiz auto-générés (multi-docs, depuis session)
+- [x] Flashcards SM-2 (generate, deck, review)
+- [x] Planning adaptatif (IA + données sommeil)
+- [x] Intégration pi_client (vision router, snapshots, events)
 
-### Phase 4 – Finition (Semaines 12-14)
+### Phase 4 – Finition (Semaines 12-14) ⚠️ En cours
 - [ ] Tests end-to-end
 - [ ] Optimisation performance
-- [ ] Documentation + démo
+- [x] Documentation + conception mise à jour
+- [ ] Démo finale
 
 ---
 
@@ -164,11 +182,11 @@ Le chatbot RAG fonctionne en 3 phases :
 
 | Risque | Prob. | Impact | Mitigation |
 |--------|-------|--------|------------|
-| Latence OpenAI > 3s | Moyenne | Élevé | Cache Redis, spinner UX |
-| Désynchro WebSocket | Faible | Élevé | Reconnexion auto + polling fallback |
-| ChromaDB mémoire | Faible | Moyen | Limite 100 docs/user |
-| Intégration ML P1 | Moyenne | Élevé | Interface API contractualisée tôt |
-| Coût tokens OpenAI | Moyenne | Moyen | Max tokens + modèle frugal par défaut |
+| Latence API Groq > 3s | Faible | Élevé | Fallback déterministe, spinner UX |
+| Perte de snapshots (réseau) | Faible | Moyen | Payload JSON complet, retry pi_client |
+| ChromaDB mémoire | Faible | Moyen | Limite collections par user |
+| Limites rate Groq API | Faible | Moyen | Max tokens + retry avec backoff |
+| Polling trop fréquent | Faible | Moyen | Throttle à 3-5s, debounce Flutter |
 
 ---
 
@@ -176,13 +194,13 @@ Le chatbot RAG fonctionne en 3 phases :
 
 | Critère | Condition de Succès |
 |---------|---------------------|
-| Score focus temps réel | Latence < 500ms (ESP32 → Flutter) |
+| Score focus temps réel | Latence < 5s (pi_client → Flutter via polling) |
 | Chatbot RAG | Réponse pertinente sur 90% des Q pédagogiques |
-| Planning IA | Génération < 3s |
+| Planning IA | Génération < 5s avec fallback déterministe fiable |
 | Upload document | PDF 50 pages indexé < 30s |
 | Disponibilité | Système stable sur démo 15 minutes |
 | UX | Interface intuitive sans aide externe |
 
 ---
 
-*Document généré automatiquement – Phase de Conception – Smart Focus & Life Assistant*
+*Document mis à jour le 02 Mai 2026 – Phase de Conception – Smart Focus & Life Assistant*

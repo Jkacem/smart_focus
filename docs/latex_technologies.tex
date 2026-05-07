@@ -1,0 +1,169 @@
+\subsection{Choix des technologies}
+
+Le développement du système \textit{Smart Focus} repose sur un ensemble de technologies modernes permettant de garantir performance, modularité et évolutivité. Les technologies retenues sont présentées ci-dessous, regroupées par catégorie.
+
+\subsubsection{Langages de programmation}
+
+\begin{itemize}
+
+\item \textbf{Python :} Langage de programmation largement utilisé dans le développement web, l'intelligence artificielle et le traitement d'images. Dans notre projet, Python est utilisé pour développer le backend avec FastAPI, le pipeline de vision par ordinateur (pi\_client) pour l'analyse en temps réel via caméra, ainsi que les modules d'intelligence artificielle (chatbot RAG, génération de quiz et flashcards, planning intelligent).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/python.png}
+    \caption{Logo Python}
+\end{figure}
+
+\item \textbf{Dart :} Langage de programmation développé par Google, optimisé pour la création d'interfaces utilisateur performantes et multiplateformes. Dans notre projet, Dart est le langage utilisé avec le framework Flutter pour développer l'application mobile Smart Focus (Android et iOS).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/dart.png}
+    \caption{Logo Dart}
+\end{figure}
+
+\end{itemize}
+
+\subsubsection{Frameworks et bibliothèques}
+
+\begin{itemize}
+
+\item \textbf{FastAPI :} Framework Python moderne conçu pour la création d'API REST performantes avec documentation automatique. Dans notre projet, FastAPI gère l'ensemble des services backend : authentification, gestion des sessions de monitoring, planning intelligent, chatbot, quiz, flashcards et suivi du sommeil.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\textwidth]{images/fastapi.jpg}
+    \caption{Logo FastAPI}
+\end{figure}
+
+\item \textbf{Flutter :} Framework open-source de Google pour le développement d'applications mobiles multiplateformes à partir d'un seul code source. Dans notre projet, Flutter est utilisé pour développer l'application mobile qui permet à l'utilisateur de consulter son tableau de bord, gérer son planning, interagir avec le chatbot, réviser ses flashcards et suivre ses sessions de monitoring en temps réel.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/flutter.png}
+    \caption{Logo Flutter}
+\end{figure}
+
+\item \textbf{Riverpod :} Bibliothèque de gestion d'état réactive pour Flutter. Dans notre projet, Riverpod est utilisé pour structurer l'architecture de l'application mobile en séparant la logique métier (providers) de l'interface utilisateur (screens), assurant une gestion propre de l'état de chaque module (authentification, planning, chatbot, vision).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/riverpod.png}
+    \caption{Logo Riverpod}
+\end{figure}
+
+\item \textbf{OpenCV :} Bibliothèque open-source de traitement d'images et de vision par ordinateur. Dans notre projet, OpenCV est utilisé au sein du module pi\_client pour l'acquisition du flux vidéo depuis la caméra et le prétraitement des images avant analyse.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/openCV.png}
+    \caption{Logo OpenCV}
+\end{figure}
+
+\item \textbf{MediaPipe :} Framework de Google pour l'analyse en temps réel de flux multimédia. Dans notre projet, MediaPipe est utilisé dans le pi\_client pour la détection de la pose corporelle et des repères faciaux, permettant le calcul de cinq scores comportementaux : attention, posture, vigilance, stress et focus global.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\textwidth]{images/mediaPipe.png}
+    \caption{Logo MediaPipe}
+\end{figure}
+
+\item \textbf{LangChain :} Framework Python pour le développement d'applications basées sur des modèles de langage. Dans notre projet, LangChain orchestre le pipeline RAG du chatbot : découpage des documents PDF en chunks, génération des embeddings, recherche sémantique et construction du prompt contextuel envoyé au LLM.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/langchain.png}
+    \caption{Logo LangChain}
+\end{figure}
+
+\end{itemize}
+
+\subsubsection{Intelligence artificielle et bases de données}
+
+\begin{itemize}
+
+\item \textbf{Groq :} Plateforme d'inférence LLM haute performance. Dans notre projet, Groq est utilisé pour l'exécution des modèles de langage à travers l'approche \ac{RAG}, permettant au chatbot de répondre aux questions contextualisées à partir des documents indexés, de générer des quiz et des flashcards, et de personnaliser les sujets de révision dans le planning intelligent.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/groq.png}
+    \caption{Logo Groq}
+\end{figure}
+
+\item \textbf{ChromaDB :} Base de données vectorielle open-source. Dans notre projet, ChromaDB stocke les embeddings des chunks de documents PDF indexés et permet la recherche par similarité cosinus lors des requêtes du chatbot, de la génération de quiz et de flashcards.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/chromaDB.png}
+    \caption{Logo ChromaDB}
+\end{figure}
+
+\item \textbf{PostgreSQL :} Système de gestion de base de données relationnelle robuste et open-source. Dans notre projet, PostgreSQL stocke l'ensemble des données structurées : comptes utilisateurs, profils, sessions de travail, snapshots de monitoring, événements de concentration, sessions de planning, examens, documents, messages du chatbot, quiz, flashcards et enregistrements de sommeil.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\textwidth]{images/PostgreSQL.jpg}
+    \caption{Logo PostgreSQL}
+\end{figure}
+
+\end{itemize}
+
+%==================================================
+
+\subsection{Choix des logiciels}
+
+Dans le cadre du développement du projet \textit{Smart Focus}, plusieurs outils logiciels ont été utilisés afin d'assurer un environnement de travail efficace et structuré.
+
+\begin{itemize}
+
+\item \textbf{Visual Studio Code :} Éditeur de code source léger et extensible développé par Microsoft. Dans notre projet, VS Code est l'environnement de développement principal utilisé pour l'implémentation du backend Python, de l'application mobile Flutter et du module pi\_client de vision par ordinateur.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/vs.png}
+    \caption{Visual Studio Code}
+\end{figure}
+
+\item \textbf{Android Studio :} Environnement de développement intégré officiel pour Android. Dans notre projet, Android Studio est utilisé pour la gestion de l'émulateur Android lors des tests de l'application mobile Flutter, ainsi que pour la configuration des SDK nécessaires au build.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/android_studio.png}
+    \caption{Android Studio}
+\end{figure}
+
+\item \textbf{Git et GitHub :} Système de contrôle de version distribué et plateforme d'hébergement de code. Dans notre projet, Git et GitHub assurent le versionnement du code source, structuré en trois répertoires principaux (\texttt{backend/}, \texttt{mobile/}, \texttt{pi\_client/}), avec un historique complet des modifications pour chaque composant.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/gitHub.png}
+    \caption{GitHub}
+\end{figure}
+
+\item \textbf{Docker :} Plateforme de conteneurisation permettant d'isoler et de déployer des applications. Dans notre projet, Docker est utilisé pour conteneuriser les services du backend (FastAPI, PostgreSQL, ChromaDB), garantissant la portabilité de l'environnement et simplifiant le déploiement.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/docker.png}
+    \caption{Docker}
+\end{figure}
+
+\newpage
+
+\item \textbf{Draw.io :} Outil de diagrammes en ligne gratuit et open-source. Dans notre projet, Draw.io a été utilisé pour la conception des diagrammes UML : diagrammes de cas d'utilisation, de classes, de séquence et d'architecture système.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/draw io.png}
+    \caption{Draw.io}
+\end{figure}
+
+\item \textbf{Overleaf :} Plateforme \LaTeX{} collaborative en ligne. Dans notre projet, Overleaf est utilisé pour la rédaction du rapport de projet, permettant un formatage professionnel et une collaboration en temps réel sur le document.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/overleaf.png}
+    \caption{Overleaf}
+\end{figure}
+
+\end{itemize}

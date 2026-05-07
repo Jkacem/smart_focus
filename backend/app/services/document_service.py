@@ -22,30 +22,40 @@ def _uploads_root() -> Path:
     return base
 
 
+_CHUNK_SIZE = 64 * 1024  # 64 KB read chunks
+
+
 def save_upload(file: UploadFile, user_id: int) -> tuple[str, str]:
     """
-    Persist an uploaded PDF to disk.
+    Persist an uploaded file to disk, enforcing the MAX_UPLOAD_MB size limit.
 
-    Args:
-        file:    The FastAPI UploadFile object.
-        user_id: The ID of the authenticated user (used as subfolder).
+    Raises:
+        ValueError: if the file exceeds settings.MAX_UPLOAD_MB.
 
     Returns:
         (file_path, collection_name)
-            file_path       — absolute path where the file was saved
-            collection_name — unique ChromaDB collection identifier
     """
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+
     user_dir = _uploads_root() / str(user_id)
     user_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate a unique collection name (safe for ChromaDB)
     collection_name = f"user{user_id}_{uuid.uuid4().hex[:12]}"
-
-    # Keep original filename but prefix with collection_name to avoid collisions
     safe_filename = f"{collection_name}_{file.filename}"
     file_path = user_dir / safe_filename
 
-    content = file.file.read()
+    # Read in chunks so we never buffer more than max_bytes + one chunk in RAM.
+    content = bytearray()
+    while True:
+        chunk = file.file.read(_CHUNK_SIZE)
+        if not chunk:
+            break
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise ValueError(
+                f"File exceeds the {settings.MAX_UPLOAD_MB} MB upload limit."
+            )
+
     with open(file_path, "wb") as f:
         f.write(content)
 

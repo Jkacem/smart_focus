@@ -1,8 +1,8 @@
 # 📱 Wireframes / Maquettes des Écrans Flutter – Smart Focus & Life Assistant
 
-**Version** : 1.0  
-**Date** : 01 Mars 2026  
-**Phase** : Conception  
+**Version** : 2.0  
+**Date** : 02 Mai 2026  
+**Phase** : Conception (mise à jour post-implémentation)  
 **Framework** : Flutter 3.16 · Dart 3.2 · Material Design 3  
 
 ---
@@ -105,7 +105,7 @@ Flux : Auth échoue → SnackBar rouge
 
 ---
 
-## 3. 🎯 Session Focus Active (Temps Réel)
+## 3. 🎯 Session Monitoring Active (Temps Réel via pi_client)
 
 ```
 ┌─────────────────────────────┐
@@ -126,19 +126,21 @@ Flux : Auth échoue → SnackBar rouge
 │                             │
 │  ┌────────┐ ┌────────┐      │
 │  │Posture │ │Fatigue │      │  ← Mini-cards métriques
-│  │  🟢 85 │ │ 🟢 Low │      │
+│  │  🟢 85 │ │ 🟢 Low │      │    (via polling HTTP)
 │  └────────┘ └────────┘      │
-│  ┌────────┐                 │
-│  │Attention│                │
-│  │  🟡 72 │                 │
-│  └────────┘                 │
+│  ┌────────┐ ┌────────┐      │
+│  │Attention│ │Stress  │      │
+│  │  🟡 72 │ │ 🟢 12 │      │
+│  └────────┘ └────────┘      │
 │                             │
 │  ═══ Alertes Récentes ═══   │
 │  ⚠️ 12:34 Posture corriger  │  ← ListView alertes
-│  ⚠️ 12:21 30min sans pause  │
+│  ⚠️ 12:21 30min sans pause  │    (depuis focus_events)
 │                             │
 │  [ 🧘 Prendre une pause ]   │  ← Bouton pause suggérée
 │                             │
+│  Source: pi_client (polling  │  ← Indicateur connexion
+│   HTTP toutes les 3-5s)      │
 └─────────────────────────────┘
 ```
 
@@ -342,12 +344,12 @@ graph TD
     MAIN --> S["📈 Statistiques"]
     MAIN --> SET["⚙️ Paramètres"]
 
-    D --> FS["FocusSessionScreen\n(temps réel)"]
+    D --> FS["SessionActiveScreen\n(polling pi_client)"]
     P --> PS["PlanningDetailScreen"]
     C --> DOC["DocumentsScreen"]
-    C --> QUIZ["QuizScreen"]
-    C --> FC["FlashcardsScreen"]
-    S --> SLEEP["SleepDetailScreen"]
+    C --> QUIZ["QuizScreen\n(Generate → Play → Result)"]
+    C --> FC["FlashcardsScreen\n(Generate → Deck → Review)"]
+    S --> SLEEP["SleepDashboard\n(Dashboard → Alarm → Ring)"]
 
     style ROOT fill:#e94560,color:#fff
     style MAIN fill:#6C63FF,color:#fff

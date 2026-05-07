@@ -13,13 +13,8 @@ import '../providers/quiz_provider.dart';
 
 class QuizResultScreen extends ConsumerStatefulWidget {
   final int quizId;
-  final QuizResultModel result;
 
-  const QuizResultScreen({
-    Key? key,
-    required this.quizId,
-    required this.result,
-  }) : super(key: key);
+  const QuizResultScreen({Key? key, required this.quizId}) : super(key: key);
 
   @override
   ConsumerState<QuizResultScreen> createState() => _QuizResultScreenState();
@@ -73,7 +68,21 @@ class _QuizResultScreenState extends ConsumerState<QuizResultScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final result = widget.result;
+    final result = ref.watch(lastQuizResultProvider);
+    if (result == null) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF0a1628), Color(0xFF1a3a4a), Color(0xFF0d2635)],
+            ),
+          ),
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
     final isPassed = result.percentage >= 50.0;
     final scoreColor = isPassed
         ? const Color(0xFF4ade80)

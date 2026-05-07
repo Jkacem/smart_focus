@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:smart_focus/core/services/notification_service.dart';
+import 'package:smart_focus/features/auth/providers/user_profile_provider.dart';
 import 'package:smart_focus/features/planning/data/planning_repository.dart';
 import 'package:smart_focus/features/planning/providers/planning_provider.dart';
 import 'package:smart_focus/shared/widgets/custom_app_bar.dart';
@@ -323,6 +325,14 @@ class _SessionActiveScreenState extends ConsumerState<SessionActiveScreen> {
           workSessionId,
           summary: _buildFinalizeSummary(snapshot, runtime),
         );
+        // Fire focus alert notification if the user has it enabled.
+        final profile = ref.read(userProfileProvider).profile;
+        if (profile != null && profile.notifEnabled && profile.focusAlertsEnabled) {
+          NotificationService.instance.showFocusSessionEnd(
+            focusScore: snapshot?.globalFocusScore?.round() ?? 0,
+            durationSeconds: runtime.elapsedSeconds,
+          ).ignore();
+        }
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

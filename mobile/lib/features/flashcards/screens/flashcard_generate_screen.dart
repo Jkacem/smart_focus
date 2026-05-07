@@ -29,15 +29,17 @@ class FlashcardGenerateScreen extends ConsumerStatefulWidget {
 
 class _FlashcardGenerateScreenState extends ConsumerState<FlashcardGenerateScreen> {
   int _numCards = 10;
+  late final FlashcardGeneratorNotifier _generatorNotifier;
 
   bool get _fromSession => widget.sessionId != null;
 
   @override
   void initState() {
     super.initState();
+    _generatorNotifier = ref.read(flashcardGeneratorProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(flashcardGeneratorProvider.notifier).reset();
+      _generatorNotifier.reset();
     });
   }
 
@@ -77,7 +79,7 @@ class _FlashcardGenerateScreenState extends ConsumerState<FlashcardGenerateScree
 
   @override
   void dispose() {
-    ref.read(flashcardGeneratorProvider.notifier).reset();
+    _generatorNotifier.reset();
     super.dispose();
   }
 

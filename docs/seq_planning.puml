@@ -1,0 +1,55 @@
+@startuml seq_planning
+' ============================================================
+' BCE : Boundary → Control → Entity
+' Boundary  🖥️  Interface de planning
+' Control   ⚙️  PlanningController / PlanningAIService / GeminiClient
+' Entity    🗄️  Base de Données
+' ============================================================
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 8
+skinparam sequenceParticipantBorderColor #2C3E50
+skinparam sequenceParticipantBackgroundColor #ECF0F1
+skinparam noteBorderColor #F39C12
+skinparam noteBackgroundColor #FDEBD0
+
+title Processus de génération du planning intelligent
+
+actor Utilisateur
+participant B   as "🖥️ Interface de planning"   <<Boundary>>
+participant C   as "⚙️ PlanningController"       <<Control>>
+participant AI  as "⚙️ PlanningAIService"        <<Control>>
+participant LLM as "⚙️ GeminiClient"            <<Control>>
+participant E   as "🗄️ Base de Données"          <<Entity>>
+
+Utilisateur -> B : Demander "Générer Planning"
+B -> C : générerPlanning(date, documentId?)
+C -> E : supprimerSessionsIA(date)
+C -> E : chargerContexte(profil, sessions, examens, sommeil, focus)
+
+alt Document CSV fourni
+    C -> AI : analyserCSV(date, typeSemaine)
+    AI -> AI : calculerCréneauxLibres(8h-22h,\nbuffer 15 min autour des cours)
+    AI -> AI : construireRévisions(sommeil, focus,\nexamens, flashcards, quiz)
+    AI -> LLM : personnaliserSujets(créneaux, cours)
+    LLM --> AI : Assignations sujets/priorités (JSON)
+else Sans document
+    C -> AI : générerPlanningLibre(date, profil)
+    AI -> LLM : assignerSujets(créneauxLibres, préférences)
+    LLM --> AI : Sujets assignés (JSON)
+end
+
+alt GeminiClient échoue ou JSON invalide
+    AI -> AI : Fallback déterministe\n(créneaux libres → sessions génériques)
+end
+
+AI --> C : Sessions générées
+
+loop Pour chaque session
+    C -> E : insérerSession(sujet, début, fin, ia=vrai)
+end
+
+C --> B : Planning généré
+B --> Utilisateur : Afficher le planning ✅
+
+@enduml

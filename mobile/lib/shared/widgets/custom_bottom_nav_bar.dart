@@ -40,38 +40,39 @@ class CustomBottomNavBar extends StatelessWidget {
                 ),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: List.generate(icons.length, (index) {
                   final isSelected = selectedIndex == index;
-                  return GestureDetector(
-                    onTap: () => onItemTapped(index),
-                    behavior: HitTestBehavior.opaque,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Colors.white.withOpacity(0.2)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                  color: Colors.white.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  spreadRadius: 2,
-                                )
-                              ]
-                            : [],
-                      ),
-                      child: Icon(
-                        icons[index],
-                        color: isSelected ? Colors.white : Colors.white60,
-                        size: isSelected ? 28 : 24,
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => onItemTapped(index),
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.white.withOpacity(0.2)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    spreadRadius: 2,
+                                  )
+                                ]
+                              : [],
+                        ),
+                        child: Icon(
+                          icons[index],
+                          color: isSelected ? Colors.white : Colors.white60,
+                          size: isSelected ? 26 : 22,
+                        ),
                       ),
                     ),
                   );

@@ -1,8 +1,11 @@
 // lib/features/sleep/providers/sleep_provider.dart
 
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/storage/token_storage.dart';
 import '../services/sleep_service.dart';
 import '../models/sleep_models.dart';
 
@@ -113,15 +116,33 @@ class ManualSleepSessionNotifier extends StateNotifier<ManualSleepSessionState> 
     _restoreSleepStart();
   }
 
-  static const _sleepStartKey = 'sleep_start';
-
   final Ref _ref;
   final SleepService _service;
 
+  /// Returns a SharedPreferences key scoped to the current user so that
+  /// switching accounts never leaks one user's sleep session into another.
+  Future<String> _sleepKey() async {
+    final storage = _ref.read(tokenStorageProvider);
+    final token = await storage.getAccessToken();
+    if (token != null) {
+      try {
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final payload = base64Url.normalize(parts[1]);
+          final data = json.decode(utf8.decode(base64Url.decode(payload))) as Map<String, dynamic>;
+          final sub = data['sub'];
+          if (sub != null) return 'sleep_start_$sub';
+        }
+      } catch (_) {}
+    }
+    return 'sleep_start';
+  }
+
   Future<void> _restoreSleepStart() async {
     try {
+      final key = await _sleepKey();
       final prefs = await SharedPreferences.getInstance();
-      final savedSleepStart = prefs.getString(_sleepStartKey);
+      final savedSleepStart = prefs.getString(key);
       final sleepStart = savedSleepStart == null
           ? null
           : DateTime.tryParse(savedSleepStart);
@@ -151,8 +172,9 @@ class ManualSleepSessionNotifier extends StateNotifier<ManualSleepSessionState> 
     state = state.copyWith(isSubmitting: true);
 
     try {
+      final key = await _sleepKey();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_sleepStartKey, sleepStart.toIso8601String());
+      await prefs.setString(key, sleepStart.toIso8601String());
       state = state.copyWith(
         sleepStart: sleepStart,
         isLoading: false,
@@ -180,8 +202,9 @@ class ManualSleepSessionNotifier extends StateNotifier<ManualSleepSessionState> 
         sleepEnd: sleepEnd,
       );
 
+      final key = await _sleepKey();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_sleepStartKey);
+      await prefs.remove(key);
 
       state = state.copyWith(
         clearSleepStart: true,

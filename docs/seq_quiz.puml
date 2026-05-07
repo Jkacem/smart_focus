@@ -1,0 +1,45 @@
+@startuml seq_quiz
+' ============================================================
+' BCE : Boundary → Control → Entity
+' Boundary  🖥️  Interface quiz
+' Control   ⚙️  QuizController / RAGService / GeminiClient
+' Entity    🗄️  Base de Données
+' ============================================================
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 8
+skinparam sequenceParticipantBorderColor #2C3E50
+skinparam sequenceParticipantBackgroundColor #ECF0F1
+skinparam noteBorderColor #F39C12
+skinparam noteBackgroundColor #FDEBD0
+
+title Processus de génération de quiz
+
+actor Utilisateur
+participant B   as "🖥️ Interface quiz"           <<Boundary>>
+participant C   as "⚙️ QuizController"           <<Control>>
+participant RAG as "⚙️ RAGService"              <<Control>>
+participant LLM as "⚙️ GeminiClient"            <<Control>>
+participant E   as "🗄️ Base de Données"          <<Entity>>
+
+Utilisateur -> B : "Générer un Quiz"
+B -> C : générerQuiz(documentId, nombreQuestions)
+C -> RAG : générerQuiz(collection, nombreQuestions)
+
+RAG -> RAG : Récupérer chunks diversifiés (k=30)\nÉchantillonner pour diversité thématique
+RAG -> LLM : promptGénérationQCM(contenu)
+note right of LLM : Génère exactement N questions\navec options A/B/C/D,\ncorrect_index, explanation
+LLM --> RAG : Questions structurées (JSON)
+RAG -> RAG : Parser et valider le JSON\n(4 options, 0 ≤ correct_index ≤ 3)
+RAG --> C : Quiz généré (questions validées)
+
+C -> E : insérerQuiz(utilisateur, document, titre)
+loop Pour chaque question
+    C -> E : insérerQuestion(quizId, question, options, correct)
+end
+E --> C : Quiz persisté
+
+C --> B : Quiz prêt
+B --> Utilisateur : Afficher quiz interactif 📝
+
+@enduml

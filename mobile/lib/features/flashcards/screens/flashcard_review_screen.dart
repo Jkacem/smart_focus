@@ -285,32 +285,37 @@ class _FlashcardReviewScreenState extends ConsumerState<FlashcardReviewScreen>
               width: 1.5,
             ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                isBack ? 'ANSWER' : 'QUESTION',
-                style: TextStyle(
-                  color: isBack
-                      ? const Color(0xFF97cad8)
-                      : Colors.white.withOpacity(0.4),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2,
-                ),
+          child: Center(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isBack ? 'ANSWER' : 'QUESTION',
+                    style: TextStyle(
+                      color: isBack
+                          ? const Color(0xFF97cad8)
+                          : Colors.white.withOpacity(0.4),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    isBack ? card.back : card.front,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w500,
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              Text(
-                isBack ? card.back : card.front,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w500,
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
       ),

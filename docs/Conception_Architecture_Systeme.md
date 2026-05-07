@@ -1,8 +1,8 @@
 # 🏗️ Diagramme d'Architecture Système – Smart Focus & Life Assistant
 
-**Version** : 1.0  
-**Date** : 01 Mars 2026  
-**Phase** : Conception  
+**Version** : 2.0  
+**Date** : 02 Mai 2026  
+**Phase** : Conception (mise à jour post-implémentation)  
 
 ---
 
@@ -10,16 +10,14 @@
 
 ```mermaid
 graph TB
-    subgraph HW["🔧 Couche Hardware — Boîtier ESP32"]
-        ESP32["ESP32-CAM\n(WiFi + Caméra)"]
-        SENS["Capteurs\nMAX30102 · Micro INMP441\nPression · Température"]
-        TFT["Écran TFT ILI9341\n+ LEDs WS2812B\n+ Haut-parleur MAX98357A"]
-        ESP32 --> SENS
-        ESP32 --> TFT
+    subgraph HW["🔧 Couche Vision — pi_client (Python)"]
+        PI["pi_client\n(Raspberry Pi / PC)\nMediaPipe + OpenCV"]
+        CAM["Caméra USB\n(capture vidéo)"]
+        CAM --> PI
     end
 
     subgraph MOBILE["📱 Couche Client — Application Flutter"]
-        DASH["Dashboard\nTemps réel"]
+        DASH["Dashboard\nTemps réel (polling)"]
         PLAN["Planning\nIntelli­gent"]
         CHAT["Chatbot\nRAG"]
         STATS["Statistiques\n& Rapports"]
@@ -28,56 +26,49 @@ graph TB
 
     subgraph BACKEND["⚙️ Couche Backend — FastAPI (Python)"]
         API["API REST\nFastAPI"]
-        WS["WebSocket\n/ws/realtime"]
         AUTH["Auth Module\nJWT + OAuth2"]
-        FOCUS_SVC["Focus Service"]
-        PLAN_SVC["Planning AI Service"]
-        RAG_SVC["RAG Service\n(LangChain)"]
+        VISION_SVC["Vision Ingestion\nSnapshots + Events"]
+        PLAN_SVC["Planning AI Service\nGroq + déterministe"]
+        RAG_SVC["RAG Service\n(Chroma + Groq)"]
         SLEEP_SVC["Sleep Service"]
-        ML_SVC["ML Service\n(MediaPipe / TF)"]
     end
 
     subgraph DATA["🗄️ Couche Données"]
         PG[("PostgreSQL\nBase principale")]
-        REDIS[("Redis\nCache & Sessions")]
         CHROMA[("ChromaDB\nVecteurs embeddings")]
         FILES["Fichiers\n(PDFs uploadés)"]
     end
 
     subgraph AI["🤖 Couche IA Externe"]
-        OPENAI["OpenAI API\nGPT-3.5 / GPT-4\ntext-embedding-3"]
+        GROQ["Groq API\nllama-3.3-70b-versatile"]
     end
 
-    %% Hardware → Backend
-    ESP32 -->|"HTTP POST\n(images + capteurs)"| API
-    ESP32 <-->|"MQTT / WebSocket\n(commandes)"| WS
+    %% pi_client → Backend
+    PI -->|"HTTP POST\n(snapshots JSON + events)"| API
 
     %% Mobile → Backend
     AUTH_UI -->|"HTTPS"| AUTH
-    DASH <-->|"WebSocket"| WS
+    DASH -->|"HTTP Polling\n(GET /sessions/{id}/latest)"| VISION_SVC
     PLAN -->|"REST"| PLAN_SVC
     CHAT -->|"REST"| RAG_SVC
     STATS -->|"REST"| API
-    FOCUS_SVC -->|"WebSocket push"| DASH
 
     %% Backend → Data
     API --> PG
-    API --> REDIS
     RAG_SVC --> CHROMA
     RAG_SVC --> FILES
 
     %% Backend → AI
-    RAG_SVC -->|"Embeddings + LLM"| OPENAI
-    PLAN_SVC -->|"LLM Planning"| OPENAI
-    ML_SVC -->|"MediaPipe / TF local"| FOCUS_SVC
+    RAG_SVC -->|"LLM (RAG)"| GROQ
+    PLAN_SVC -->|"LLM (personnalisation sujets)"| GROQ
+    PI -->|"MediaPipe / OpenCV local"| PI
 
     %% Internal Backend
     API --> AUTH
-    API --> FOCUS_SVC
+    API --> VISION_SVC
     API --> PLAN_SVC
     API --> RAG_SVC
     API --> SLEEP_SVC
-    API --> ML_SVC
 
     style HW fill:#1a1a2e,stroke:#e94560,color:#fff
     style MOBILE fill:#16213e,stroke:#0f3460,color:#fff
@@ -90,35 +81,22 @@ graph TB
 
 ## 2. Architecture par Couche (Détail)
 
-### 2.1 🔧 Couche Hardware (ESP32)
+### 2.1 🔧 Couche Vision (pi_client)
 
 ```mermaid
 graph LR
-    subgraph ESP32_DETAIL["ESP32-CAM Module"]
-        CAM["🎥 Caméra OV2640\n(640×480, 30fps)"]
-        WIFI["📡 WiFi 802.11 b/g/n"]
-        MCU["🧠 MCU ESP32\n(FreeRTOS)"]
+    subgraph PI_DETAIL["pi_client (Python)"]
+        CAM["🎥 Caméra USB\n(webcam / Raspberry Pi Camera)"]
+        CV["🧠 Pipeline CV\nMediaPipe Pose + Face\nOpenCV"]
+        SCORE["📊 Calcul Scores\nAttention · Posture\nVigilance · Stress\nFocus Global"]
+        FMT["📝 JSON Formatter\nSnapshot structuré"]
+        CLIENT["🌐 API Client\nHTTP POST vers Backend"]
     end
 
-    subgraph PERIPH["Périphériques"]
-        HR["❤️ MAX30102\nHR + SpO2"]
-        MIC["🎙 INMP441\nMicrophone I2S"]
-        PRESS["⚖️ Capteur Pression\n(Présence bureau)"]
-        SCREEN["🖥 TFT ILI9341\n2.4\" 240×320"]
-        LEDS["💡 NeoPixel WS2812B\nAnneau RGB"]
-        SPK["🔊 MAX98357A\nHaut-parleur I2S"]
-    end
-
-    CAM --> MCU
-    HR --> MCU
-    MIC --> MCU
-    PRESS --> MCU
-    MCU --> SCREEN
-    MCU --> LEDS
-    MCU --> SPK
-    MCU <--> WIFI
-    WIFI -->|"HTTP POST\n(JPEG frame)"| SERVER["Backend API"]
-    WIFI <-->|"WebSocket\ncommandes"| SERVER
+    CAM --> CV --> SCORE --> FMT --> CLIENT
+    CLIENT -->|"POST /vision/snapshots\n(chaque ~0.5s)"| SERVER["Backend API"]
+    CLIENT -->|"POST /vision/events\n(alertes, résumés)"| SERVER
+    CLIENT -->|"POST /sessions\n(début/fin session)"| SERVER
 ```
 
 ### 2.2 ⚙️ Couche Backend (FastAPI)
@@ -126,8 +104,8 @@ graph LR
 ```mermaid
 graph TB
     subgraph FASTAPI["FastAPI Application"]
-        ROUTER["Routers\n/auth /focus /planning\n/chatbot /sleep /posture"]
-        MIDDLE["Middleware\nCORS · Auth JWT · Rate Limit"]
+        ROUTER["Routers\n/auth /planning /chatbot\n/quiz /flashcards /sleep\n/vision /sessions"]
+        MIDDLE["Middleware\nCORS · Auth JWT"]
         DI["Dependency Injection\nDB Session · Current User"]
 
         ROUTER --> MIDDLE
@@ -136,24 +114,22 @@ graph TB
 
     subgraph SERVICES["Services Métier"]
         S1["AuthService\nJWT · bcrypt"]
-        S2["FocusService\nScore temps réel"]
-        S3["MLService\nMediaPipe · OpenCV · TF"]
-        S4["RAGService\nLangChain · ChromaDB"]
-        S5["PlanningAI\nGeneration · Optimisation"]
-        S6["SleepService\nAnalyse & Score"]
-        S7["WebSocketManager\nBroadcast temps réel"]
+        S4["RAGService\nChromaDB · Groq"]
+        S5["PlanningAIService\nPipeline hybride\n(déterministe + Groq)"]
+        S6["SleepService\nLog · Score · Alarme"]
+        S8["SM2Service\nRépétition espacée"]
+        S9["LLMClient (GeminiClient)\nInterface LLM unifiée\n(Groq / Gemini)"]
+        S10["ScheduleParser\nParsing CSV emploi du temps"]
     end
 
     DI --> S1
-    DI --> S2
-    DI --> S3
     DI --> S4
     DI --> S5
     DI --> S6
-    DI --> S7
-
-    S2 --> S3
-    S4 --> S5
+    DI --> S8
+    S5 --> S9
+    S4 --> S9
+    S5 --> S10
 ```
 
 ### 2.3 📱 Couche Application Flutter
@@ -162,47 +138,43 @@ graph TB
 graph TB
     subgraph FLUTTER["Flutter App (Dart 3.2+)"]
         subgraph SCREENS["Screens"]
-            SC1["🔐 AuthScreen"]
-            SC2["📊 DashboardScreen"]
-            SC3["📅 PlanningScreen"]
-            SC4["💬 ChatbotScreen"]
-            SC5["📈 StatsScreen"]
-            SC6["⚙️ SettingsScreen"]
+            SC1["🔐 Auth\n(Welcome · Login · Register)"]
+            SC2["📊 Dashboard\n(HomePage · SessionActive)"]
+            SC3["📅 Planning"]
+            SC4["💬 Chatbot"]
+            SC5["🧠 Quiz\n(Generate · Play · Result)"]
+            SC6["🃏 Flashcards\n(Generate · Deck · Review)"]
+            SC7["🌙 Sleep\n(Dashboard · Alarm · Ring)"]
+            SC8["📈 Statistics"]
+            SC9["⚙️ Settings"]
         end
 
         subgraph STATE["State Management (Riverpod)"]
             P1["authProvider"]
-            P2["focusProvider"]
+            P2["visionProvider\n(polling snapshots)"]
             P3["planningProvider"]
             P4["chatProvider"]
             P5["sleepProvider"]
-            P6["statsProvider"]
         end
 
         subgraph SERVICES_FL["Services"]
-            API_SVC["ApiService (Dio)"]
-            WS_SVC["WebSocketService"]
-            LOCAL["LocalStorage (Hive)"]
-            NOTIF["NotificationService"]
+            API_SVC["ApiService (Dio)\n+ JWT Interceptor"]
+            LOCAL["LocalStorage\n(SharedPreferences)"]
         end
     end
 
-    SC1 --> P1
     SC2 --> P2
     SC3 --> P3
     SC4 --> P4
-    SC5 --> P6
+    SC7 --> P5
 
     P1 --> API_SVC
-    P2 --> WS_SVC
+    P2 --> API_SVC
     P3 --> API_SVC
     P4 --> API_SVC
     P5 --> API_SVC
-    P6 --> API_SVC
 
     API_SVC --> BACKEND_API["Backend API\n(HTTPS)"]
-    WS_SVC <--> BACKEND_WS["WebSocket\n/ws/realtime"]
-    LOCAL --> P2
 ```
 
 ---
@@ -211,26 +183,39 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant ESP as ESP32-CAM
+    participant PI as pi_client
     participant API as Backend API
-    participant ML as ML Service
-    participant WS as WebSocket Manager
+    participant DB as PostgreSQL
     participant APP as Flutter App
 
-    loop Chaque 500ms (session active)
-        ESP->>API: POST /focus/frame {image: base64}
-        API->>ML: analyzeFrame(image)
-        ML-->>API: {posture, fatigue, attention, score}
-        API->>WS: broadcast({focus_score, alerts})
-        WS-->>APP: WebSocket push {score: 87, posture: "good"}
+    Note over PI: Session CV démarrée
+    PI->>API: POST /api/v1/sessions {id, start_time}
+    API->>DB: INSERT INTO work_sessions
+    API-->>PI: 201 {session}
+
+    loop Chaque ~500ms (session active)
+        PI->>PI: Capture frame → MediaPipe → Calcul scores
+        PI->>API: POST /api/v1/vision/snapshots {session_id, scores, observations}
+        API->>DB: INSERT INTO snapshots (attention, posture, vigilance, stress, focus)
+        API-->>PI: 201 OK
+    end
+
+    loop Polling Flutter (chaque 3-5s)
+        APP->>API: GET /api/v1/sessions/{id}/latest
+        API->>DB: SELECT * FROM snapshots ORDER BY timestamp DESC LIMIT 1
+        DB-->>API: Latest snapshot
+        API-->>APP: {attention: 85, posture: 78, vigilance: 90, stress: 12, focus: 82}
         APP->>APP: Mise à jour Dashboard temps réel
     end
 
-    alt Score < 50 (distraction)
-        API->>ESP: POST /device/command {led: "orange", vibrate: true}
-        API->>WS: broadcast({alert: "baisse_concentration"})
-        WS-->>APP: Notification push
+    alt Événement détecté (distraction, fatigue)
+        PI->>API: POST /api/v1/vision/events {event_type, level, description}
+        API->>DB: INSERT INTO focus_events
     end
+
+    Note over PI: Fin de session
+    PI->>API: POST /api/v1/sessions/{id}/finalize {final_score, breakdown}
+    API->>DB: UPDATE work_sessions SET is_active=false, end_time=now()
 ```
 
 ---
@@ -242,19 +227,13 @@ graph LR
     subgraph LOCAL["Développement Local"]
         DEV_BACK["Backend FastAPI\nlocalhost:8000"]
         DEV_DB["PostgreSQL\nlocalhost:5432"]
-        DEV_REDIS["Redis\nlocalhost:6379"]
         DEV_FRONT["Flutter\nAndroid Emulator / Device"]
+        DEV_PI["pi_client\nPC local / Raspberry Pi"]
     end
 
-    subgraph PROD["Production (Optionnel)"]
-        CLOUD["Cloud Server\n(VPS / Railway)"]
-        CLOUD_DB[("PostgreSQL\nManaged DB")]
-        CLOUD_REDIS[("Redis Cloud\nUpstash)"]
-    end
-
-    DEV_FRONT <-->|"HTTP/WS"| DEV_BACK
+    DEV_FRONT <-->|"HTTP"| DEV_BACK
+    DEV_PI -->|"HTTP POST"| DEV_BACK
     DEV_BACK --> DEV_DB
-    DEV_BACK --> DEV_REDIS
 ```
 
 ---
@@ -263,12 +242,31 @@ graph LR
 
 | Couche | Technologie | Rôle |
 |--------|-------------|------|
-| **Hardware** | ESP32-CAM + MicroPython/C++ | Capture images & capteurs |
-| **Backend** | FastAPI (Python 3.11) | API REST + WebSocket |
+| **Vision CV** | pi_client (Python) + MediaPipe + OpenCV | Analyse comportementale en temps réel |
+| **Backend** | FastAPI (Python 3.11) | API REST |
 | **Base de données** | PostgreSQL 15 | Données persistantes |
-| **Cache** | Redis 7 | Sessions, cache temps réel |
 | **Vecteurs** | ChromaDB | Embeddings RAG |
-| **IA NLP** | LangChain + OpenAI | Chatbot RAG & Planning |
-| **ML Vision** | MediaPipe + TensorFlow | Posture + Fatigue |
+| **IA NLP (LLM)** | Groq llama-3.3-70b-versatile | Chatbot RAG & Planning |
+| **Embeddings** | HuggingFace all-MiniLM-L6-v2 (local) | Vectorisation documents RAG |
 | **Mobile** | Flutter 3.16 (Dart 3.2) | Interface utilisateur |
 | **État** | Riverpod 2.4 | State management Flutter |
+| **Navigation** | GoRouter | Routing déclaratif |
+| **HTTP** | Dio 5.3 + JWT Interceptor | Appels API |
+| **Alarmes** | Flutter alarm package | Réveil intelligent local |
+
+---
+
+## 6. Changements par rapport à la v1.0
+
+| Élément | Conception v1.0 | Réalité v2.0 |
+|---------|----------------|--------------|
+| Hardware | ESP32-CAM → Backend ML | pi_client Python fait le ML localement |
+| Communication temps réel | WebSocket `/ws/realtime` | HTTP polling (GET latest snapshot) |
+| ML Backend | MLService interne (MediaPipe/TF) | ML externe (pi_client), backend = ingesteur |
+| Cache | Redis pour sessions/pub-sub | Non utilisé (supprimé de l'architecture) |
+| Scores CV | `posture_score`, `fatigue_score`, `attention_score` | `attention`, `posture`, `vigilance`, `stress_risk`, `global_focus` |
+| Sessions focus | `focus_sessions` table | `work_sessions` + `snapshots` + `focus_events` |
+
+---
+
+*Mis à jour le 02 Mai 2026 — Smart Focus & Life Assistant*

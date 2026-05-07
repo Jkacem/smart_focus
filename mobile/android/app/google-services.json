@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "84063634627",
+    "project_id": "smartfocus-f60de",
+    "storage_bucket": "smartfocus-f60de.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84063634627:android:e1efb996f6e83525d0ce76",
+        "android_client_info": {
+          "package_name": "com.smartfocus.smart_focus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaJnPlUcOKii6Rud512eVnvkTehYv9WWE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_focus/core/router/app_routes.dart';
+import 'package:smart_focus/core/services/notification_service.dart';
 import 'package:smart_focus/features/auth/models/current_user_profile.dart';
 import 'package:smart_focus/features/auth/providers/auth_provider.dart';
 import 'package:smart_focus/features/auth/providers/user_profile_provider.dart';
@@ -778,6 +779,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               sleepReminders: _sleepReminders,
             ),
           );
+
+      // Apply notification preferences immediately after a successful save.
+      final notif = NotificationService.instance;
+      if (_notificationsEnabled && _sleepReminders) {
+        await notif.scheduleSleepReminder();
+      } else {
+        await notif.cancelSleepReminder();
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(
