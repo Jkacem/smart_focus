@@ -1,51 +1,107 @@
 # 📐 Diagramme de Classes – Smart Focus & Life Assistant
 
-**Version** : 4.0  
-**Date** : 06 Mai 2026  
-**Phase** : Conception (mise à jour post-implémentation)  
+**Version** : 5.1  
+**Date** : 13 Mai 2026  
+**Phase** : Conception  
+**Approche** : BCE (Boundary – Control – Entity)
 
 ---
 
-## 1. Vue d'Ensemble Simplifiée
+## 1. Convention BCE
+
+| Stéréotype | Rôle | Classes concernées |
+|:---:|--------|---|
+| `<<Boundary>>` | Point d'entrée / Interface utilisateur | Interfaces Flutter (écrans mobiles), pi_client |
+| `<<Control>>` | Classes métier avec méthodes (logique applicative) | `User`, `UserProfile`, `WorkSession`, `Snapshot`, `FocusEvent`, `StudySession`, `Exam`, `ChatDocument`, `ChatMessage`, `Quiz`, `QuizQuestion`, `Flashcard`, `SleepRecord`, `SmartAlarm`, `SM2Service` |
+| `<<Entity>>` | Données persistantes (stockage) | Base de Données PostgreSQL, ChromaDB |
+
+---
+
+## 2. Vue d'Ensemble BCE en Couches
 
 ```mermaid
 classDiagram
     direction TB
 
-    User --> UserProfile
-    User --> StudySession
-    User --> Exam
-    User --> ChatDocument
-    User --> ChatMessage
-    User --> Quiz
-    User --> Flashcard
-    User --> SleepRecord
-    User --> SmartAlarm
-    User --> WorkSession
+    class InterfaceFlutter {
+        <<Boundary>>
+        Écrans mobiles Flutter
+        Providers Riverpod
+        Services Dio HTTP
+    }
 
-    StudySession "*" --> "*" ChatDocument
-    StudySession --> Quiz
-    StudySession --> Flashcard
+    class PiClient {
+        <<Boundary>>
+        Pipeline OpenCV MediaPipe
+        Analyse locale posture/focus
+        Envoi snapshots au backend
+    }
 
-    Exam --> ChatDocument
+    class PostgreSQL {
+        <<Entity>>
+        Tables ORM SQLAlchemy
+        Persistance relationnelle
+    }
 
-    ChatDocument --> ChatMessage
-    ChatDocument --> Quiz
-    ChatDocument --> Flashcard
+    class ChromaDB {
+        <<Entity>>
+        Collections vectorielles
+        Embeddings HuggingFace
+    }
 
-    Quiz --> QuizQuestion
-    Quiz "*" --> "*" ChatDocument
+    InterfaceFlutter --> User
+    InterfaceFlutter --> StudySession
+    InterfaceFlutter --> ChatDocument
+    InterfaceFlutter --> SleepRecord
+    PiClient --> WorkSession
+    PiClient --> Snapshot
+    PiClient --> FocusEvent
 
-    WorkSession --> Snapshot
-    WorkSession --> FocusEvent
+    User --> PostgreSQL
+    WorkSession --> PostgreSQL
+    StudySession --> PostgreSQL
+    ChatDocument --> PostgreSQL
+    ChatDocument --> ChromaDB
+    Quiz --> PostgreSQL
+    Flashcard --> PostgreSQL
+    SleepRecord --> PostgreSQL
+    SmartAlarm --> PostgreSQL
 
-    PlanningAIService ..> StudySession
-    PlanningAIService ..> UserProfile
+    class User {
+        <<Control>>
+    }
+    class WorkSession {
+        <<Control>>
+    }
+    class StudySession {
+        <<Control>>
+    }
+    class ChatDocument {
+        <<Control>>
+    }
+    class Quiz {
+        <<Control>>
+    }
+    class Flashcard {
+        <<Control>>
+    }
+    class SleepRecord {
+        <<Control>>
+    }
+    class SmartAlarm {
+        <<Control>>
+    }
+    class Snapshot {
+        <<Control>>
+    }
+    class FocusEvent {
+        <<Control>>
+    }
 ```
 
 ---
 
-## 2. Diagramme de Classes Global (Détaillé)
+## 3. Diagramme de Classes Global (Détaillé)
 
 ```mermaid
 classDiagram
@@ -53,6 +109,7 @@ classDiagram
 
     %% ── Authentification ──
     class User {
+        <<Control>>
         +int id
         +String email
         +String hashed_password
@@ -68,6 +125,7 @@ classDiagram
     }
 
     class UserProfile {
+        <<Control>>
         +int id
         +int user_id
         +int daily_focus_goal
@@ -82,6 +140,7 @@ classDiagram
 
     %% ── Vision / Monitoring CV ──
     class WorkSession {
+        <<Control>>
         +String id
         +int user_id
         +DateTime start_time
@@ -94,6 +153,7 @@ classDiagram
     }
 
     class Snapshot {
+        <<Control>>
         +int id
         +String session_id
         +DateTime timestamp
@@ -108,6 +168,7 @@ classDiagram
     }
 
     class FocusEvent {
+        <<Control>>
         +int id
         +String session_id
         +DateTime timestamp
@@ -120,6 +181,7 @@ classDiagram
 
     %% ── Planning Intelligent ──
     class StudySession {
+        <<Control>>
         +int id
         +int user_id
         +Date date
@@ -134,9 +196,16 @@ classDiagram
         +int document_id
         +DateTime created_at
         +DateTime updated_at
-        +create()
-        +update()
-        +complete()
+        +getByDate(userId, date) list~StudySession~
+        +generatePlanning(date, documentId, examIds)
+        +generateWeekPlanning(date, documentId, examIds)
+        +recalculateRevisionSlots(userId, date)
+        +getInsights(period) PlanningInsights
+        +create(subject, start, end, priority)
+        +update(id, subject, start, end, priority, notes)
+        +complete(id)
+        +delete(id)
+        +reschedule(id)
         +getDocumentIds() list~int~
         +getDocumentNames() list~str~
         +getQuizStatus() str
@@ -144,6 +213,7 @@ classDiagram
     }
 
     class Exam {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -152,12 +222,12 @@ classDiagram
         +DateTime created_at
         +DateTime updated_at
         +create()
-        +update()
         +delete()
     }
 
     %% ── Chatbot RAG ──
     class ChatDocument {
+        <<Control>>
         +int id
         +int user_id
         +String filename
@@ -171,6 +241,7 @@ classDiagram
     }
 
     class ChatMessage {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -183,6 +254,7 @@ classDiagram
     }
 
     class Quiz {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -198,6 +270,7 @@ classDiagram
     }
 
     class QuizQuestion {
+        <<Control>>
         +int id
         +int quiz_id
         +String question_text
@@ -208,6 +281,7 @@ classDiagram
     }
 
     class Flashcard {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -226,6 +300,7 @@ classDiagram
 
     %% ── Sommeil & Réveil ──
     class SleepRecord {
+        <<Control>>
         +int id
         +int user_id
         +DateTime sleep_start
@@ -241,6 +316,7 @@ classDiagram
     }
 
     class SmartAlarm {
+        <<Control>>
         +int id
         +int user_id
         +String alarm_time
@@ -254,71 +330,55 @@ classDiagram
     }
 
     %% ── Services IA ──
-    class PlanningAIService {
-        +generateDailySchedule(date, existing, profile, prefs, collection) StudySession[]
-        +computeFreeSlots(date, blocks) TimeSlot[]
-        +fitSessionsIntoSlots(slots, goal) TimeSlot[]
-        +assignSubjectsViaAI(slots, day, prefs, classes) Assignment[]
-        +extractTimetableFromCollection(collection, day) Block[]
-        +deterministicFallback(slots, subjects, prefs) Assignment[]
-    }
-
     class SM2Service {
-        +review(flashcard, quality) SM2Result
+        <<Control>>
+        +sm2_update(quality, repetitions, ease_factor, interval) SM2Result
         +calculateNextReview(ease, interval, reps, quality) SM2Result
-    }
-
-    class GeminiClient {
-        +geminiGenerate(prompt) String
     }
 
     %% ════════════════════════════════════
     %% Relations
     %% ════════════════════════════════════
 
-    User "1" --> "1" UserProfile : possède
-    User "1" --> "*" WorkSession : démarre
-    User "1" --> "*" StudySession : planifie
-    User "1" --> "*" Exam : définit
-    User "1" --> "*" ChatDocument : uploade
-    User "1" --> "*" ChatMessage : envoie
-    User "1" --> "*" Quiz : génère
-    User "1" --> "*" Flashcard : révise
-    User "1" --> "*" SleepRecord : enregistre
-    User "1" --> "0..1" SmartAlarm : configure
+    User "1" --> "1" UserProfile       : possède
+    User "1" --> "*" WorkSession       : démarre
+    User "1" --> "*" StudySession      : planifie
+    User "1" --> "*" Exam              : définit
+    User "1" --> "*" ChatDocument      : uploade
+    User "1" --> "*" ChatMessage       : envoie
+    User "1" --> "*" Quiz              : génère
+    User "1" --> "*" Flashcard         : révise
+    User "1" --> "*" SleepRecord       : enregistre
+    User "1" --> "0..1" SmartAlarm     : configure
 
-    WorkSession "1" --> "*" Snapshot : contient
+    WorkSession "1" --> "*" Snapshot   : contient
     WorkSession "1" --> "*" FocusEvent : génère
 
-    StudySession "*" --> "*" ChatDocument : étudie
-    StudySession "1" --> "0..1" Quiz : génère quiz
-    StudySession "1" --> "*" Flashcard : génère flashcards
+    StudySession "*" --> "*" ChatDocument   : étudie
+    StudySession "1" --> "0..1" Quiz        : génère quiz
+    StudySession "1" --> "*" Flashcard      : génère flashcards
 
-    Exam "*" --> "0..1" ChatDocument : concerne
+    Exam "*" --> "0..1" ChatDocument        : concerne
 
-    ChatDocument "1" --> "*" ChatMessage : contexte pour
-    ChatDocument "1" --> "*" Flashcard : produit
+    ChatDocument "1" --> "*" ChatMessage    : contexte pour
+    ChatDocument "1" --> "*" Flashcard      : produit
 
-    Quiz "1" --> "*" QuizQuestion : contient
-    Quiz "*" --> "*" ChatDocument : générés depuis
+    Quiz "1" --> "*" QuizQuestion           : contient
+    Quiz "*" --> "*" ChatDocument           : générés depuis
 
-    %% Relations Services
-    PlanningAIService ..> StudySession : génère
-    PlanningAIService ..> UserProfile : consulte
-    PlanningAIService ..> ChatDocument : extrait emploi du temps
-    PlanningAIService ..> GeminiClient : utilise
-    SM2Service ..> Flashcard : calcule next_review
+    SM2Service ..> Flashcard                : calcule next_review
 ```
 
 ---
 
-## 3. Diagramme de Classes par Module
+## 4. Diagramme de Classes par Module
 
-### 3.1 🔐 Module Authentification
+### 4.1 🔐 Module Authentification
 
 ```mermaid
 classDiagram
     class User {
+        <<Control>>
         +int id
         +String email
         +String hashed_password
@@ -334,6 +394,7 @@ classDiagram
     }
 
     class UserProfile {
+        <<Control>>
         +int id
         +int user_id
         +int daily_focus_goal
@@ -349,18 +410,21 @@ classDiagram
     User "1" --> "1" UserProfile : possède
 ```
 
-| Classe | Responsabilité |
-|--------|---------------|
-| **User** | Gestion des comptes utilisateurs, authentification JWT. Champs `is_active` pour soft-delete, `role` parmi student/teacher/professional |
-| **UserProfile** | Préférences utilisateur : objectif quotidien, horaire préféré, avatar (data URL), configuration notifications (JSON) |
+**Rôles BCE :**
+
+| Classe | Stéréotype | Responsabilité |
+|--------|:---:|---|
+| `User` | `<<Control>>` | Gestion des comptes, authentification JWT. `role` parmi student/teacher/professional. `is_active` pour soft-delete. |
+| `UserProfile` | `<<Control>>` | Préférences utilisateur : `daily_focus_goal`, `preferred_schedule`, avatar (data URL), notifications (JSON). |
 
 ---
 
-### 3.2 👁️ Module Vision / Monitoring CV
+### 4.2 👁️ Module Vision / Monitoring CV
 
 ```mermaid
 classDiagram
     class WorkSession {
+        <<Control>>
         +String id
         +int user_id
         +DateTime start_time
@@ -373,6 +437,7 @@ classDiagram
     }
 
     class Snapshot {
+        <<Control>>
         +int id
         +String session_id
         +DateTime timestamp
@@ -387,6 +452,7 @@ classDiagram
     }
 
     class FocusEvent {
+        <<Control>>
         +int id
         +String session_id
         +DateTime timestamp
@@ -397,23 +463,26 @@ classDiagram
         +ingest()
     }
 
-    WorkSession "1" --> "*" Snapshot : contient
+    WorkSession "1" --> "*" Snapshot   : contient
     WorkSession "1" --> "*" FocusEvent : génère
 ```
 
-| Classe | Responsabilité |
-|--------|---------------|
-| **WorkSession** | Session de monitoring CV créée par le pi_client. L'ID est un UUID string (non auto-incrémenté). Le `user_id` est nullable pour permettre la création par le pi_client non authentifié, puis la réclamation par un user mobile. Le `metadata_json` stocke la configuration et le résumé final de session. |
-| **Snapshot** | Point de mesure comportemental envoyé toutes les ~500ms par le pi_client. Contient 5 scores composites (attention, posture, vigilance, stress, focus global) et le payload brut complet. |
-| **FocusEvent** | Événement discret (alerte, changement de mode, résumé de session) avec un niveau de sévérité (info/warning/critical). |
+**Rôles BCE :**
+
+| Classe | Stéréotype | Responsabilité |
+|--------|:---:|---|
+| `WorkSession` | `<<Control>>` | Session de monitoring créée par le pi_client. ID = UUID string. `user_id` nullable (réclamé via `claimUser()`). `metadata_json` stocke la config et le résumé final. |
+| `Snapshot` | `<<Control>>` | Point de mesure ~500ms par le pi_client. 5 scores composites + payload brut. Méthode `ingest()` persiste en base. |
+| `FocusEvent` | `<<Control>>` | Événement discret (alerte, changement de mode) avec niveau info/warning/critical. Méthode `ingest()` persiste en base. |
 
 ---
 
-### 3.3 📅 Module Planning Intelligent
+### 4.3 📅 Module Planning Intelligent
 
 ```mermaid
 classDiagram
     class StudySession {
+        <<Control>>
         +int id
         +int user_id
         +Date date
@@ -428,9 +497,16 @@ classDiagram
         +int document_id
         +DateTime created_at
         +DateTime updated_at
-        +create()
-        +update()
-        +complete()
+        +getByDate(userId, date) list~StudySession~
+        +generatePlanning(date, documentId, examIds)
+        +generateWeekPlanning(date, documentId, examIds)
+        +recalculateRevisionSlots(userId, date)
+        +getInsights(period) PlanningInsights
+        +create(subject, start, end, priority)
+        +update(id, subject, start, end, priority, notes)
+        +complete(id)
+        +delete(id)
+        +reschedule(id)
         +getDocumentIds() list~int~
         +getDocumentNames() list~str~
         +getQuizStatus() str
@@ -438,6 +514,7 @@ classDiagram
     }
 
     class Exam {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -446,39 +523,30 @@ classDiagram
         +DateTime created_at
         +DateTime updated_at
         +create()
-        +update()
         +delete()
     }
 
-    class PlanningAIService {
-        +generateDailySchedule(date, existing, profile, prefs, collection) StudySession[]
-        +computeFreeSlots(date, blocks) TimeSlot[]
-        +fitSessionsIntoSlots(slots, goal) TimeSlot[]
-        +assignSubjectsViaAI(slots, day, prefs, classes) Assignment[]
-        +extractTimetableFromCollection(collection, day) Block[]
-        +deterministicFallback(slots, subjects, prefs) Assignment[]
-    }
-
-    StudySession "*" --> "*" ChatDocument : documents étudiés
-    StudySession "1" --> "0..1" Quiz : quiz généré
-    StudySession "1" --> "*" Flashcard : flashcards générées
-    Exam "*" --> "0..1" ChatDocument : concerne
-    PlanningAIService ..> StudySession : génère
+    StudySession "*" --> "*" ChatDocument   : documents étudiés
+    StudySession "1" --> "0..1" Quiz        : quiz généré
+    StudySession "1" --> "*" Flashcard      : flashcards générées
+    Exam "*" --> "0..1" ChatDocument        : concerne
 ```
 
-| Classe | Responsabilité |
-|--------|---------------|
-| **StudySession** | Session d'étude planifiée avec sujet, horaires, priorité (low/medium/high), statut (pending/in_progress/completed/cancelled). Peut être générée par l'IA ou créée manuellement. Liée à plusieurs documents (relation *-*) et peut générer quiz/flashcards. |
-| **Exam** | Examen défini par l'utilisateur avec date cible, utilisé pour intensifier la planification de révision |
-| **PlanningAIService** | Pipeline hybride : (1) Calcul déterministe des créneaux libres (8h-22h, buffer 15min), (2) Fit des sessions selon le focus_goal du profil, (3) Groq assigne les sujets/priorités aux créneaux pré-calculés, (4) Fallback déterministe en cas d'échec IA. Supporte extraction timetable PDF via RAG+Groq et parsing CSV. |
+**Rôles BCE :**
+
+| Classe | Stéréotype | Responsabilité |
+|--------|:---:|---|
+| `StudySession` | `<<Control>>` | Session d'étude planifiée. Gère le cycle de vie complet : `create()`, `update()`, `complete()`, `delete()`, `reschedule()`. Pilote aussi la génération IA via `generatePlanning()` (CSV / PDF / sans document + fallback déterministe) et l'adaptation en temps réel via `recalculateRevisionSlots()`. |
+| `Exam` | `<<Control>>` | Examen défini par l'utilisateur avec date cible. Utilisé par `StudySession.generatePlanning()` pour intensifier les révisions à l'approche de la date d'examen. |
 
 ---
 
-### 3.4 💬 Module Chatbot RAG
+### 4.4 💬 Module Chatbot RAG
 
 ```mermaid
 classDiagram
     class ChatDocument {
+        <<Control>>
         +int id
         +int user_id
         +String filename
@@ -492,6 +560,7 @@ classDiagram
     }
 
     class ChatMessage {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -504,6 +573,7 @@ classDiagram
     }
 
     class Quiz {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -519,6 +589,7 @@ classDiagram
     }
 
     class QuizQuestion {
+        <<Control>>
         +int id
         +int quiz_id
         +String question_text
@@ -529,6 +600,7 @@ classDiagram
     }
 
     class Flashcard {
+        <<Control>>
         +int id
         +int user_id
         +int document_id
@@ -545,27 +617,38 @@ classDiagram
         +updateSM2()
     }
 
+    class SM2Service {
+        <<Control>>
+        +sm2_update(quality, repetitions, ease_factor, interval) SM2Result
+        +calculateNextReview(ease, interval, reps, quality) SM2Result
+    }
+
     ChatDocument "1" --> "*" ChatMessage : contexte pour
-    ChatDocument "1" --> "*" Flashcard : produit
-    Quiz "1" --> "*" QuizQuestion : contient
-    Quiz "*" --> "*" ChatDocument : générés depuis
+    ChatDocument "1" --> "*" Flashcard   : produit
+    Quiz "1" --> "*" QuizQuestion        : contient
+    Quiz "*" --> "*" ChatDocument        : générés depuis
+    SM2Service ..> Flashcard             : calcule next_review
 ```
 
-| Classe | Responsabilité |
-|--------|---------------|
-| **ChatDocument** | Document PDF uploadé, indexé dans ChromaDB via une collection dédiée (`chroma_collection`). Stocke `page_count` au lieu du nombre de chunks |
-| **ChatMessage** | Échange Q&A : stocke la `question` et la `answer` (pas de rôle séparé), avec des `sources` JSON citant les chunks utilisés |
-| **Quiz** | Quiz QCM auto-généré depuis un ou plusieurs documents (relation *-*). Supporte la soumission (`score`, `completed_at`) |
-| **QuizQuestion** | Question QCM : `question_text`, `options` (JSON array), `correct_index` (0-based), `user_answer_index` pour la réponse de l'utilisateur |
-| **Flashcard** | Carte de révision avec algorithme SM-2 : `ease_factor`, `interval` (jours), `repetitions`, `next_review`. Peut être liée à une session d'étude via `source_session_id` |
+**Rôles BCE :**
+
+| Classe | Stéréotype | Responsabilité |
+|--------|:---:|---|
+| `ChatDocument` | `<<Control>>` | Document PDF/CSV indexé. `upload()` sauvegarde le fichier. `parse()` découpe en chunks + embeddings HuggingFace → ChromaDB. `delete()` purge disque + ChromaDB + PostgreSQL. |
+| `ChatMessage` | `<<Control>>` | Échange Q&A. `send()` envoie la question. `generateResponse()` orchestre la recherche sémantique ChromaDB + appel LLM. |
+| `Quiz` | `<<Control>>` | Quiz QCM multi-documents. `generate()` appelle le LLM. `submit()` enregistre les réponses. `evaluate()` calcule le score et le `weakness_score`. |
+| `QuizQuestion` | `<<Control>>` | Question QCM : `options` (JSON array), `correct_index` (0-based), `user_answer_index` pour la réponse utilisateur. |
+| `Flashcard` | `<<Control>>` | Carte SM-2. `generate()` crée les cartes via LLM. `review()` reçoit la qualité (0–5). `updateSM2()` recalcule `ease_factor`, `interval`, `next_review`. |
+| `SM2Service` | `<<Control>>` | Algorithme SM-2 de répétition espacée. `sm2_update()` renvoie les nouveaux paramètres (repetitions, ease_factor, interval, next_review). |
 
 ---
 
-### 3.5 🌙 Module Sommeil & Réveil
+### 4.5 🌙 Module Sommeil & Réveil
 
 ```mermaid
 classDiagram
     class SleepRecord {
+        <<Control>>
         +int id
         +int user_id
         +DateTime sleep_start
@@ -581,6 +664,7 @@ classDiagram
     }
 
     class SmartAlarm {
+        <<Control>>
         +int id
         +int user_id
         +String alarm_time
@@ -594,57 +678,62 @@ classDiagram
     }
 
     SleepRecord ..> SmartAlarm : influence le réveil
+    SleepRecord ..> StudySession : adapte la planification
 ```
 
-| Classe | Responsabilité |
-|--------|---------------|
-| **SleepRecord** | Données de sommeil (durée, phases, score 0-100). `created_at` ajouté pour le suivi. Score calculé automatiquement. |
-| **SmartAlarm** | Réveil intelligent : horaire (HH:MM), mode (gradual/normal/silent), intensité LED (0-100), activation son. Implémenté via le package Flutter `alarm`. |
+**Rôles BCE :**
+
+| Classe | Stéréotype | Responsabilité |
+|--------|:---:|---|
+| `SleepRecord` | `<<Control>>` | Données de sommeil nuit. `record()` persiste l'enregistrement. `calculateScore()` calcule un score 0–100 selon durée et qualité. Ce score influence `PlanningAIService` (durée/pause/volume des sessions). |
+| `SmartAlarm` | `<<Control>>` | Réveil intelligent. `configure()` enregistre les paramètres. `trigger()` déclenche lumière + son progressif. `snooze()` reporte l'alarme. |
 
 ---
 
-## 4. Résumé des Classes
+## 5. Résumé des Classes
 
-| Module | Classes | Total Attributs | Total Méthodes |
-|--------|:-------:|:---------------:|:--------------:|
-| 🔐 Authentification | 2 | 16 | 6 |
-| 👁️ Vision / CV | 3 | 22 | 5 |
-| 📅 Planning Intelligent | 2 | 18 | 14 |
-| 💬 Chatbot RAG | 4 | 27 | 14 |
-| 🌙 Sommeil & Réveil | 2 | 16 | 6 |
-| 🔧 Services IA | 3 | 0 | 11 |
-| **Total** | **16** | **99** | **56** |
+| Module | Classes `<<Control>>` | Attributs | Méthodes |
+|--------|:---:|:---:|:---:|
+| 🔐 Authentification | `User`, `UserProfile` | 16 | 6 |
+| 👁️ Vision / CV | `WorkSession`, `Snapshot`, `FocusEvent` | 22 | 5 |
+| 📅 Planning | `StudySession`, `Exam` | 18 | 15 |
+| 💬 Chatbot RAG | `ChatDocument`, `ChatMessage`, `Quiz`, `QuizQuestion`, `Flashcard`, `SM2Service` | 27 | 16 |
+| 🌙 Sommeil & Réveil | `SleepRecord`, `SmartAlarm` | 16 | 6 |
+| **Total** | **15 classes `<<Control>>`** | **99** | **50** |
 
 ---
 
-## 5. Types de Relations Utilisées
+## 6. Types de Relations Utilisées
 
 | Relation | Notation UML | Exemple |
-|----------|:------------:|---------| 
-| **Association 1→N** | `"1" --> "*"` | User → StudySession |
-| **Association N→N** | `"*" --> "*"` | Quiz ↔ ChatDocument |
-| **Composition** | `"1" --> "*"` | Quiz → QuizQuestion |
-| **Dépendance** | `..>` | PlanningAIService ..> StudySession |
+|----------|:------------:|---------|
+| **Association 1→1** | `"1" --> "1"` | `User` → `UserProfile` |
+| **Association 1→N** | `"1" --> "*"` | `User` → `StudySession` |
+| **Association N→N** | `"*" --> "*"` | `Quiz` ↔ `ChatDocument` |
+| **Composition** | `"1" --> "*"` | `Quiz` → `QuizQuestion` |
+| **Dépendance** | `..>` | `PlanningAIService` ..> `StudySession` |
 
 ---
 
-## 6. Changements Majeurs (v2.0 → v3.0)
+## 7. Correspondance BCE ↔ Couches Techniques
+
+| Stéréotype BCE | Couche technique | Exemples concrets |
+|:---:|---|---|
+| `<<Boundary>>` | Flutter (Riverpod + Dio) / pi_client (OpenCV + MediaPipe) | Écrans Flutter, providers, services Dio |
+| `<<Control>>` | Classes du diagramme de classes | `User.register()`, `Snapshot.ingest()`, `Flashcard.updateSM2()` |
+| `<<Entity>>` | PostgreSQL (SQLAlchemy ORM) + ChromaDB | Tables SQL, collections vectorielles |
+
+---
+
+## 8. Historique des Versions
 
 | Changement | Détails |
 |-----------|---------|
-| Module Focus supprimé | `FocusSession`, `FocusScore`, `FocusAlert` remplacés par `WorkSession`, `Snapshot`, `FocusEvent` |
-| Module Posture supprimé | `PostureAnalysis`, `PostureAlert`, `PostureStats` intégrés dans `Snapshot.posture_score` |
-| Module Stress supprimé | `BreathingExercise`, `MicroBreak` non implémentés |
-| Module Stats supprimé | `DailyStats`, `WeeklyReport` non implémentés |
-| Module IoT supprimé | `ESP32Device`, `SensorData`, `CameraFrame` remplacés par le pi_client externe |
-| `MLService` supprimé | Le ML est externe (pi_client), le backend est un simple ingesteur |
-| `RAGService` supprimé | Service applicatif, non représenté en UML de conception |
-| `StudySessionDocumentLink` supprimé | Remplacé par relation Many-to-Many directe : StudySession `"*" --> "*"` ChatDocument |
-| `QuizDocumentLink` supprimé | Remplacé par relation Many-to-Many directe : Quiz `"*" --> "*"` ChatDocument |
-| `SM2Service` ajouté | Service dédié pour l'algorithme de répétition espacée |
-| `GeminiClient` ajouté | Interface unifiée pour les appels LLM (Groq llama-3.3-70b-versatile / Gemini selon AI_PROVIDER) |
-| `WorkSession.id` = String | UUID string au lieu d'auto-increment (généré par le pi_client) |
-| Total classes | 30 → 22 → 16 (nettoyage classes non implémentées + suppression link tables) |
+| v5.0 : Stéréotypes BCE ajoutés | Toutes les classes annotées `<<Control>>`. Vue d'ensemble BCE en couches ajoutée. |
+| v4.0 : Nettoyage classes non implémentées | `FocusSession`, `PostureAnalysis`, `DailyStats`, `ESP32Device`, `MLService`, `RAGService` supprimés |
+| v3.0 : Suppression tables de liaison | `StudySessionDocumentLink`, `QuizDocumentLink` remplacés par relations Many-to-Many directes |
+| v2.0 : Remplacement module Focus | `FocusSession/Score/Alert` → `WorkSession`, `Snapshot`, `FocusEvent` |
+| v1.0 | Version initiale (30 classes) |
 
 ---
 

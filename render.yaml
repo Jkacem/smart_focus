@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: smartfocus-api
+    env: python
+    rootDir: backend
+    buildCommand: >
+      pip install -r requirements.txt &&
+      python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: smartfocus-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GOOGLE_OAUTH_CLIENT_IDS
+        sync: false
+      - key: PI_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CHROMA_DB_PATH
+        value: /tmp/chroma_db
+      - key: UPLOADS_DIR
+        value: /tmp/uploads
+      - key: LLM_MAX_RPM
+        value: "25"
+
+databases:
+  - name: smartfocus-db
+    databaseName: smartfocus_db
+    user: smartfocus
+    plan: free

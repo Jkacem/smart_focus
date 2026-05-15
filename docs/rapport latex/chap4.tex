@@ -1,0 +1,210 @@
+\chapter{Sprint 2 : Modèle de Vision et Calcul du Score de Concentration}
+
+\section{ Introduction du Sprint}
+
+Le deuxième sprint de notre projet porte sur la conception et le développement du coeur intelligent du système SmartFocus : le module de vision par ordinateur et l'algorithme d'évaluation de la concentration . Le but de ce sprint est de pouvoir traiter en temps réel un flux vidéo afin d'en extraire des caractéristiques comportementales pertinentes(regard,posture,fatigue,présence de distracteurs) et de produire un score de concentration continu et fiable . Cette étape est cruciale , car elle détermmine la précision , la réactivité et la viabilité globale du système face aux comportements de l'utilisateur .
+%--------------------------------------------------
+
+\section{ Planification du Sprint}
+
+\subsection{4.2.1 Objectifs du Sprint}
+Afin de mener à bien cette phase complexe, nous avons défini plusieurs objectifs techniques et fonctionnels :
+\begin{itemize}
+    \item \textbf{Développer un pipeline de capture vidéo optimisé} capable de traiter les flux vidéo sans latence perceptible.
+    \item \textbf{Extraire les points d’intérêt} de l'utilisateur de manière précise, notamment les repères faciaux et les articulations corporelles (posture).
+    \item \textbf{Détecter les objets distracteurs} dans le champ de vision, avec un focus particulier sur l'usage du téléphone portable.
+    \item \textbf{Implémenter un moteur temporel de lissage} pour filtrer le bruit des détections frame par frame et offrir une évolution cohérente du score.
+    \item \textbf{Concevoir l'algorithme de calcul du score} de concentration en agrégeant les différentes métriques comportementales.
+    \item \textbf{Comparer différentes approches de modélisation} (Deep Learning pur vs approche hybride) afin de justifier nos choix technologiques finaux.
+\end{itemize}
+
+\subsection{ Sprint Backlog}
+Pour structurer notre développement, le travail a été découpé selon les User Stories (US) suivantes :
+\begin{enumerate}
+    \item \textbf{US1 :} Implémentation de la capture robuste du flux webcam.
+    \item \textbf{US2 :} Intégration du framework MediaPipe pour l'analyse faciale et posturale.
+    \item \textbf{US3 :} Entraînement et intégration du modèle YOLOv8 pour la détection d'objets.
+    \item \textbf{US4 :} Développement du moteur d'inférence temporel et de la logique de calcul du score global.
+    \item \textbf{US5 :} Conception et évaluation d'un modèle CNN de bout-en-bout (Baseline) pour comparaison des performances.
+\end{enumerate}
+
+%--------------------------------------------------
+
+\section{4.3 Analyse fonctionnelle}
+
+\subsection{4.3.1 Identification des acteurs}
+Le système de vision interagit avec deux entités principales lors de son exécution :
+\begin{itemize}
+    \item \textbf{Acteur principal (L'Étudiant) :} C'est l'utilisateur final qui est filmé. Ses actions et comportements déclenchent les analyses du système.
+    \item \textbf{Acteur secondaire (Le Système SmartFocus) :} Il s'agit de l'entité logicielle autonome qui capture, analyse, calcule et alerte en cas de besoin.
+\end{itemize}
+
+\subsection{4.3.2 Diagramme de cas d’utilisation}
+La figure \ref{fig:use_case_vision} illustre les interactions fonctionnelles de ce module.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.8\textwidth]{images/use_case_vision.png}
+    \caption{Diagramme de cas d'utilisation du module de vision}
+    \label{fig:use_case_vision}
+\end{figure}
+
+\subsection{4.3.3 Description des use cases}
+\begin{itemize}
+    \item \textbf{Lancer une session de travail :} L'étudiant initialise l'application, ce qui déclenche l'activation de la webcam et l'initialisation des modèles d'intelligence artificielle en mémoire.
+    \item \textbf{Visualiser le dashboard temps réel :} L'utilisateur peut observer les métriques brutes (Attention, Vigilance, Posture) extraites par le système pendant sa session.
+    \item \textbf{Recevoir des alertes :} Le système génère automatiquement des notifications si des comportements nuisibles (comme l'utilisation d'un téléphone ou une somnolence prolongée) sont détectés de manière persistante.
+\end{itemize}
+
+%--------------------------------------------------
+
+\section{4.4 Modélisation dynamique}
+
+\subsection{4.4.1 Diagramme de séquence principal}
+Le diagramme de séquence suivant modélise le flux d'exécution d'une itération d'analyse vidéo.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=0.9\textwidth]{images/sequence_vision.png}
+    \caption{Diagramme de séquence de l'analyse d'une trame vidéo}
+    \label{fig:seq_vision}
+\end{figure}
+
+\textit{Description du cycle :} 
+Le processus démarre par la \textbf{capture} d'une trame (frame) par la caméra. Cette trame est envoyée en parallèle aux différents \textbf{analyseurs} spatiaux. Les résultats bruts sont ensuite transmis au \textbf{moteur temporel} qui lisse les prédictions en se basant sur l'historique récent. Une fois stabilisées, ces données alimentent le \textbf{moteur de score} qui calcule l'indice global de concentration, pour enfin \textbf{transmettre} ces résultats au backend ou à l'interface client.
+
+%--------------------------------------------------
+
+\section{4.5 Conception du système intelligent}
+
+\subsection{4.5.1 Architecture globale}
+Pour garantir la maintenabilité et l'évolutivité du système, nous avons opté pour une architecture logicielle modulaire en pipeline constituée de quatre couches distinctes :
+\begin{itemize}
+    \item \textbf{L1 - Analyzers (Couche d'Extraction Spatiale) :} Constituée de détecteurs spécialisés (MediaPipe FaceMesh, Pose, et YOLOv8) qui extraient des caractéristiques purement géométriques ou probabilistes de la frame courante.
+    \item \textbf{L2/L3 - Temporal Engine (Couche de Lissage Temporel) :} Module chargé de gérer la notion de temps. Il applique un lissage par moyenne mobile exponentielle asymétrique (Asymmetric EMA) pour filtrer le bruit tout en réagissant rapidement aux chutes d'attention soudaines.
+    \item \textbf{L4 - Score Engine (Couche de Logique Métier) :} Implémente la logique d'agrégation et les règles heuristiques de pénalités (ex: distraction).
+    \item \textbf{API Client / Output Layer :} Formatage des données produites sous forme de payload JSON pour envoi vers le serveur via WebSockets ou API REST.
+\end{itemize}
+
+\subsection{4.5.2 Pipeline SmartFocusV3 avec Adaptive Sampling}
+Afin d'optimiser les performances matérielles sans sacrifier la précision, nous avons développé le pipeline \textit{SmartFocusPipelineV3} intégrant un mécanisme d'\textbf{Adaptive Sampling} (Échantillonnage adaptatif). 
+Puisque certains événements sont moins volatiles que d'autres, il n'est pas nécessaire d'exécuter tous les réseaux de neurones sur chaque image :
+\begin{itemize}
+    \item \textbf{Analyse Posturale :} Exécutée toutes les \textbf{10 frames}, car la posture humaine change lentement.
+    \item \textbf{Détection d'Objets (YOLO) :} Exécutée toutes les \textbf{8 frames}, suffisant pour capter l'apparition d'un téléphone.
+    \item \textbf{Analyse Faciale (Attention/Fatigue) :} Exécutée à plus haute fréquence, car les clignements des yeux (EAR) et les micro-mouvements de tête sont des événements très rapides.
+\end{itemize}
+
+%--------------------------------------------------
+
+\section{4.6 Développement des modèles de vision}
+Pour notre problématique de reconnaissance de l'état cognitif, nous avons confronté deux approches d'intelligence artificielle :
+
+\subsection{4.6.1 Modèle 1 : Approche Hybride (MediaPipe + YOLOv8)}
+Cette approche vise à extraire des caractéristiques physiologiques expertes à l'aide de réseaux de neurones pré-entraînés, puis d'appliquer des règles heuristiques sur ces descripteurs :
+\begin{itemize}
+    \item \textbf{MediaPipe FaceMesh :} Extraction de 468 points faciaux en 3D permettant le calcul du ratio d'ouverture des yeux (Eye Aspect Ratio - EAR) pour la fatigue, et la résolution de l'équation PnP (Perspective-n-Point) pour déterminer l'angle d'inclinaison de la tête (Pitch, Yaw, Roll).
+    \item \textbf{MediaPipe Pose :} Extraction des points de repère corporels (épaules, cou) pour identifier l'affaissement du dos de l'étudiant.
+    \item \textbf{YOLOv8 (You Only Look Once) :} Un modèle de détection d'objets de l'état de l'art (Deep Learning) affiné (Fine-tuned) pour détecter instantanément la présence de smartphones ou d'autres personnes dans la zone de travail.
+\end{itemize}
+
+\subsection{4.6.2 Modèle 2 : Approche End-to-End (Réseau de neurones entraîné)}
+Pour valider notre choix, nous avons développé un modèle concurrent de type CNN (basé sur une architecture de type MobileNet ou un classificateur YOLO personnalisé) :
+\begin{itemize}
+    \item Ce modèle prend l'image globale en entrée et réalise une \textbf{classification multiclasse directe} : Concentré, Distrait, ou Somnolent.
+\end{itemize}
+
+%--------------------------------------------------
+
+\section{4.7 Calcul du score de concentration}
+La valeur ajoutée principale de SmartFocus réside dans son algorithme de pondération. Le \textbf{Score de Concentration Global} (compris entre 0 et 100) est la combinaison linéaire de trois sous-systèmes, auxquels se soustraient d'éventuelles pénalités comportementales.
+
+La répartition des pondérations est la suivante :
+\begin{itemize}
+    \item \textbf{Attention (45\%) :} Évalue la direction du regard et l'orientation de la tête par rapport à l'écran. Ce facteur détient le poids le plus élevé, car regarder l'écran est le prérequis fondamental de la concentration numérique.
+    \item \textbf{Vigilance / Fatigue (30\%) :} Détecte la baisse de régime via la fréquence de clignement et la fermeture prolongée des yeux (microsommeils).
+    \item \textbf{Posture (25\%) :} Récompense l'alignement ergonomique de la colonne vertébrale, indicateur reconnu d'un engagement actif de l'étudiant.
+\end{itemize}
+
+\textbf{Système de Pénalité Dynamique :}
+Si le modèle YOLO détecte l'usage explicite d'un distracteur (ex: un téléphone portable) proche du sujet, une \textbf{pénalité stricte et forfaitaire de -30 points} est immédiatement soustraite du score global, traduisant une rupture immédiate de la concentration.
+
+%--------------------------------------------------
+
+\section{4.8 Implémentation du système}
+L'ensemble de ce pipeline a été implémenté en \textbf{Python}, ce langage offrant un riche écosystème en intelligence artificielle. Les bibliothèques maîtresses sont :
+\begin{itemize}
+    \item \textbf{OpenCV :} Utilisée pour la gestion des flux vidéo matériels, le prétraitement des images (redimensionnement, conversions colorimétriques) et le dessin des \textit{bounding boxes}.
+    \item \textbf{MediaPipe (Google) :} Utilisée pour sa robustesse et sa rapidité d'exécution sur CPU pour l'extraction de squelettes 2D/3D.
+    \item \textbf{Ultralytics YOLOv8 :} Implémenté pour la détection d'objets grâce à ses remarquables capacités de transfert d'apprentissage et de vitesse d'inférence.
+\end{itemize}
+Le code source est organisé selon l'architecture logicielle modulaire préalablement définie (\texttt{analyzers/}, \texttt{engine/}, \texttt{output/}), facilitant ainsi les futurs tests unitaires et le déploiement sur les clients (ex: Raspberry Pi ou PC locaux).
+
+%--------------------------------------------------
+
+\section{4.9 Tests et résultats}
+
+\subsection{4.9.1 Résultats du Modèle 1 (Hybride)}
+\begin{itemize}
+    \item \textbf{Performance d'exécution :} Le système atteint facilement les 25 à 30 FPS en s'exécutant sur un CPU standard, grâce aux optimisations d'Adaptive Sampling.
+    \item \textbf{Précision :} Excellente stabilité de la détection faciale, même lors de micro-mouvements.
+    \item \textbf{Robustesse :} La détection contextuelle des téléphones est très fiable et le lissage temporel prévient l'effet de scintillement ("flickering") des scores.
+\end{itemize}
+
+\subsection{4.9.2 Résultats du Modèle 2 (End-to-End CNN)}
+\begin{itemize}
+    \item \textbf{Performance d'exécution :} Plus gourmand en ressources, le modèle peine à dépasser les 10 à 15 FPS sans accélération matérielle (GPU).
+    \item \textbf{Explicabilité :} Le modèle se comporte comme une "boîte noire", rendant difficile l'explication précise de la perte de points pour l'utilisateur final.
+    \item \textbf{Robustesse :} Forte sensibilité à l'environnement (fonds variés, éclairage) et tendance au surapprentissage (overfitting) sur les données d'entraînement.
+\end{itemize}
+
+%--------------------------------------------------
+
+\section{4.10 Comparaison des modèles}
+
+Le tableau \ref{tab:comparaison_modeles} synthétise la confrontation technique entre les deux architectures évaluées.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|c|c|}
+        \hline
+        \textbf{Critère} & \textbf{Modèle 1 (Hybride MediaPipe+YOLO)} & \textbf{Modèle 2 (CNN End-to-End)} \\
+        \hline
+        FPS moyen (CPU) & 25 - 30 FPS & 10 - 15 FPS \\
+        Besoin en données & Faible (modèles pré-entraînés) & Élevé (besoin d'un dataset custom) \\
+        Explicabilité & Totale (règles heuristiques transparentes) & Faible (Boîte noire réseau de neurones) \\
+        Déploiement sur Edge & Idéal (léger) & Difficile (lourd) \\
+        Précision analytique & Haute (analyse multi-factorielle séparée) & Moyenne (sujette au biais) \\
+        \hline
+    \end{tabular}
+    \caption{Comparatif des performances entre l'approche Hybride et le modèle End-to-End}
+    \label{tab:comparaison_modeles}
+\end{table}
+
+%--------------------------------------------------
+
+\section{4.11 Choix du modèle final}
+À l'issue de notre analyse comparative, \textbf{le Modèle 1 (Approche Hybride combinant MediaPipe et YOLOv8) a été retenu de manière définitive} pour équiper le système SmartFocus. Ce choix est justifié par sa capacité à maintenir des performances en \textbf{temps réel} sur des configurations matérielles modestes (Edge Computing), et surtout pour son \textbf{explicabilité}. Savoir exactement si la déconcentration est due à une mauvaise posture, un bâillement ou un téléphone permet de fournir à l'étudiant un retour d'information ("feedback") constructif et précis sur son tableau de bord.
+
+%--------------------------------------------------
+
+\section{4.12 Limites et perspectives}
+
+\textbf{Limites identifiées :}
+Malgré ses performances, notre système de vision présente quelques vulnérabilités inhérentes aux contraintes de la vision par ordinateur classique :
+\begin{itemize}
+    \item \textbf{Sensibilité à l’éclairage :} De faibles conditions lumineuses ou des contre-jours sévères peuvent perturber le \textit{tracking} facial de MediaPipe.
+    \item \textbf{Occlusions :} Si l'utilisateur couvre son visage avec ses mains de manière prolongée, le calcul de l'attention et de la vigilance devient caduc.
+\end{itemize}
+
+\textbf{Perspectives d'amélioration :}
+Pour pallier ces limites dans de futures itérations, nous envisageons :
+\begin{itemize}
+    \item \textbf{Caméra infrarouge (IR) :} L'intégration de capteurs de vision nocturne pour garantir le tracking indépendamment de l'éclairage de la pièce.
+    \item \textbf{Analyse audio ou vocale :} Ajout d'un système d'analyse acoustique afin de détecter les bruits de distraction ou les discussions environnantes, complétant ainsi l'analyse visuelle.
+\end{itemize}
+
+%--------------------------------------------------
+
+\section{4.13 Conclusion}
+Ce deuxième sprint a été crucial dans l'aboutissement du projet SmartFocus. Il nous a permis de développer, de tester et de valider un système complet d’analyse comportementale en temps réel, capable de quantifier de manière fiable l'état de concentration d'un étudiant. L’architecture hybride innovante adoptée lors de cette phase garantit un excellent compromis entre légèreté algorithmique, précision des détections et transparence des résultats, constituant ainsi une base solide pour l'intégration de la solution avec le reste de l'infrastructure logicielle.

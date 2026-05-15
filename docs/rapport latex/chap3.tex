@@ -1,0 +1,446 @@
+\chapter{Sprint 1 : Accès et gestion du compte utilisateur}
+\label{chap:sprint1}
+
+\section{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Dans le cadre du développement du système \textit{Smart Focus}, le premier sprint a été consacré à la mise en place des bases essentielles du système. Il vise à structurer l’architecture avant l’intégration des modules avancés tels que l’intelligence artificielle.
+
+Étant donné la manipulation de données sensibles (profil, préférences, sessions), ce sprint se concentre sur la mise en œuvre d’un mécanisme d’authentification sécurisé ainsi que sur la gestion du compte utilisateur.
+
+Les fonctionnalités développées permettent d’assurer une identification fiable des utilisateurs et de personnaliser leur expérience, tout en constituant un point d’accès aux services du système.
+
+\section{Backlog du Sprint 1}
+
+Le backlog du Sprint 1 regroupe l’ensemble des fonctionnalités jugées prioritaires pour initier le développement du système. Il est construit à partir des besoins fondamentaux liés à la gestion des utilisateurs et à la sécurisation des accès.
+
+Ces fonctionnalités sont formulées sous forme de \textit{User Stories}, permettant de décrire les attentes des utilisateurs tout en orientant les tâches de développement. Chaque élément du backlog correspond à une fonctionnalité clairement définie, accompagnée des actions techniques nécessaires à sa mise en œuvre.
+
+Le tableau~\ref{tab:backlogs1} suivant présente le backlog détaillé du premier sprint.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|p{3cm}|p{6cm}|p{4cm}|}
+\hline
+\textbf{ID} & \textbf{Fonctionnalité} & \textbf{User Story} & \textbf{Tâche} \\
+\hline
+
+US1 & S'inscrire 
+& En tant qu’utilisateur, je souhaite créer un compte afin d’accéder aux fonctionnalités de l’application 
+& Développement des interfaces mobiles et implémentation de l’API d’inscription \\ \hline
+
+US2 & Se connecter
+& En tant qu’utilisateur, je souhaite me connecter de manière sécurisée à mon compte
+& Mise en place d’un mécanisme de connexion sécurisée avec gestion des sessions utilisateur \\ \hline
+
+US3 & Gérer son profil
+& En tant qu’utilisateur, je souhaite consulter et modifier mes informations personnelles
+& Développement des fonctionnalités de consultation et de modification du profil utilisateur \\ \hline
+
+US4 & Se déconnecter
+& En tant qu’utilisateur, je souhaite me déconnecter afin de sécuriser ma session
+& Gestion de la déconnexion et fermeture de la session utilisateur \\ \hline
+
+\end{tabular}
+\caption{Backlog du Sprint 1}
+\label{tab:backlogs1}
+\end{table}
+
+
+
+\section{Spécifications fonctionnelles}
+
+\subsection{Diagramme de cas d’utilisation du Sprint 1}
+    Le diagramme de cas d’utilisation suivant illustre les principales interactions entre l’utilisateur et le système durant le premier sprint, notamment les fonctionnalités liées à l’authentification et à la gestion du compte utilisateur.
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{images/Sprint1UC.png}
+\caption{Diagramme de cas d'utilisation du Sprint 1}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Description textuelle des cas d’utilisation}
+
+Afin de mieux expliciter le comportement du système, les cas d’utilisation du premier sprint sont présentés sous forme de fiches descriptives. 
+Chaque tableau synthétise les interactions entre l’utilisateur et le système, en mettant en évidence les étapes principales ainsi que les conditions de déroulement.
+
+%----------------------------------------
+\subsubsection{Cas d’utilisation : S’inscrire}
+
+L’inscription constitue le point d’entrée principal vers le système. Ce processus implique la collecte des informations utilisateur, leur validation ainsi que la création d’un compte sécurisé. Le Tableau~\ref{tab:uc_register} présente de manière synthétique les différentes étapes de ce processus ainsi que les conditions associées.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+
+\textbf{Objectif} & Créer un compte pour accéder aux fonctionnalités du système \\ \hline
+
+\textbf{Conditions initiales} & Aucun compte existant avec le même email \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L’utilisateur ouvre l’écran d’inscription
+    \item L’utilisateur saisit ses informations personnelles
+    \item Le système vérifie les données saisies
+    \item Le système crée le compte utilisateur
+    \item Une session est automatiquement ouverte
+\end{itemize} \\ \hline
+
+\textbf{Cas d’erreur} & Adresse email déjà utilisée → refus de création du compte \\ \hline
+
+\textbf{Résultat} & Compte créé et accès direct à l’application \\ \hline
+\end{tabular}
+\caption{Description du cas d’utilisation « S’inscrire »}
+\label{tab:uc_register}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d’utilisation : Se connecter}
+
+L’authentification permet de vérifier l’identité de l’utilisateur et de sécuriser l’accès au système. Le Tableau~\ref{tab:uc_login} détaille les différentes étapes du processus de connexion ainsi que les cas d’erreur possibles.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+
+\textbf{Objectif} & Accéder à son compte de manière sécurisée \\ \hline
+
+\textbf{Conditions initiales} & Compte utilisateur valide \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L’utilisateur saisit son adresse email et son mot de passe
+    \item Le système vérifie la correspondance des identifiants
+    \item Le système ouvre une session sécurisée
+    \item L’utilisateur accède à l’application
+\end{itemize} \\ \hline
+
+\textbf{Cas d’erreur} & Identifiants incorrects → accès refusé \\ \hline
+
+\textbf{Résultat} & Session utilisateur active \\ \hline
+\end{tabular}
+\caption{Description du cas d’utilisation « Se connecter »}
+\label{tab:uc_login}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d’utilisation : Se connecter via Gmail}
+
+L’authentification via Gmail offre à l’utilisateur la possibilité de se connecter sans mot de passe en utilisant son compte Google. Le Tableau~\ref{tab:uc_login_google} décrit les étapes de ce processus ainsi que les cas d’erreur associés.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+
+\textbf{Objectif} & Se connecter au système via un compte Google \\ \hline
+
+\textbf{Conditions initiales} & Compte Google valide avec une adresse email vérifiée \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L’utilisateur sélectionne l’option « Se connecter avec Google »
+    \item L’utilisateur est redirigé vers la page de connexion Google
+    \item L’utilisateur autorise l’application à accéder à son compte Google
+    \item Le système transmet les informations d’autorisation pour vérification
+    \item Le système vérifie l’autorisation auprès des serveurs Google
+    \item Le système vérifie que l’adresse email est valide et confirmée
+    \item Le système recherche le compte ; il le crée automatiquement si l’utilisateur n’est pas encore inscrit
+    \item Une session est ouverte et l’utilisateur accède à l’application
+\end{itemize} \\ \hline
+
+\textbf{Cas d’erreur} & Autorisation Google invalide ou expirée → accès refusé \newline Adresse email non confirmée par Google → accès interdit \\ \hline
+
+\textbf{Résultat} & Session utilisateur active \\ \hline
+\end{tabular}
+\caption{Description du cas d’utilisation « Se connecter via Gmail »}
+\label{tab:uc_login_google}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d’utilisation : Gérer son profil}
+
+La gestion du profil permet à l’utilisateur d’interagir avec ses données personnelles tout en garantissant un accès sécurisé. Le Tableau~\ref{tab:uc_profile} résume les différentes interactions ainsi que les conditions nécessaires à la modification des informations.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+
+\textbf{Objectif} & Consulter et modifier ses informations personnelles \\ \hline
+
+\textbf{Conditions initiales} & Utilisateur authentifié \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L’utilisateur ouvre sa page de profil
+    \item Le système affiche les informations enregistrées
+    \item L’utilisateur modifie les informations souhaitées
+    \item Le système valide et enregistre les changements
+\end{itemize} \\ \hline
+
+\textbf{Cas d’erreur} & Utilisateur non connecté → accès refusé \\ \hline
+
+\textbf{Résultat} & Données mises à jour \\ \hline
+\end{tabular}
+\caption{Description du cas d’utilisation « Gérer son profil »}
+\label{tab:uc_profile}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d’utilisation : Se déconnecter}
+
+La déconnexion joue un rôle important dans la sécurisation du système en mettant fin à la session active. Le Tableau~\ref{tab:uc_logout} décrit les étapes permettant d’assurer une déconnexion propre et sécurisée.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+
+\textbf{Objectif} & Mettre fin à la session utilisateur \\ \hline
+
+\textbf{Conditions initiales} & Utilisateur connecté \\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L’utilisateur sélectionne l’option de déconnexion
+    \item Le système ferme la session en cours
+    \item Les données de connexion locales sont supprimées
+    \item L’utilisateur est redirigé vers l’écran de connexion
+\end{itemize} \\ \hline
+
+\textbf{Résultat} & Session terminée et accès sécurisé \\ \hline
+\end{tabular}
+\caption{Description du cas d’utilisation « Se déconnecter »}
+\label{tab:uc_logout}
+\end{table}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Conception}
+\subsection{Diagrammes de séquence}
+
+Afin de détailler le fonctionnement dynamique du système, les diagrammes de séquence suivants illustrent les interactions entre les différents composants pour chaque cas d’utilisation du Sprint 1.
+
+%----------------------------------------
+\subsubsection{Processus d’inscription}
+
+Le processus d’inscription constitue la première interaction entre l’utilisateur et le système. Comme illustré dans la Figure~\ref{fig:seq_register}, l’application envoie les informations saisies vers le serveur qui se charge de vérifier l’unicité de l’adresse email. 
+
+En cas de validité, le mot de passe est sécurisé avant d’être stocké. Le système procède ensuite à la création du compte utilisateur et ouvre directement une session.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/incriptionSeq.png}
+\caption{Diagramme de séquence du processus d’inscription}
+\label{fig:seq_register}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Processus de connexion}
+
+Le processus d’authentification permet à un utilisateur existant d’accéder à son compte de manière sécurisée. Comme montré dans la Figure~\ref{fig:seq_login}, les identifiants sont envoyés au serveur qui vérifie leur validité.
+
+Les informations de connexion sont vérifiées de manière sécurisée. En cas de succès, une session est créée et l’utilisateur accède à l’application.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/AuthViaEmail.png}
+\caption{Diagramme de séquence du processus d’authentification}
+\label{fig:seq_login}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Inscription et connexion via Gmail}
+
+La connexion via Gmail permet à l'utilisateur de s'inscrire ou de se connecter sans saisir de mot de passe. Comme illustré dans la Figure~\ref{fig:seq_google_auth}, l'application obtient une autorisation de l'utilisateur via les serveurs Google.
+
+L'autorisation est transmise au serveur, qui en vérifie l'authenticité auprès des serveurs Google et récupère l'adresse email associée. Si aucun compte ne correspond à cet email, le système en crée un automatiquement à partir des informations du profil Google. Une session est alors créée et l'utilisateur accède à l'application.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/AuthViaGmail.png}
+\caption{Diagramme de séquence de l'inscription et connexion via Gmail}
+\label{fig:seq_google_auth}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Gestion du profil utilisateur}
+
+La gestion du profil regroupe les opérations de consultation et de modification des informations personnelles. Comme illustré dans la Figure~\ref{fig:seq_profile}, l’accès aux données nécessite que l’utilisateur soit préalablement connecté.
+
+Une fois l’utilisateur authentifié, le système récupère les informations depuis la base de données. Toute modification effectuée est ensuite validée puis enregistrée, assurant ainsi la cohérence et la mise à jour des données utilisateur.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/GérerPofilSeq.png}
+\caption{Diagramme de séquence de la gestion du profil}
+\label{fig:seq_profile}
+\end{figure}
+
+%----------------------------------------
+%\subsubsection{Processus de déconnexion}
+
+%Le processus de déconnexion permet de mettre fin à la session active de l’utilisateur afin de garantir la sécurité de l’accès au système. Comme illustré dans la Figure~\ref{fig:seq_logout}, l’application envoie une requête de déconnexion au backend accompagnée du token d’authentification.Le système invalide ce token, empêchant ainsi toute utilisation ultérieure, puis confirme la déconnexion. L’utilisateur est ensuite redirigé vers l’écran de connexion, assurant ainsi une terminaison propre et sécurisée de la session.
+
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.85\textwidth]{images/logout_sequence.png}
+%\caption{Diagramme de séquence du processus de déconnexion}
+%\label{fig:seq_logout}
+%\end{figure}
+
+\subsection{Diagramme de classe du sprint 1 }
+Le diagramme de classes présenté dans la Figure~\ref{fig:class_sprint1} décrit la structure du module d’authentification et de gestion des utilisateurs.
+
+La classe \textit{User} représente l’utilisateur et contient ses informations principales. Elle est associée à \textit{UserProfile}, qui regroupe les préférences et paramètres personnalisés.
+
+La classe \textit{AuthToken} permet de gérer les clés de session, tandis que \textit{AuthService} centralise les opérations telles que l’inscription et la connexion.
+
+Cette organisation permet de séparer les responsabilités et d’assurer une gestion claire et sécurisée des données.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{images/DiagClassSprint1.png}
+\caption{Diagramme de classes du module d’authentification et de gestion utilisateur}
+\label{fig:class_sprint1}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%----------------------------------------
+\section{Environnement technique}
+
+Cette section présente les principaux outils et technologies utilisés pour la réalisation du Sprint 1. Ces choix techniques ont été effectués en tenant compte des exigences de sécurité, de performance et de maintenabilité du système.
+
+%----------------------------------------
+\subsection{JSON Web Token (JWT)}
+
+Le JSON Web Token (JWT) \cite{jwt} est un standard ouvert (RFC 7519) permettant d'échanger de manière sécurisée des informations entre deux parties sous la forme d'un objet JSON signé. Dans le cadre de ce sprint, les JWT sont utilisés pour assurer la gestion des sessions utilisateur.
+
+Lors de la connexion, le serveur génère deux tokens :
+\begin{itemize}
+    \item \textbf{Access token} : de courte durée de vie (15 minutes), utilisé pour authentifier chaque requête de l'application.
+    \item \textbf{Refresh token} : de longue durée de vie (7 jours), permettant de renouveler l'access token sans demander à l'utilisateur de se reconnecter.
+\end{itemize}
+
+Chaque token est composé de trois parties encodées en Base64 et séparées par des points : l'en-tête (\textit{header}), la charge utile (\textit{payload}) contenant les données de l'utilisateur, et la signature permettant de garantir l'intégrité du token.
+
+%----------------------------------------
+\subsection{Hachage des mots de passe avec Bcrypt}
+
+Bcrypt \cite{bcrypt} est un algorithme de hachage de mots de passe conçu pour être intentionnellement lent, rendant les attaques par force brute difficiles. Il intègre un mécanisme de \textit{salage} (ajout d'une valeur aléatoire) qui garantit que deux mots de passe identiques produisent des empreintes différentes.
+
+Dans ce sprint, bcrypt est utilisé pour sécuriser les mots de passe avant leur stockage en base de données. Lors de la connexion, le mot de passe saisi par l'utilisateur est comparé à son empreinte stockée grâce à la fonction de vérification de bcrypt, sans jamais décoder ou exposer le mot de passe original.
+
+Le facteur de coût (\textit{cost factor}) est configuré à 12, offrant un bon équilibre entre sécurité et performance.
+
+%----------------------------------------
+\subsection{Authentification via Google OAuth 2.0}
+
+Google OAuth 2.0 est un protocole d'autorisation permettant à l'utilisateur de s'authentifier auprès du système en utilisant son compte Google, sans avoir à créer ni mémoriser un mot de passe supplémentaire.
+
+Le flux d'authentification se déroule en trois étapes principales :
+\begin{enumerate}
+    \item L'application mobile redirige l'utilisateur vers la page de connexion Google, qui lui demande d'autoriser l'accès.
+    \item Google retourne un \textit{id\_token} signé contenant les informations du compte (email, nom, photo de profil).
+    \item Le serveur vérifie l'authenticité du token auprès des serveurs Google, extrait l'adresse email, et crée le compte utilisateur si celui-ci n'existe pas encore.
+\end{enumerate}
+
+%----------------------------------------
+\subsection{FastAPI}
+
+FastAPI est un framework web Python moderne conçu pour la construction d'APIs RESTful avec de hautes performances. Il repose sur le standard ASGI et intègre nativement la validation des données via Pydantic ainsi que la génération automatique de documentation interactive (Swagger UI).
+
+Dans ce sprint, FastAPI expose les routes d'authentification : inscription, connexion, connexion via Google, gestion du profil et renouvellement de session.
+
+%----------------------------------------
+\subsection{Flutter et Dio}
+
+Flutter est le framework de développement mobile utilisé pour construire l'application cliente. La communication avec le serveur est assurée par la bibliothèque \textit{Dio}, un client HTTP pour Dart qui permet de gérer les requêtes HTTP, les intercepteurs et la gestion automatique des erreurs réseau.
+
+Un intercepteur JWT est configuré dans Dio pour ajouter automatiquement l'access token à chaque requête, et pour déclencher le renouvellement de session lorsque ce token expire.
+
+%----------------------------------------
+\subsection{SQLAlchemy et PostgreSQL}
+
+Les données utilisateur sont persistées dans une base de données PostgreSQL via l'ORM SQLAlchemy. Deux tables principales sont utilisées dans ce sprint :
+\begin{itemize}
+    \item \textbf{users} : stocke les informations de compte (email, empreinte du mot de passe, rôle, statut).
+    \item \textbf{user\_profiles} : stocke les préférences personnalisées (objectif de focus quotidien, emploi du temps préféré, paramètres de notification).
+\end{itemize}
+
+SQLAlchemy permet de définir les modèles de données sous forme de classes Python et de gérer les relations entre tables de manière transparente.
+
+%----------------------------------------
+\section{Implémentation}
+
+Cette section présente les principales interfaces développées dans le cadre du Sprint 1. Elles illustrent les fonctionnalités liées à l’authentification et à la gestion du compte utilisateur.
+
+%--------------------------------------
+
+\subsection{Interfaces de l’application mobile}
+
+Les interfaces développées dans le cadre du Sprint 1 permettent à l’utilisateur d’interagir avec le système de manière simple et intuitive. Elles couvrent les principales fonctionnalités liées à l’authentification et à la gestion du profil.
+
+%----------------------------------------
+\subsubsection{Écrans d’accueil et d’introduction}
+
+Les écrans d’accueil constituent le premier contact entre l’utilisateur et l’application. Ils présentent le concept de Smart Focus ainsi que les principales actions disponibles.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\textwidth]{images/1.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/2.jpg}
+\caption{Écrans d’accueil et d’introduction}
+\label{fig:welcome_onboarding}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interfaces d’authentification}
+
+Ces interfaces permettent à l’utilisateur de créer un compte ou de se connecter au système en toute sécurité.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\textwidth]{images/3.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/4.jpg}
+\caption{Interfaces de connexion et d’inscription}
+\label{fig:auth}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interface de profil et paramètres}
+
+Cette interface permet à l’utilisateur de consulter ses informations personnelles et de configurer ses préférences, telles que les notifications et les objectifs de concentration.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\textwidth]{images/5.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/6.jpg}
+\caption{Interface de profil et paramètres}
+\label{fig:profile_settings}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+Ce premier sprint a permis de mettre en place les fondations du système \textit{Smart Focus}, notamment à travers la gestion des utilisateurs et l’authentification sécurisée.
+
+Ces éléments constituent une base essentielle pour les prochains sprints, notamment ceux liés à l’intelligence artificielle et à l’analyse de la concentration. 

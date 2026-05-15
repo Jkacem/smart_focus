@@ -3,7 +3,7 @@
 ' BCE : Boundary → Control → Entity
 ' Boundary  🖥️  Interface de planning
 ' Control   ⚙️  PlanningController / PlanningAIService / GeminiClient
-' Entity    🗄️  Base de Données
+' Entity    🗄️  Base de Données (PostgreSQL) / ChromaDB (vecteurs)
 ' ============================================================
 
 skinparam sequenceArrowThickness 2
@@ -13,43 +13,142 @@ skinparam sequenceParticipantBackgroundColor #ECF0F1
 skinparam noteBorderColor #F39C12
 skinparam noteBackgroundColor #FDEBD0
 
-title Processus de génération du planning intelligent
+title Processus de génération du planning intelligent (UC9 / UC9w)
 
 actor Utilisateur
 participant B   as "🖥️ Interface de planning"   <<Boundary>>
 participant C   as "⚙️ PlanningController"       <<Control>>
 participant AI  as "⚙️ PlanningAIService"        <<Control>>
 participant LLM as "⚙️ GeminiClient"            <<Control>>
+participant EV  as "🗄️ ChromaDB"                <<Entity>>
 participant E   as "🗄️ Base de Données"          <<Entity>>
 
-Utilisateur -> B : Demander "Générer Planning"
-B -> C : générerPlanning(date, documentId?)
-C -> E : supprimerSessionsIA(date)
-C -> E : chargerContexte(profil, sessions, examens, sommeil, focus)
+' ─────────────────────────────────────────────────────────────
+' UC9 vs UC9w
+' ─────────────────────────────────────────────────────────────
+alt Génération journalière (UC9)
+    Utilisateur -> B : Demander "Générer Planning"
+    B -> C : POST /planning/generate\n(date, documentId?, examIds[], weekType?, preferences?)
+else Génération semaine (UC9w)
+    Utilisateur -> B : Demander "Générer Planning Semaine"
+    B -> C : POST /planning/generate/week\n(documentId?, examIds[], weekType?, preferences?)
+    note over C
+        Boucle lundi→dimanche :
+        _generate_sessions_for_day() appelé pour chaque jour
+        (allow_empty_csv=True — jours sans cours tolérés)
+    end note
+end
 
+' ── Chargement commun (endpoint) ─────────────────────────
+C -> E : chargerDocument(documentId?)
+E --> C : (chroma_collection, file_path) | null
+C -> E : getSelectedExams(examIds[], date)
+E --> C : [Exam]
+
+' ─────────────────────────────────────────────────────────────
+' _generate_sessions_for_day()
+' ─────────────────────────────────────────────────────────────
+C -> E : delete_study_sessions_by_date(date, only_ai=True)
+E --> C : ok
+
+' ─────────────────────────────────────────────────────────────
+' 3 branches selon le type de document
+' ─────────────────────────────────────────────────────────────
 alt Document CSV fourni
-    C -> AI : analyserCSV(date, typeSemaine)
-    AI -> AI : calculerCréneauxLibres(8h-22h,\nbuffer 15 min autour des cours)
-    AI -> AI : construireRévisions(sommeil, focus,\nexamens, flashcards, quiz)
-    AI -> LLM : personnaliserSujets(créneaux, cours)
+    C -> E : get_study_sessions_by_date(date)
+    E --> C : [StudySession] (sessions manuelles)
+    C -> E : get_due_flashcard_subjects(date)
+    E --> C : [FlashcardSubject]
+    C -> E : get_completion_rate_by_hour()
+    E --> C : {hour: completion_rate}
+    C -> E : get_recent_quiz_performance()
+    E --> C : [QuizScore]
+
+    C -> C : parse_csv_schedule(file_path, date, weekType)\n→ class_sessions[]
+
+    alt Aucun cours ce jour (week-end / semaine B)
+        C -> C : _collect_recent_schedule_subjects()\n→ sweep matières déjà vues cette semaine
+    end
+
+    C -> E : get_latest_sleep_record(date)
+    E --> C : sleep_score → {max_session_min, break_min, max_sessions, priority}
+    C -> E : get_latest_finalized_work_session(date)
+    E --> C : WorkSession.metadata_json → focus_score
+    C -> C : _apply_focus_profile_adjustment(sleep_profile, focus_score)\n→ profil calibré final
+
+    C -> C : _build_revision_sessions(\n  class_sessions, sleep_profile,\n  exams, flashcards, quiz_scores,\n  completion_rate_by_hour\n)\n→ budgets adaptatifs + placement déterministe\n  (cours, examen, flashcards, quiz)
+
+    C -> LLM : personnaliserSujetsRevision(\n  sessions "Revision:", cours du jour, préférences\n)
+    LLM --> C : Sujets personnalisés (JSON)
+
+    alt LLM échoue ou JSON invalide
+        note over C : Sujets déterministes conservés\n(round-robin sur cours du jour)
+    end
+
+    note over C : Retourne class_sessions + revision_sessions
+
+else Document PDF fourni (timetable)
+    C -> E : get_study_sessions_by_date(date)
+    E --> C : [StudySession] (sessions manuelles)
+
+    C -> AI : generate_daily_schedule(\n  day, existing_sessions, profile, collection_name\n)
+
+    note over AI
+        Étape 1 : Extraction timetable PDF
+    end note
+    AI -> EV : similarity_search(4 requêtes emploi du temps, k=15)
+    EV --> AI : chunks PDF dédupliqués (triés par page)
+    AI -> LLM : extraireCréneauxDuJour(\n  chunks, day_name, date_str\n)
+    LLM --> AI : Créneaux du jour (JSON) | []
+
+    note over AI
+        Étape 2-3 : Créneaux libres + placement sessions
+    end note
+    AI -> AI : _compute_free_slots(all_blocks, 8h-22h, buffer=15 min)
+    AI -> AI : _filter_slots_by_preference(preferred_schedule)
+    AI -> AI : _fit_sessions_into_slots(daily_focus_goal)
+
+    note over AI
+        Étape 4 : Assignation des sujets
+    end note
+    AI -> LLM : assignerSujets(session_slots, class_context, préférences)
     LLM --> AI : Assignations sujets/priorités (JSON)
+
+    alt LLM échoue ou JSON invalide
+        AI -> AI : _deterministic_subject_assignment()\n("Revision: <cours>" round-robin)
+    end
+
+    AI -> AI : _merge_assignments_with_slots()
+    AI --> C : [session_dict]
+
 else Sans document
-    C -> AI : générerPlanningLibre(date, profil)
-    AI -> LLM : assignerSujets(créneauxLibres, préférences)
+    C -> E : get_study_sessions_by_date(date)
+    E --> C : [StudySession] (sessions manuelles = seuls blocs occupés)
+
+    C -> AI : generate_daily_schedule(\n  day, existing_sessions, profile, collection_name=None\n)
+
+    AI -> AI : _compute_free_slots(manual_blocks, 8h-22h, buffer=15 min)
+    AI -> AI : _filter_slots_by_preference(preferred_schedule)
+    AI -> AI : _fit_sessions_into_slots(daily_focus_goal)
+
+    AI -> LLM : assignerSujets(session_slots, préférences)
     LLM --> AI : Sujets assignés (JSON)
+
+    alt LLM échoue ou JSON invalide
+        AI -> AI : _deterministic_subject_assignment()\n("Focus Session" générique)
+    end
+
+    AI -> AI : _merge_assignments_with_slots()
+    AI --> C : [session_dict]
 end
 
-alt GeminiClient échoue ou JSON invalide
-    AI -> AI : Fallback déterministe\n(créneaux libres → sessions génériques)
+' ── Persistance ──────────────────────────────────────────
+loop Pour chaque session générée
+    C -> E : create_study_session(\n  subject, start, end, priority,\n  is_ai_generated=True\n)
+    E --> C : StudySession
 end
 
-AI --> C : Sessions générées
-
-loop Pour chaque session
-    C -> E : insérerSession(sujet, début, fin, ia=vrai)
-end
-
-C --> B : Planning généré
+C --> B : PlanningDayOut (sessions[])
 B --> Utilisateur : Afficher le planning ✅
 
 @enduml

@@ -1,8 +1,9 @@
 # 📐 Diagrammes de Cas d'Utilisation – Smart Focus & Life Assistant
 
-**Version** : 2.0  
-**Date** : 9 Avril 2026  
+**Version** : 3.0  
+**Date** : 12 Mai 2026  
 **Phase** : Conception  
+**Approche** : BCE (Boundary – Control – Entity)
 
 ---
 
@@ -24,11 +25,36 @@ graph LR
 | **Utilisateur** | Principal | Étudiant, professionnel ou enseignant qui interagit avec l'application mobile |
 | **Groq API** | Externe | Service cloud d'inférence LLM utilisé pour le chatbot RAG, la génération de quiz/flashcards et la planification intelligente |
 
-> **Note :** Le pi_client (Raspberry Pi + MediaPipe + OpenCV), le pipeline ML et les services internes (RAGService, PlanningService, SM2Service) sont des **composants du système**, non des acteurs.
+> **Note :** Le pi_client (Raspberry Pi + MediaPipe + OpenCV), le pipeline ML et les services internes sont des **composants du système**, non des acteurs.
 
 ---
 
-## 2. Diagramme de Cas d'Utilisation Général
+## 2. Convention BCE – Mapping des Classes
+
+L'architecture BCE (Boundary – Control – Entity) organise les responsabilités en trois couches. Les classes `<<Control>>` sont celles définies dans le diagramme de classes (`class_sprint3.puml`).
+
+| Stéréotype | Rôle | Classes du diagramme de classes |
+|:---:|--------|---------|
+| `<<Boundary>>` | Interface utilisateur / point d'entrée | Interfaces Flutter (écrans), pi_client |
+| `<<Control>>` | Logique métier — classes avec méthodes | `User`, `UserProfile`, `WorkSession`, `Snapshot`, `FocusEvent`, `StudySession`, `Exam`, `ChatDocument`, `ChatMessage`, `Quiz`, `QuizQuestion`, `Flashcard`, `SleepRecord`, `SmartAlarm` |
+| `<<Entity>>` | Données persistantes | Base de Données PostgreSQL, ChromaDB |
+
+### Mapping par module
+
+| Module | `<<Boundary>>` | `<<Control>>` | `<<Entity>>` |
+|--------|---------------|--------------|-------------|
+| 🔐 Authentification | Interface inscription / connexion / paramètres | `User`, `UserProfile` | PostgreSQL |
+| 👁️ Vision & Monitoring | pi_client, Interface mobile Dashboard | `WorkSession`, `Snapshot`, `FocusEvent` | PostgreSQL |
+| 📅 Planning | Interface de planning | `StudySession`, `Exam`, `SleepRecord` | PostgreSQL |
+| 💬 Chatbot RAG | Interface chatbot | `ChatDocument`, `ChatMessage` | PostgreSQL, ChromaDB |
+| 🧠 Quiz | Interface quiz | `Quiz`, `QuizQuestion` | PostgreSQL |
+| 🃏 Flashcards | Interface flashcards | `Flashcard` | PostgreSQL |
+| 🌙 Sommeil & Réveil | Interface sommeil | `SleepRecord`, `SmartAlarm` | PostgreSQL |
+| 📊 Dashboard & Stats | Interface dashboard | `StudySession`, `SleepRecord`, `WorkSession`, `Snapshot` | PostgreSQL |
+
+---
+
+## 3. Diagramme de Cas d'Utilisation Général
 
 ```mermaid
 graph TB
@@ -92,14 +118,6 @@ graph TB
         UC15del["Supprimer une flashcard"]
     end
 
-    %% CU Posture
-    subgraph POSTURE ["🧍 Posture & Ergonomie"]
-        UC17["Détecter la posture en temps réel"]
-        UC18["Recevoir des alertes posture"]
-        UC19["Consulter les statistiques posture"]
-        UC20["Recevoir des conseils ergonomiques"]
-    end
-
     %% CU Sommeil
     subgraph SOMMEIL ["🌙 Sommeil & Réveil"]
         UC21["Enregistrer les données de sommeil"]
@@ -148,8 +166,6 @@ graph TB
     User --> UC15r
     User --> UC15d
     User --> UC15del
-    User --> UC17
-    User --> UC19
     User --> UC21
     User --> UC22
     User --> UC22h
@@ -166,7 +182,6 @@ graph TB
     GroqAPI --> UC14s
     GroqAPI --> UC15
     GroqAPI --> UC15s
-    GroqAPI --> UC20
     GroqAPI --> UC24
     GroqAPI --> UC29
     GroqAPI --> UC30
@@ -174,9 +189,9 @@ graph TB
 
 ---
 
-## 3. Cas d'Utilisation Détaillés par Module
+## 4. Cas d'Utilisation Détaillés par Module
 
-### 3.1 🔐 Module Authentification
+### 4.1 🔐 Module Authentification
 
 ```mermaid
 graph LR
@@ -204,23 +219,25 @@ graph LR
     UC2 -.->|extend| UC1
 ```
 
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | Interface d'inscription / connexion / paramètres | — |
+| `<<Control>>` | `User` | `register()`, `login()`, `updateProfile()`, `getToken()` |
+| `<<Control>>` | `UserProfile` | `getPreferences()`, `updateGoals()` |
+| `<<Entity>>` | Base de Données (PostgreSQL) | — |
+
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC1 | S'inscrire | Utilisateur | Aucun compte existant | 1. Saisir email, mot de passe, nom, rôle<br/>2. Valider<br/>3. Compte + profil créés | Compte actif, JWT access + refresh |
-| UC2 | Se connecter | Utilisateur | Compte existant et actif | 1. Saisir email/mot de passe (OAuth2 form)<br/>2. Authentification<br/>3. Token JWT retourné | Session active |
-| UC3 | Gérer le profil | Utilisateur | Connecté | 1. Accéder à `/auth/me`<br/>2. Modifier `daily_focus_goal`, `preferred_schedule`, `notif_enabled`<br/>3. Sauvegarder via `PUT /auth/me/profile` | Profil mis à jour |
-| UC3r | Rafraîchir le token | Utilisateur | Refresh token valide | 1. Envoyer `POST /auth/refresh` avec refresh_token<br/>2. Nouveau couple access + refresh retourné | Nouvelle session |
-
-**Endpoints réels :**
-- `POST /auth/register` — Inscription
-- `POST /auth/login` — Connexion (OAuth2PasswordRequestForm)
-- `POST /auth/refresh` — Rafraîchissement du token
-- `GET /auth/me` — Profil courant
-- `PUT /auth/me/profile` — Mise à jour préférences
+| UC1 | S'inscrire | Utilisateur | Aucun compte existant | 1. Saisir email, mot de passe, nom, rôle<br/>2. `User.register(email, password, nom, rôle)`<br/>3. `User.getToken()` → JWT retourné | Compte actif, JWT access + refresh |
+| UC2 | Se connecter | Utilisateur | Compte existant et actif | 1. Saisir email/mot de passe<br/>2. `User.login(email, password)`<br/>3. `User.getToken()` → Token JWT retourné | Session active |
+| UC3 | Gérer le profil | Utilisateur | Connecté | 1. `UserProfile.getPreferences(userId)`<br/>2. Modifier `daily_focus_goal`, `preferred_schedule`, `notif_enabled`<br/>3. `User.updateProfile()` + `UserProfile.updateGoals()` | Profil mis à jour |
+| UC3r | Rafraîchir le token | Utilisateur | Refresh token valide | 1. Envoyer refresh_token<br/>2. `User.getToken()` → Nouveau couple access + refresh | Nouvelle session |
 
 ---
 
-### 3.2 🎯 Module Focus & Concentration
+### 4.2 🎯 Module Focus & Concentration
 
 ```mermaid
 graph LR
@@ -246,20 +263,26 @@ graph LR
     UC4c -.->|extend| UC6
 ```
 
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | pi_client, Interface mobile Dashboard | — |
+| `<<Control>>` | `WorkSession` | `create()`, `finalize()`, `claimUser()` |
+| `<<Control>>` | `Snapshot` | `ingest()` |
+| `<<Control>>` | `FocusEvent` | `ingest()` |
+| `<<Entity>>` | Base de Données (PostgreSQL) | — |
+
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC4 | Démarrer une session | Utilisateur | Connecté, pi_client actif | 1. Cliquer "Démarrer"<br/>2. pi_client commence capture vidéo<br/>3. MediaPipe analyse en continu<br/>4. Score affiché temps réel | Session en cours |
-| UC5 | Voir score temps réel | Utilisateur | Session active | 1. Dashboard affiche score<br/>2. Polling HTTP (3-5s) sur `/sessions/{id}/latest`<br/>3. Graphique en direct | Score visible |
-| UC6 | Recevoir alerte focus | Utilisateur | Score < seuil (déclenché par pi_client) | 1. Score bas détecté par pi_client<br/>2. Événement envoyé au backend<br/>3. Notification mobile | Utilisateur alerté |
-| UC7 | Consulter historique | Utilisateur | Sessions passées | 1. Aller dans Statistiques<br/>2. Filtrer par période<br/>3. Voir graphiques | Historique affiché |
-
-> ⚠️ Ce module dépend du pi_client (composant interne). Le backend est architecturé pour le recevoir mais les endpoints `/focus/*` ne sont pas encore implémentés.
+| UC4 | Démarrer une session | Utilisateur | Connecté, pi_client actif | 1. pi_client appelle `WorkSession.create(session_id, metadata)`<br/>2. `WorkSession.claimUser(user_id)`<br/>3. pi_client envoie `Snapshot.ingest(session_id, scores)` en boucle (~500ms) | Session en cours |
+| UC5 | Voir score temps réel | Utilisateur | Session active | 1. Mobile interroge le dernier `Snapshot` (polling 3-5s)<br/>2. Affiche `global_focus_score`, `attention_score`, `posture_score` | Score visible |
+| UC6 | Recevoir alerte focus | Utilisateur | Score < seuil | 1. pi_client appelle `FocusEvent.ingest(session_id, event_type, level, description)`<br/>2. Notification mobile | Utilisateur alerté |
+| UC7 | Consulter historique | Utilisateur | Sessions passées | 1. Lister `WorkSession` passées<br/>2. Voir graphiques scores | Historique affiché |
 
 ---
 
-### 3.3 📅 Module Planning Intelligent
-
-Ce module est le plus sophistiqué du système. Il gère la génération automatique de sessions d'étude adaptées au profil de l'utilisateur, à son sommeil, à ses examens et à ses résultats de quiz/flashcards.
+### 4.3 📅 Module Planning Intelligent
 
 ```mermaid
 graph LR
@@ -277,15 +300,13 @@ graph LR
     UC31["Créer un examen"]
     UC32["Supprimer un examen"]
 
-    UC9a["Analyser profil sommeil"]
-    UC9b["Parser emploi du temps CSV"]
-    UC9c["Extraire timetable PDF via RAG"]
-    UC9d["Calculer créneaux libres"]
-    UC9e["Adapter selon score sommeil"]
-    UC9f["Rotation pondérée des matières"]
-    UC9g["Intégrer révisions examens"]
-    UC9h["Intégrer flashcards SM-2 dues"]
-    UC9i["Intégrer sujets faibles (quiz)"]
+    UC9a["Lire profil sommeil\n(SleepRecord.calculateScore)"]
+    UC9b["Parser emploi du temps CSV\n(ChatDocument.parse)"]
+    UC9c["Calculer créneaux libres"]
+    UC9d["Adapter selon score sommeil"]
+    UC9e["Intégrer révisions examens\n(Exam)"]
+    UC9f["Intégrer flashcards SM-2 dues"]
+    UC9g["Intégrer sujets faibles (quiz)"]
 
     User --> UC8
     User --> UC9
@@ -298,149 +319,45 @@ graph LR
     User --> UC31
     User --> UC32
 
-    IA --> UC9a
     IA --> UC9c
-    IA --> UC9f
+    IA --> UC9g
 
-    UC9 -.->|include| UC9d
-    UC9 -.->|include| UC9f
-    UC9 -.->|extend| UC9a
+    UC9 -.->|include| UC9a
+    UC9 -.->|include| UC9c
     UC9 -.->|extend| UC9b
-    UC9 -.->|extend| UC9c
+    UC9 -.->|extend| UC9d
     UC9 -.->|extend| UC9e
+    UC9 -.->|extend| UC9f
     UC9 -.->|extend| UC9g
-    UC9 -.->|extend| UC9h
-    UC9 -.->|extend| UC9i
 ```
+
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | Interface de planning | — |
+| `<<Control>>` | `StudySession` | `create()`, `update()`, `complete()` |
+| `<<Control>>` | `Exam` | `create()`, `delete()` |
+| `<<Control>>` | `SleepRecord` | `calculateScore()` |
+| `<<Control>>` | `ChatDocument` | `parse()` |
+| `<<Entity>>` | Base de Données (PostgreSQL) | — |
 
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC8 | Consulter le planning | Utilisateur | Connecté | 1. `GET /planning/today` ou `GET /planning/{date}`<br/>2. Voir sessions du jour | Planning affiché |
-| UC9 | Générer planning IA (jour) | Utilisateur, IA | Connecté, document CSV/PDF uploadé (optionnel) | 1. `POST /planning/generate` avec date, document_id, exam_ids, week_type<br/>2. Si CSV : parsing emploi du temps puis calcul déterministe des créneaux libres (8h–22h, buffer 15 min)<br/>3. Profil sommeil + dernier score focus finalisé ajustent durée/pause/volume<br/>4. Budgets adaptatifs (cours, examens, flashcards dues, quiz faibles) puis placement sans chevauchement<br/>5. Personnalisation Gemini des sujets `Revision:` sans changer les horaires<br/>6. Sessions IA créées en DB | Planning journée créé |
-| UC9w | Générer planning IA (semaine) | Utilisateur, IA | Idem UC9 | 1. `POST /planning/generate/week`<br/>2. Génère lundi→dimanche (suppression/recréation des sessions IA de chaque jour)<br/>3. Week-end : sweep hebdomadaire des matières non encore révisées, puis répétitions si capacité restante | Planning semaine créé |
-| UC10 | Modifier une session | Utilisateur | Session existante | 1. `PATCH /planning/sessions/{id}`<br/>2. Modifier statut, notes, documents liés | Session modifiée |
-| UC10c | Marquer session terminée | Utilisateur | Session en cours | 1. `PATCH /planning/sessions/{id}/complete`<br/>2. `completed_at` enregistré | Session terminée |
-| UC10r | Replanifier session manquée | Utilisateur | Session expirée ou annulée | 1. `POST /planning/reschedule/{id}`<br/>2. Système cherche créneau libre sur J ou J+1<br/>3. Nouvelle session créée, ancienne annulée | Session replanifiée |
-| UC10a | Recalculer les révisions du jour | Utilisateur, IA | Sessions IA de révision encore futures | 1. `POST /planning/recalculate/today`<br/>2. Garde sessions manuelles/cours intactes<br/>3. Repositionne uniquement les révisions IA restantes selon focus score récent + contraintes créneaux | Révisions du jour recalées |
-| UC11 | Supprimer une session | Utilisateur | Session existante | 1. `DELETE /planning/sessions/{id}` | Session supprimée |
-| UC30 | Consulter les insights | Utilisateur | Données historiques | 1. `GET /planning/insights?period=week\|month`<br/>2. Calcul : minutes étudiées, taux complétion, corrélation sommeil↔productivité, sujet le plus faible, recommandation | Insights affichés |
-| UC31 | Créer un examen | Utilisateur | Connecté | 1. `POST /planning/exams`<br/>2. Titre, date, document optionnel | Examen créé |
-| UC32 | Supprimer un examen | Utilisateur | Examen existant | 1. `DELETE /planning/exams/{id}` | Examen supprimé |
+| UC8 | Consulter le planning | Utilisateur | Connecté | 1. Lire `StudySession` (date)<br/>2. Afficher sessions du jour | Planning affiché |
+| UC9 | Générer planning IA (jour) | Utilisateur, IA | Connecté | 1. `SleepRecord.calculateScore()` → profil sommeil<br/>2. Si CSV : `ChatDocument.parse()` → créneaux cours<br/>3. Calcul créneaux libres + budgets adaptatifs<br/>4. `StudySession.create()` pour chaque session générée | Planning journée créé |
+| UC9w | Générer planning IA (semaine) | Utilisateur, IA | Idem UC9 | 1. Boucle lundi→dimanche : appliquer UC9<br/>3. Week-end : sweep hebdomadaire des matières | Planning semaine créé |
+| UC10 | Modifier une session | Utilisateur | Session existante | 1. `StudySession.update(id, modifications)` | Session modifiée |
+| UC10c | Marquer session terminée | Utilisateur | Session en cours | 1. `StudySession.complete(id)` → status="completed", completed_at | Session terminée |
+| UC10r | Replanifier session manquée | Utilisateur | Session expirée/annulée | 1. Chercher créneau libre (J ou J+1)<br/>2. `StudySession.create()` nouvelle session<br/>3. Ancienne session annulée | Session replanifiée |
+| UC11 | Supprimer une session | Utilisateur | Session existante | 1. Supprimer `StudySession` (id) | Session supprimée |
+| UC30 | Consulter les insights | Utilisateur | Données historiques | 1. Lire `StudySession` + `SleepRecord` + `Quiz` (période)<br/>2. Calcul taux complétion, corrélation sommeil/productivité, recommandation | Insights affichés |
+| UC31 | Créer un examen | Utilisateur | Connecté | 1. `Exam.create(titre, exam_date, document_id?)` | Examen créé |
+| UC32 | Supprimer un examen | Utilisateur | Examen existant | 1. `Exam.delete(id)` | Examen supprimé |
 
-**Endpoints réels :**
-- `GET /api/v1/planning/today`
-- `GET /api/v1/planning/{date}`
-- `POST /api/v1/planning/generate`
-- `POST /api/v1/planning/generate/week`
-- `POST /api/v1/planning/recalculate/today`
-- `GET /api/v1/planning/insights`
-- `POST /api/v1/planning/sessions`
-- `PATCH /api/v1/planning/sessions/{id}`
-- `PATCH /api/v1/planning/sessions/{id}/complete`
-- `DELETE /api/v1/planning/sessions/{id}`
-- `POST /api/v1/planning/reschedule/{id}`
-- `GET /api/v1/planning/exams`
-- `POST /api/v1/planning/exams`
-- `DELETE /api/v1/planning/exams/{id}`
+**Logique d'adaptation au sommeil (`SleepRecord.calculateScore()`) :**
 
-**Logique d'adaptation au sommeil :**
-
-| Score sommeil | Durée max session | Pause entre sessions | Nb max sessions | Priorité |
-|:---:|:---:|:---:|:---:|:---:|
-| ≥ 80 (bien reposé) | 50 min | 10 min | 6 | high |
-| 50–79 (moyen) | 35 min | 15 min | 4 | medium |
-| < 50 (insuffisant) | 25 min | 20 min | 2 | low |
-
----
-### 3.3 📅 Module Planning Intelligent
-
-Ce module est le plus sophistiqué du système. Il gère la génération automatique de sessions d'étude adaptées au profil de l'utilisateur, à son sommeil, à ses examens et à ses résultats de quiz/flashcards.
-
-```mermaid
-graph LR
-    User(("👤 Utilisateur"))
-    IA(("🤖 IA / LLM"))
-
-    UC8["Consulter le planning"]
-    UC9["Générer planning IA (jour)"]
-    UC9w["Générer planning IA (semaine)"]
-    UC10["Modifier une session"]
-    UC11["Supprimer une session"]
-    UC10c["Marquer session terminée"]
-    UC10r["Replanifier session manquée"]
-    UC30["Consulter les insights"]
-    UC31["Créer un examen"]
-    UC32["Supprimer un examen"]
-
-    UC9a["Analyser profil sommeil"]
-    UC9b["Parser emploi du temps CSV"]
-    UC9c["Extraire timetable PDF via RAG"]
-    UC9d["Calculer créneaux libres"]
-    UC9e["Adapter selon score sommeil"]
-    UC9f["Rotation pondérée des matières"]
-    UC9g["Intégrer révisions examens"]
-    UC9h["Intégrer flashcards SM-2 dues"]
-    UC9i["Intégrer sujets faibles (quiz)"]
-
-    User --> UC8
-    User --> UC9
-    User --> UC9w
-    User --> UC10
-    User --> UC11
-    User --> UC10c
-    User --> UC10r
-    User --> UC30
-    User --> UC31
-    User --> UC32
-
-    IA --> UC9a
-    IA --> UC9c
-    IA --> UC9f
-
-    UC9 -.->|include| UC9d
-    UC9 -.->|include| UC9f
-    UC9 -.->|extend| UC9a
-    UC9 -.->|extend| UC9b
-    UC9 -.->|extend| UC9c
-    UC9 -.->|extend| UC9e
-    UC9 -.->|extend| UC9g
-    UC9 -.->|extend| UC9h
-    UC9 -.->|extend| UC9i
-```
-
-| # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
-|---|-------------------|-----------|---------------|---------------------|----------------|
-| UC8 | Consulter le planning | Utilisateur | Connecté | 1. `GET /planning/today` ou `GET /planning/{date}`<br/>2. Voir sessions du jour | Planning affiché |
-| UC9 | Générer planning IA (jour) | Utilisateur, IA | Connecté, document CSV/PDF uploadé (optionnel) | 1. `POST /planning/generate` avec date, document_id, exam_ids, week_type<br/>2. Si CSV : parsing emploi du temps puis calcul déterministe des créneaux libres (8h–22h, buffer 15 min)<br/>3. Profil sommeil + dernier score focus finalisé ajustent durée/pause/volume<br/>4. Budgets adaptatifs (cours, examens, flashcards dues, quiz faibles) puis placement sans chevauchement<br/>5. Personnalisation Gemini des sujets `Revision:` sans changer les horaires<br/>6. Sessions IA créées en DB | Planning journée créé |
-| UC9w | Générer planning IA (semaine) | Utilisateur, IA | Idem UC9 | 1. `POST /planning/generate/week`<br/>2. Génère lundi→dimanche (suppression/recréation des sessions IA de chaque jour)<br/>3. Week-end : sweep hebdomadaire des matières non encore révisées, puis répétitions si capacité restante | Planning semaine créé |
-| UC10 | Modifier une session | Utilisateur | Session existante | 1. `PATCH /planning/sessions/{id}`<br/>2. Modifier statut, notes, documents liés | Session modifiée |
-| UC10c | Marquer session terminée | Utilisateur | Session en cours | 1. `PATCH /planning/sessions/{id}/complete`<br/>2. `completed_at` enregistré | Session terminée |
-| UC10r | Replanifier session manquée | Utilisateur | Session expirée ou annulée | 1. `POST /planning/reschedule/{id}`<br/>2. Système cherche créneau libre sur J ou J+1<br/>3. Nouvelle session créée, ancienne annulée | Session replanifiée |
-| UC10a | Recalculer les révisions du jour | Utilisateur, IA | Sessions IA de révision encore futures | 1. `POST /planning/recalculate/today`<br/>2. Garde sessions manuelles/cours intactes<br/>3. Repositionne uniquement les révisions IA restantes selon focus score récent + contraintes créneaux | Révisions du jour recalées |
-| UC11 | Supprimer une session | Utilisateur | Session existante | 1. `DELETE /planning/sessions/{id}` | Session supprimée |
-| UC30 | Consulter les insights | Utilisateur | Données historiques | 1. `GET /planning/insights?period=week\|month`<br/>2. Calcul : minutes étudiées, taux complétion, corrélation sommeil↔productivité, sujet le plus faible, recommandation | Insights affichés |
-| UC31 | Créer un examen | Utilisateur | Connecté | 1. `POST /planning/exams`<br/>2. Titre, date, document optionnel | Examen créé |
-| UC32 | Supprimer un examen | Utilisateur | Examen existant | 1. `DELETE /planning/exams/{id}` | Examen supprimé |
-
-**Endpoints réels :**
-- `GET /api/v1/planning/today`
-- `GET /api/v1/planning/{date}`
-- `POST /api/v1/planning/generate`
-- `POST /api/v1/planning/generate/week`
-- `POST /api/v1/planning/recalculate/today`
-- `GET /api/v1/planning/insights`
-- `POST /api/v1/planning/sessions`
-- `PATCH /api/v1/planning/sessions/{id}`
-- `PATCH /api/v1/planning/sessions/{id}/complete`
-- `DELETE /api/v1/planning/sessions/{id}`
-- `POST /api/v1/planning/reschedule/{id}`
-- `GET /api/v1/planning/exams`
-- `POST /api/v1/planning/exams`
-- `DELETE /api/v1/planning/exams/{id}`
-
-**Logique d'adaptation au sommeil :**
-
-| Score sommeil | Durée max session | Pause entre sessions | Nb max sessions | Priorité |
+| Score sommeil | Durée max session | Pause | Nb max sessions | Priorité |
 |:---:|:---:|:---:|:---:|:---:|
 | ≥ 80 (bien reposé) | 50 min | 10 min | 6 | high |
 | 50–79 (moyen) | 35 min | 15 min | 4 | medium |
@@ -448,7 +365,7 @@ graph LR
 
 ---
 
-### 3.4 💬 Module Chatbot RAG
+### 4.4 💬 Module Chatbot RAG
 
 ```mermaid
 graph LR
@@ -462,12 +379,10 @@ graph LR
     UC12l["Lister mes documents"]
     UC12d["Supprimer un document"]
 
-    UC12a["Parser le document"]
-    UC12b["Découper en chunks"]
-    UC12c["Générer les embeddings"]
-    UC12v["Valider CSV schedule"]
-    UC13a["Recherche sémantique"]
-    UC13b["Génération de réponse LLM"]
+    UC12a["ChatDocument.upload(file)"]
+    UC12b["ChatDocument.parse(file_path)"]
+    UC13a["ChatMessage.generateResponse()"]
+    UC13b["Recherche sémantique ChromaDB"]
 
     User --> UC12
     User --> UC13
@@ -477,37 +392,34 @@ graph LR
 
     UC12 -.->|include| UC12a
     UC12 -.->|include PDF| UC12b
-    UC12 -.->|include PDF| UC12c
-    UC12 -.->|include CSV| UC12v
 
-    UC13 -.->|include| UC13a
     UC13 -.->|include| UC13b
+    UC13 -.->|include| UC13a
 
-    IA --> UC13a
-    API --> UC13b
-    API --> UC12c
+    IA --> UC13b
+    API --> UC13a
 ```
+
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | Interface chatbot | — |
+| `<<Control>>` | `ChatDocument` | `upload()`, `parse()`, `delete()` |
+| `<<Control>>` | `ChatMessage` | `send()`, `generateResponse()` |
+| `<<Entity>>` | Base de Données (PostgreSQL), ChromaDB | — |
 
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC12 | Uploader un document | Utilisateur | Connecté | **PDF :** 1. Sélectionner fichier PDF<br/>2. Upload multipart<br/>3. PyMuPDF extrait le texte<br/>4. Chunking + embeddings HuggingFace (all-MiniLM-L6-v2)<br/>5. Stockage dans ChromaDB<br/><br/>**CSV :** 1. Sélectionner fichier CSV<br/>2. Validation colonnes (week, day, start, end, subject)<br/>3. Sauvegarde comme template emploi du temps | Document indexé (PDF) ou template validé (CSV) |
-| UC13 | Poser une question RAG | Utilisateur, Groq API | Document(s) uploadé(s) | 1. `POST /chatbot/chat` avec `question` + `document_ids[]`<br/>2. Recherche sémantique ChromaDB<br/>3. Chunks pertinents récupérés<br/>4. Groq génère réponse contextualisée<br/>5. Réponse + sources affichées<br/>6. Échange sauvé en historique | Réponse affichée avec citations |
-| UC13g | Question générale (sans doc) | Utilisateur, Groq API | Connecté | 1. `POST /chatbot/chat` avec `document_ids` vide<br/>2. Groq répond directement sans RAG | Réponse IA directe |
-| UC12l | Lister mes documents | Utilisateur | Documents existants | 1. `GET /chatbot/documents`<br/>2. Liste triée par date (desc) | Documents listés |
-| UC12d | Supprimer un document | Utilisateur | Document existant | 1. `DELETE /chatbot/documents/{id}`<br/>2. Suppression : fichier disque + ChromaDB + DB (cascade messages, quiz, flashcards) | Document entièrement supprimé |
-
-**Endpoints réels :**
-- `POST /chatbot/upload` — Upload PDF ou CSV (multipart/form-data)
-- `POST /chatbot/chat` — Question RAG ou générale
-- `GET /chatbot/documents` — Lister les documents
-- `DELETE /chatbot/documents/{id}` — Supprimer un document
-- `GET /chatbot/history?limit=N` — Historique des échanges
+| UC12 | Uploader un document | Utilisateur | Connecté | **PDF :** 1. `ChatDocument.upload(file)` → sauvegarder fichier<br/>2. `ChatDocument.parse(file_path)` → chunks + embeddings → ChromaDB<br/><br/>**CSV :** 1. `ChatDocument.upload(file)` → valider colonnes (week, day, start, end, subject) | Document indexé (PDF) ou template validé (CSV) |
+| UC13 | Poser une question RAG | Utilisateur, Groq API | Document(s) uploadé(s) | 1. `ChatMessage.send(question, document_ids)`<br/>2. `ChatMessage.generateResponse()` → recherche ChromaDB → Groq → réponse + sources | Réponse affichée avec citations |
+| UC13g | Question générale | Utilisateur, Groq API | Connecté | 1. `ChatMessage.send(question)` (sans document_ids)<br/>2. `ChatMessage.generateResponse()` → Groq directement | Réponse IA directe |
+| UC12l | Lister mes documents | Utilisateur | Documents existants | 1. Lire liste `ChatDocument` (user_id) | Documents listés |
+| UC12d | Supprimer un document | Utilisateur | Document existant | 1. `ChatDocument.delete(id)` → disque + ChromaDB + PostgreSQL | Document entièrement supprimé |
 
 ---
 
-### 3.5 🧠 Module Quiz
-
-Le module quiz est désormais un routeur indépendant avec support multi-documents et génération depuis une session d'étude.
+### 4.5 🧠 Module Quiz
 
 ```mermaid
 graph LR
@@ -520,9 +432,8 @@ graph LR
     UC14l["Lister mes quiz"]
     UC14g["Consulter un quiz"]
 
-    UC14a["Recherche sémantique multi-collections"]
+    UC14a["Quiz.generate(document_ids, num_questions)"]
     UC14b["Groq génère questions QCM"]
-    UC14c["Lien QuizDocumentLink créé"]
 
     User --> UC14
     User --> UC14s
@@ -532,32 +443,31 @@ graph LR
 
     UC14 -.->|include| UC14a
     UC14 -.->|include| UC14b
-    UC14 -.->|include| UC14c
 
-    IA --> UC14a
     IA --> UC14b
 ```
 
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | Interface quiz | — |
+| `<<Control>>` | `Quiz` | `generate()`, `submit()`, `evaluate()` |
+| `<<Control>>` | `QuizQuestion` | (créée lors de `Quiz.generate()`) |
+| `<<Control>>` | `ChatDocument` | `parse()` (accès ChromaDB) |
+| `<<Entity>>` | Base de Données (PostgreSQL) | — |
+
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC14 | Générer quiz depuis document(s) | Utilisateur, Groq API | Document(s) PDF uploadé(s) | 1. `POST /quiz/generate` avec `document_id` ou `document_ids[]`, `num_questions` (3–30)<br/>2. Recherche sémantique dans ChromaDB<br/>3. Groq génère les questions QCM avec options + réponse correcte + explication<br/>4. Quiz + QuizDocumentLink sauvés en DB | Quiz créé, réponses masquées |
-| UC14s | Générer quiz depuis session | Utilisateur, IA | Session terminée avec documents liés | 1. `POST /quiz/generate-from-session/{session_id}`<br/>2. Récupère les documents de la session<br/>3. Génère le quiz (ou retourne l'existant) | Quiz de session créé |
-| UC14sub | Soumettre réponses | Utilisateur | Quiz non soumis | 1. `POST /quiz/{id}/submit` avec `answers[]`<br/>2. Scoring : comparaison avec `correct_index`<br/>3. Score, pourcentage et corrections retournés | Quiz complété avec score |
-| UC14l | Lister mes quiz | Utilisateur | Quiz existants | 1. `GET /quiz/list` | Liste de quiz |
-| UC14g | Consulter un quiz | Utilisateur | Quiz existant | 1. `GET /quiz/{id}`<br/>2. Si non soumis : réponses masquées<br/>3. Si soumis : corrections visibles | Quiz affiché |
-
-**Endpoints réels :**
-- `POST /quiz/generate`
-- `POST /quiz/generate-from-session/{session_id}`
-- `GET /quiz/list`
-- `GET /quiz/{quiz_id}`
-- `POST /quiz/{quiz_id}/submit`
+| UC14 | Générer quiz depuis document(s) | Utilisateur, Groq API | Document(s) PDF uploadé(s) | 1. `Quiz.generate(document_ids, num_questions)`<br/>2. Groq génère questions QCM (options, correct_index, explanation)<br/>3. `Quiz` + `QuizQuestion` sauvés en DB | Quiz créé, réponses masquées |
+| UC14s | Générer quiz depuis session | Utilisateur, IA | Session terminée avec documents liés | 1. Récupérer documents liés à la `StudySession`<br/>2. `Quiz.generate(document_ids, num_questions)` | Quiz de session créé |
+| UC14sub | Soumettre réponses | Utilisateur | Quiz non soumis | 1. `Quiz.submit(answers[])`<br/>2. `Quiz.evaluate()` → score, pourcentage, corrections | Quiz complété avec score |
+| UC14l | Lister mes quiz | Utilisateur | Quiz existants | 1. Lire liste `Quiz` (user_id) | Liste de quiz |
+| UC14g | Consulter un quiz | Utilisateur | Quiz existant | 1. Lire `Quiz` avec ses `QuizQuestion`<br/>2. Si non soumis : correct_index masqué | Quiz affiché |
 
 ---
 
-### 3.6 🃏 Module Flashcards SM-2
-
-Le module flashcards utilise l'algorithme de répétition espacée SM-2. Il supporte la génération depuis des documents ou depuis des sessions d'étude terminées.
+### 4.6 🃏 Module Flashcards SM-2
 
 ```mermaid
 graph LR
@@ -571,8 +481,8 @@ graph LR
     UC15dk["Consulter un deck"]
     UC15del["Supprimer une flashcard"]
 
-    UC15a["Groq extrait concepts clés"]
-    UC15b["SM-2 calcule next_review"]
+    UC15a["Flashcard.generate(document_ids, num_cards)"]
+    UC15b["Flashcard.updateSM2(quality)"]
 
     User --> UC15
     User --> UC15s
@@ -587,71 +497,34 @@ graph LR
     IA --> UC15a
 ```
 
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | Interface flashcards | — |
+| `<<Control>>` | `Flashcard` | `generate()`, `review()`, `updateSM2()` |
+| `<<Control>>` | `ChatDocument` | `parse()` (accès ChromaDB) |
+| `<<Entity>>` | Base de Données (PostgreSQL) | — |
+
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC15 | Générer flashcards depuis document(s) | Utilisateur, Groq API | Document(s) PDF uploadé(s) | 1. `POST /flashcards/generate` avec `document_id`/`document_ids[]`, `num_cards` (5–50)<br/>2. Groq extrait concepts clés<br/>3. Flashcards créées avec `ease_factor=2.5`, `interval=1`, `next_review=now` | Deck de flashcards créé |
-| UC15s | Générer flashcards depuis session | Utilisateur, IA | Session terminée avec documents | 1. `POST /flashcards/generate-from-session/{session_id}`<br/>2. Récupère documents liés à la session<br/>3. Génère (ou retourne existantes) | Deck de session créé |
-| UC15r | Réviser une flashcard | Utilisateur | Carte due | 1. `POST /flashcards/{id}/review` avec `quality` (0–5)<br/>2. SM-2 calcule : `repetitions`, `ease_factor`, `interval`, `next_review`<br/>3. Carte mise à jour | Prochaine révision planifiée |
-| UC15d | Consulter cartes dues | Utilisateur | Flashcards existantes | 1. `GET /flashcards/due`<br/>2. Retourne cartes avec `next_review ≤ now` | Cartes dues listées |
-| UC15dk | Consulter un deck | Utilisateur | Document existant | 1. `GET /flashcards/deck/{document_id}` ou `GET /flashcards/deck/session/{session_id}` | Deck affiché |
-| UC15del | Supprimer une flashcard | Utilisateur | Carte existante | 1. `DELETE /flashcards/{id}` | Carte supprimée |
+| UC15 | Générer flashcards depuis document(s) | Utilisateur, Groq API | Document(s) PDF uploadé(s) | 1. `Flashcard.generate(document_ids, num_cards)`<br/>2. Groq extrait concepts clés (front, back)<br/>3. Flashcards créées : `ease_factor=2.5`, `interval=1`, `next_review=maintenant` | Deck de flashcards créé |
+| UC15s | Générer flashcards depuis session | Utilisateur, IA | Session terminée avec documents | 1. Récupérer documents liés à la `StudySession`<br/>2. `Flashcard.generate(document_ids, num_cards)` | Deck de session créé |
+| UC15r | Réviser une flashcard | Utilisateur | Carte due | 1. `Flashcard.review(card_id, quality)` (quality: 0–5)<br/>2. `Flashcard.updateSM2(quality)` → `repetitions`, `ease_factor`, `interval`, `next_review` | Prochaine révision planifiée |
+| UC15d | Consulter cartes dues | Utilisateur | Flashcards existantes | 1. Lire `Flashcard` avec `next_review ≤ maintenant` | Cartes dues listées |
+| UC15dk | Consulter un deck | Utilisateur | Document existant | 1. Lire `Flashcard` par document ou par session | Deck affiché |
+| UC15del | Supprimer une flashcard | Utilisateur | Carte existante | 1. Supprimer `Flashcard` (id) | Carte supprimée |
 
-**Endpoints réels :**
-- `POST /flashcards/generate`
-- `POST /flashcards/generate-from-session/{session_id}`
-- `GET /flashcards/deck/{document_id}`
-- `GET /flashcards/deck/session/{session_id}`
-- `GET /flashcards/due`
-- `POST /flashcards/{card_id}/review`
-- `DELETE /flashcards/{card_id}`
-
-**Algorithme SM-2 :**
+**Algorithme SM-2 (`Flashcard.updateSM2()`) :**
 
 | Quality (0–5) | Signification | Effet |
 |:---:|---|---|
-| 0 | Blackout total | Reset repetitions, interval=1 |
-| 1 | Incorrect, mais reconnu après | Reset repetitions, interval=1 |
-| 2 | Incorrect, mais facile après | Reset repetitions, interval=1 |
-| 3 | Correct, difficulté sérieuse | interval = interval × ease_factor |
-| 4 | Correct, quelque hésitation | interval = interval × ease_factor |
-| 5 | Rappel parfait | interval = interval × ease_factor |
+| 0–2 | Échec (blackout / incorrect) | Reset : `repetitions=0`, `interval=1` |
+| 3–5 | Correct (difficile → parfait) | `interval = interval × ease_factor` ; `ease_factor` ajusté |
 
 ---
 
-### 3.7 🧍 Module Posture & Ergonomie
-
-```mermaid
-graph LR
-    User(("👤 Utilisateur"))
-
-    UC17["Détecter la posture"]
-    UC18["Recevoir alerte posture"]
-    UC19["Voir stats posture"]
-    UC20["Recevoir conseils ergonomiques"]
-
-    UC17a["Capturer image\n(pi_client interne)"]
-    UC17b["Analyser via MediaPipe\n(composant interne)"]
-
-    User --> UC19
-    User --> UC20
-
-    UC17 -.->|include| UC17a
-    UC17 -.->|include| UC17b
-    UC17 -.->|extend| UC18
-```
-
-| # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
-|---|-------------------|-----------|---------------|---------------------|----------------|
-| UC17 | Détecter la posture | Système (pi_client interne) | Session active | 1. Caméra capture image<br/>2. MediaPipe analyse la posture<br/>3. Résultat envoyé au backend | Posture évaluée |
-| UC18 | Recevoir alerte posture | Utilisateur | Mauvaise posture détectée (par pi_client) | 1. pi_client détecte dos courbé<br/>2. Événement envoyé au backend<br/>3. Notification mobile | Utilisateur alerté |
-| UC19 | Voir stats posture | Utilisateur | Données collectées | 1. Ouvrir Statistiques<br/>2. Voir % bonne posture<br/>3. Évolution par jour/semaine | Stats affichées |
-| UC20 | Recevoir conseils | Utilisateur, IA | Historique posture | 1. Analyse patterns<br/>2. IA génère conseils<br/>3. Recommandations affichées | Conseils reçus |
-
-> ⚠️ Ce module dépend du pi_client (composant interne du système).
-
----
-
-### 3.8 🌙 Module Sommeil & Réveil
+### 4.7 🌙 Module Sommeil & Réveil
 
 ```mermaid
 graph LR
@@ -681,24 +554,26 @@ graph LR
     IA --> UC24
 ```
 
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | Interface sommeil / réveil | — |
+| `<<Control>>` | `SleepRecord` | `record()`, `calculateScore()` |
+| `<<Control>>` | `SmartAlarm` | `configure()`, `trigger()`, `snooze()` |
+| `<<Entity>>` | Base de Données (PostgreSQL) | — |
+
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC21 | Enregistrer sommeil | Utilisateur | Connecté | 1. `POST /api/v1/sleep/log` avec `sleep_start`, `sleep_end`<br/>2. Calcul automatique `total_hours` et `sleep_score` (0–100) | Nuit enregistrée |
-| UC22 | Score sommeil | Utilisateur | Données de nuit | 1. `GET /api/v1/sleep/stats?period=week\|month`<br/>2. Moyenne heures, score moyen, tendance | Stats consultées |
-| UC22h | Historique sommeil | Utilisateur | Nuits enregistrées | 1. `GET /api/v1/sleep/history?limit=30`<br/>2. Liste des enregistrements | Historique affiché |
-| UC23 | Réveil intelligent | Utilisateur | Connecté | 1. `PUT /api/v1/sleep/alarm` avec `alarm_time` (HH:MM), `wake_mode` (gradual\|normal\|silent), `light_intensity` (0–100), `sound_enabled`<br/>2. Alarme locale Flutter (`alarm: ^5.2.1`) | Alarme configurée |
-| UC24 | Adapter planning | IA | Score sommeil disponible | 1. Profil sommeil construit (`bien reposé` / `moyen` / `insuffisant`)<br/>2. Paramètres révision ajustés (durée max, pause, nb sessions max)<br/>3. Ajustement complémentaire possible via dernier score focus finalisé | Planning adapté |
-
-**Endpoints réels :**
-- `POST /api/v1/sleep/log`
-- `GET /api/v1/sleep/stats`
-- `GET /api/v1/sleep/history`
-- `PUT /api/v1/sleep/alarm`
-- `GET /api/v1/sleep/alarm`
+| UC21 | Enregistrer sommeil | Utilisateur | Connecté | 1. `SleepRecord.record(user_id, sleep_start, sleep_end)`<br/>2. `SleepRecord.calculateScore()` → sleep_score (0–100) | Nuit enregistrée avec score |
+| UC22 | Score sommeil | Utilisateur | Données de nuit | 1. Agréger `SleepRecord` (avg_hours, score_avg, trend) | Stats consultées |
+| UC22h | Historique sommeil | Utilisateur | Nuits enregistrées | 1. Lire liste `SleepRecord` (user_id, limit=30) | Historique affiché |
+| UC23 | Réveil intelligent | Utilisateur | Connecté | 1. `SmartAlarm.configure(alarm_time, wake_mode, light_intensity, sound_enabled)`<br/>2. À l'heure : `SmartAlarm.trigger()` → lumière + son progressif<br/>3. Si besoin : `SmartAlarm.snooze()` | Alarme configurée et active |
+| UC24 | Adapter planning | IA | Score sommeil disponible | 1. `SleepRecord.calculateScore()` → profil sommeil<br/>2. `StudySession.create()` avec durées/pauses adaptées | Planning adapté |
 
 ---
 
-### 3.9 📊 Module Dashboard & Statistiques
+### 4.8 📊 Module Dashboard & Statistiques
 
 ```mermaid
 graph LR
@@ -709,9 +584,9 @@ graph LR
     UC28["Stats hebdomadaires"]
     UC29["Conseils personnalisés"]
 
-    UC27a["Score focus du jour"]
-    UC27b["Score sommeil"]
-    UC27c["Prochaine session"]
+    UC27a["Lire StudySession du jour"]
+    UC27b["Lire SleepRecord (score)"]
+    UC27c["Lire WorkSession active + Snapshot"]
     UC27d["Graphiques fl_chart"]
 
     User --> UC27
@@ -726,96 +601,87 @@ graph LR
     IA --> UC29
 ```
 
+**Classes BCE impliquées :**
+
+| Stéréotype | Classe | Méthodes utilisées |
+|:---:|---|---|
+| `<<Boundary>>` | Interface Dashboard Flutter | — |
+| `<<Control>>` | `StudySession` | `getDocumentIds()`, `getQuizStatus()`, `getFlashcardsStatus()` |
+| `<<Control>>` | `SleepRecord` | `calculateScore()` |
+| `<<Control>>` | `WorkSession` | `create()`, `finalize()` |
+| `<<Control>>` | `Snapshot` | `ingest()` |
+| `<<Control>>` | `Quiz` | `evaluate()` |
+| `<<Entity>>` | Base de Données (PostgreSQL) | — |
+
 | # | Cas d'Utilisation | Acteur(s) | Pré-condition | Scénario Principal | Post-condition |
 |---|-------------------|-----------|---------------|---------------------|----------------|
-| UC27 | Dashboard global | Utilisateur | Connecté | 1. Ouvrir l'app<br/>2. Voir scores du jour<br/>3. Alertes récentes<br/>4. Prochaine session | Vue d'ensemble |
-| UC28 | Stats hebdomadaires | Utilisateur | Données collectées | 1. Ouvrir Statistiques<br/>2. Graphiques par semaine (fl_chart)<br/>3. Tendances et progrès | Progrès visualisés |
-| UC29 | Conseils personnalisés | Utilisateur, IA | Historique suffisant | 1. IA analyse les patterns (via `/planning/insights`)<br/>2. Détecte heures productives<br/>3. Identifie corrélation sommeil/productivité<br/>4. Génère recommandation personnalisée | Conseils affichés |
+| UC27 | Dashboard global | Utilisateur | Connecté | 1. Lire `StudySession` du jour (sessions, prochaine)<br/>2. `SleepRecord.calculateScore()` → score sommeil<br/>3. Lire `WorkSession` active + dernier `Snapshot` (focus score)<br/>4. Assembler vue d'ensemble | Vue d'ensemble affichée |
+| UC28 | Stats hebdomadaires | Utilisateur | Données collectées | 1. Lire `StudySession` + `SleepRecord` + `Quiz` (semaine)<br/>2. Calculer taux complétion, corrélation sommeil/productivité<br/>3. `Quiz.evaluate()` → sujet le plus faible<br/>4. Générer recommandation | Progrès visualisés |
+| UC29 | Conseils personnalisés | Utilisateur, IA | Historique suffisant | 1. Analyser patterns via `StudySession` et `SleepRecord`<br/>2. IA génère recommandation ciblée | Conseils affichés |
 
 ---
 
-## 4. Matrice Acteurs / Cas d'Utilisation
+## 5. Matrice Acteurs / Cas d'Utilisation / Classes BCE
 
-| Cas d'Utilisation | 👤 Utilisateur | ☁️ Groq API |
-|-------------------|:-:|:-:|
-| S'inscrire | ✅ | |
-| Se connecter | ✅ | |
-| Gérer profil | ✅ | |
-| Rafraîchir token | ✅ | |
-| Démarrer session focus | ✅ | |
-| Voir score temps réel | ✅ | |
-| Alerte concentration | ✅ | |
-| Historique sessions | ✅ | |
-| Consulter planning | ✅ | |
-| Générer planning IA (jour) | ✅ | ✅ |
-| Générer planning IA (semaine) | ✅ | ✅ |
-| Modifier session | ✅ | |
-| Marquer session terminée | ✅ | |
-| Replanifier session manquée | ✅ | |
-| Supprimer session | ✅ | |
-| Consulter insights planning | ✅ | |
-| Créer un examen | ✅ | |
-| Supprimer un examen | ✅ | |
-| Uploader document (PDF/CSV) | ✅ | |
-| Question RAG (sur document) | ✅ | ✅ |
-| Question générale (sans doc) | ✅ | ✅ |
-| Lister documents | ✅ | |
-| Supprimer document | ✅ | |
-| Générer quiz (document) | ✅ | ✅ |
-| Générer quiz (session) | ✅ | ✅ |
-| Soumettre réponses quiz | ✅ | |
-| Lister quiz | ✅ | |
-| Générer flashcards (document) | ✅ | ✅ |
-| Générer flashcards (session) | ✅ | ✅ |
-| Réviser flashcard (SM-2) | ✅ | |
-| Consulter cartes dues | ✅ | |
-| Supprimer flashcard | ✅ | |
-| Détecter posture | ✅ | |
-| Alerte posture | ✅ | |
-| Stats posture | ✅ | |
-| Conseils ergonomiques | ✅ | ✅ |
-| Enregistrer sommeil | ✅ | |
-| Score sommeil / stats | ✅ | |
-| Historique sommeil | ✅ | |
-| Configurer réveil | ✅ | |
-| Adapter planning/sommeil | ✅ | |
-| Dashboard global | ✅ | |
-| Stats hebdomadaires | ✅ | |
-| Conseils personnalisés | ✅ | ✅ |
+| Cas d'Utilisation | 👤 Utilisateur | ☁️ Groq API | Classe `<<Control>>` |
+|-------------------|:-:|:-:|---|
+| S'inscrire | ✅ | | `User.register()` |
+| Se connecter | ✅ | | `User.login()` |
+| Gérer profil | ✅ | | `User.updateProfile()`, `UserProfile.updateGoals()` |
+| Rafraîchir token | ✅ | | `User.getToken()` |
+| Démarrer session focus | ✅ | | `WorkSession.create()`, `WorkSession.claimUser()` |
+| Voir score temps réel | ✅ | | `Snapshot.ingest()` |
+| Alerte concentration | ✅ | | `FocusEvent.ingest()` |
+| Historique sessions | ✅ | | `WorkSession` |
+| Consulter planning | ✅ | | `StudySession` |
+| Générer planning IA (jour) | ✅ | ✅ | `StudySession.create()`, `SleepRecord.calculateScore()` |
+| Générer planning IA (semaine) | ✅ | ✅ | `StudySession.create()`, `SleepRecord.calculateScore()` |
+| Modifier session | ✅ | | `StudySession.update()` |
+| Marquer session terminée | ✅ | | `StudySession.complete()` |
+| Replanifier session manquée | ✅ | | `StudySession.create()` |
+| Supprimer session | ✅ | | `StudySession` |
+| Consulter insights planning | ✅ | | `StudySession`, `SleepRecord`, `Quiz.evaluate()` |
+| Créer un examen | ✅ | | `Exam.create()` |
+| Supprimer un examen | ✅ | | `Exam.delete()` |
+| Uploader document (PDF/CSV) | ✅ | | `ChatDocument.upload()`, `ChatDocument.parse()` |
+| Question RAG (sur document) | ✅ | ✅ | `ChatMessage.send()`, `ChatMessage.generateResponse()` |
+| Question générale (sans doc) | ✅ | ✅ | `ChatMessage.send()`, `ChatMessage.generateResponse()` |
+| Lister documents | ✅ | | `ChatDocument` |
+| Supprimer document | ✅ | | `ChatDocument.delete()` |
+| Générer quiz (document) | ✅ | ✅ | `Quiz.generate()` |
+| Générer quiz (session) | ✅ | ✅ | `Quiz.generate()` |
+| Soumettre réponses quiz | ✅ | | `Quiz.submit()`, `Quiz.evaluate()` |
+| Lister quiz | ✅ | | `Quiz` |
+| Générer flashcards (document) | ✅ | ✅ | `Flashcard.generate()` |
+| Générer flashcards (session) | ✅ | ✅ | `Flashcard.generate()` |
+| Réviser flashcard (SM-2) | ✅ | | `Flashcard.review()`, `Flashcard.updateSM2()` |
+| Consulter cartes dues | ✅ | | `Flashcard` |
+| Supprimer flashcard | ✅ | | `Flashcard` |
+| Enregistrer sommeil | ✅ | | `SleepRecord.record()`, `SleepRecord.calculateScore()` |
+| Score sommeil / stats | ✅ | | `SleepRecord.calculateScore()` |
+| Historique sommeil | ✅ | | `SleepRecord` |
+| Configurer réveil | ✅ | | `SmartAlarm.configure()` |
+| Adapter planning/sommeil | ✅ | | `SleepRecord.calculateScore()`, `StudySession.create()` |
+| Dashboard global | ✅ | | `StudySession`, `SleepRecord`, `WorkSession`, `Snapshot` |
+| Stats hebdomadaires | ✅ | | `StudySession`, `SleepRecord`, `Quiz.evaluate()` |
+| Conseils personnalisés | ✅ | ✅ | `StudySession`, `SleepRecord` |
 
 ---
 
-## 5. Résumé des Cas d'Utilisation
+## 6. Résumé des Cas d'Utilisation
 
-| Module | Nombre de CU | Priorité | Statut |
-|--------|:---:|:---:|:---:|
-| 🔐 Authentification | 4 | Haute | ✅ Implémenté |
-| 🎯 Focus & Concentration | 4 | Haute | ⚠️ En attente hardware |
-| 📅 Planning Intelligent | 10 | Haute | ✅ Implémenté |
-| 💬 Chatbot RAG | 5 | Haute | ✅ Implémenté |
-| 🧠 Quiz | 5 | Haute | ✅ Implémenté |
-| 🃏 Flashcards SM-2 | 6 | Haute | ✅ Implémenté |
-| 🧍 Posture & Ergonomie | 4 | Moyenne | ⚠️ En attente hardware |
-| 🌙 Sommeil & Réveil | 5 | Moyenne | ✅ Implémenté |
-| 📊 Dashboard & Stats | 3 | Haute | ✅ Implémenté |
-| **Total** | **46** | | |
-
----
-
-## 6. Changements depuis la version 1.0
-
-| Élément | Avant (v1.0) | Après (v2.0) |
-|---------|-------------|-------------|
-| LLM Provider | OpenAI API (GPT-3.5/4) | Groq llama-3.3-70b-versatile |
-| Embeddings | text-embedding-3 (OpenAI) | HuggingFace all-MiniLM-L6-v2 (local) |
-| Planning | 4 CU simples | 10 CU (semaine, reschedule, exams, insights, adaptation sommeil) |
-| Quiz | Sous-module chatbot (1 CU) | Module indépendant (5 CU, multi-docs, depuis session) |
-| Flashcards | Sous-module chatbot (2 CU) | Module indépendant (6 CU, SM-2, depuis session, decks) |
-| Chatbot upload | PDF uniquement | PDF + CSV (emploi du temps) |
-| Sommeil | 4 CU | 5 CU (ajout historique) |
-| Auth | 3 CU | 4 CU (ajout refresh token) |
-| Total CU | 29 | 46 |
+| Module | Nombre de CU | Priorité | Statut | Classes `<<Control>>` |
+|--------|:---:|:---:|:---:|---|
+| 🔐 Authentification | 4 | Haute | ✅ Implémenté | `User`, `UserProfile` |
+| 🎯 Focus & Concentration | 4 | Haute | ⚠️ En attente hardware | `WorkSession`, `Snapshot`, `FocusEvent` |
+| 📅 Planning Intelligent | 10 | Haute | ✅ Implémenté | `StudySession`, `Exam`, `SleepRecord` |
+| 💬 Chatbot RAG | 5 | Haute | ✅ Implémenté | `ChatDocument`, `ChatMessage` |
+| 🧠 Quiz | 5 | Haute | ✅ Implémenté | `Quiz`, `QuizQuestion` |
+| 🃏 Flashcards SM-2 | 6 | Haute | ✅ Implémenté | `Flashcard` |
+| 🌙 Sommeil & Réveil | 5 | Moyenne | ✅ Implémenté | `SleepRecord`, `SmartAlarm` |
+| 📊 Dashboard & Stats | 3 | Haute | ✅ Implémenté | `StudySession`, `SleepRecord`, `WorkSession`, `Snapshot`, `Quiz` |
+| **Total** | **42** | | | |
 
 ---
 
-*Mis à jour le 9 Avril 2026 — Smart Focus & Life Assistant*
+*Mis à jour le 12 Mai 2026 — Smart Focus & Life Assistant*

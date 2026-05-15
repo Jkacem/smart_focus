@@ -1,0 +1,108 @@
+\documentclass[12pt,oneside,a4paper]{isima-pfe-report}
+
+\graphicspath{{images/}}
+
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{acro}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{colortbl}
+\usepackage{booktabs}
+\usepackage{pdfpages}
+\usepackage{wrapfig}
+\usepackage{amssymb}
+\usepackage[all]{nowidow}
+\usepackage[sorting=none,backend=bibtex]{biblatex}
+\usepackage{float}
+\addbibresource{referance.bib}
+
+\input{config/commands}
+\hypersetup{
+  pdftitle={\reportTitle~-~\reportSubject},
+  pdfauthor={\reportAuthor},
+  pdfsubject={Mémoire de Projet de Fin d’Études},
+  pdfkeywords={PFE, ISIMA, mémoire, Smart Focus}
+}
+\setcounter{tocdepth}{2}
+\begin{document}
+
+\begin{pfe-isima}
+\raggedright
+
+%========================
+% DEBUG TEMPORAIRE (IMPORTANT)
+%========================
+% Décommente pour tester uniquement chapitre 3
+% \includeonly{chapters/chapitre3}
+
+% Pages préliminaires
+\pagenumbering{roman}
+
+\include{frontmatter/titlepage}
+\cleardoublepage
+
+\include{frontmatter/thanks}
+\cleardoublepage
+
+\include{frontmatter/resume}
+\cleardoublepage
+
+\tableofcontents
+\addcontentsline{toc}{chapter}{Table des matières}
+\cleardoublepage
+
+\listoffigures
+\addcontentsline{toc}{chapter}{Liste des figures}
+\cleardoublepage
+
+\listoftables
+\addcontentsline{toc}{chapter}{Liste des tableaux}
+\cleardoublepage
+
+\printacronyms[heading=chapter*, name=Liste des acronymes]
+\addcontentsline{toc}{chapter}{Liste des acronymes}
+\cleardoublepage
+
+%========================
+% Corps du mémoire
+%========================
+
+\pagenumbering{arabic}
+\doublespacing
+
+\include{chapters/introduction_generale}
+\cleardoublepage
+
+\include{chapters/chapitre1}
+\cleardoublepage
+
+\include{chapters/chapitre2}
+\cleardoublepage
+
+% ===== TEST ICI =====
+\include{chapters/chapitre3}
+\cleardoublepage
+\include{chapters/chapitre4}
+\cleardoublepage
+\include{chapters/chapitre5}
+\cleardoublepage
+\include{chapters/conclusiongenerale}
+\cleardoublepage
+
+%\include{appendix/annexes}
+%\cleardoublepage
+
+%========================
+% Bibliographie
+%========================
+
+\nocite{*}
+\printbibliography[title={Bibliographie}]
+\cleardoublepage
+
+\end{pfe-isima}
+
+\end{document}

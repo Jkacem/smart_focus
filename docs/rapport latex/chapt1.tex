@@ -1,0 +1,189 @@
+% CHAPITRE 1 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\chapter{Cadre général du projet}
+
+\section{Introduction}
+Ce chapitre établit les fondements du projet en exposant son contexte global, les raisons qui ont inspiré sa conception et les besoins primordiaux détectés. Il offre aussi la possibilité de situer le projet en comparaison avec les solutions déjà existantes et d'expliquer les décisions prises. Finalement, il présente la démarche suivie et la structure générale du travail.
+
+\section{Présentation de l'entreprise d'accueil}
+La Pépinière d'Entreprises \ac{APII} Mahdia est une structure d'accompagnement dédiée à la création et au développement de projets innovants. Elle est implantée au sein de l'Espace Universitaire de l'ISET Mahdia et relève de l'Agence de Promotion de l'Industrie et de l'Innovation (\ac{APII}), organisme public tunisien placé sous la tutelle du Ministère de l'Industrie.
+
+Cette pépinière a pour mission de soutenir les porteurs de projets et les startups en phase de lancement, en leur offrant un environnement favorable à l'innovation et à la croissance. Elle propose un accompagnement adapté comprenant des formations spécialisées, un encadrement technique et entrepreneurial, ainsi que l'accès à des ressources matérielles et à un réseau de partenaires professionnels.
+
+Grâce à cet écosystème, la Pépinière APII Mahdia joue un rôle important dans la promotion de l'innovation, notamment dans les domaines technologiques tels que l'Internet des objets et l'intelligence artificielle. Elle constitue ainsi un cadre propice à la réalisation de projets académiques et professionnels.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4\textwidth]{images/pep_logo.png}
+    \caption{Logo de la Pépinière APII Mahdia}
+\end{figure}
+ 
+\section{Présentation du cadre du projet}
+
+\subsection{Contexte général}
+Avec le progrès des technologies digitales, les espaces de travail et d'étude exigent de plus en plus des tâches requérant une concentration prolongée. Ces tâches nécessitent une interaction constante avec des systèmes informatiques, ce qui peut provoquer des conséquences indésirables comme la lassitude, le manque de concentration ou l'adoption de postures inadaptées.
+
+Les progrès en matière d'intelligence artificielle et de vision informatique permettent actuellement d'examiner le comportement humain en temps réel. De plus, l'Internet des objets offre la possibilité d'incorporer ces compétences dans des appareils intelligents aptes à soutenir l'utilisateur de façon proactive.
+
+\subsection{Domaine d'application}
+Le projet se positionne dans le champ d'application des systèmes intelligents qui allient l'\ac{IA} et l'\ac{IoT}. Il a pour objectif d'utiliser des données visuelles et comportementales pour mesurer le niveau de concentration de l'utilisateur et augmenter son efficacité durant les sessions d'étude ou de travail.
+
+\section{Problématique}
+Lors des longues sessions de travail ou d'étude nécessitant un effort cognitif soutenu, l'utilisateur subit souvent une dégradation progressive de sa concentration sans en être pleinement conscient. Cette diminution, liée à des facteurs tels que la fatigue, les distractions ou les mauvaises postures, affecte directement la qualité du travail et le bien-être de l'utilisateur.
+
+En l'absence d'un système capable de détecter et d'interpréter ces changements en temps réel, il devient difficile d'évaluer l'état réel de concentration et d'agir de manière adaptée. Cette lacune constitue un frein majeur à l'optimisation de la productivité et met en évidence la nécessité de développer une solution intelligente capable d'analyser le comportement de l'utilisateur de manière continue et fiable.
+\section{Étude et critique de l'existant}
+
+Dans cette section, nous analysons les solutions existantes liées à l'amélioration de la concentration et du bien-être de l'utilisateur, afin d'identifier leurs apports ainsi que leurs limites. Cette étude permet de situer notre travail par rapport aux approches actuelles.
+
+\subsection{Analyse et comparaison des solutions existantes}
+
+Plusieurs solutions ont été développées dans le but d’améliorer la productivité et de surveiller le comportement de l’utilisateur. Ces solutions peuvent être regroupées en différentes catégories :
+
+\begin{itemize}
+    \item \textbf{Applications de gestion du temps} : telles que les applications basées sur la technique Pomodoro \cite{pomodoro} ou Forest \cite{forest}, qui permettent de structurer les sessions de travail en imposant des blocs de concentration fixes. Ces outils agissent uniquement sur la gestion du temps sans analyser l’état réel de l’utilisateur.
+
+    \item \textbf{Applications de surveillance de la posture} : comme SitSense \cite{sitsense} ou Upright GO \cite{uprightgo}, qui exploitent respectivement la caméra et un capteur porté dans le dos pour détecter les mauvaises postures. Ces solutions se limitent à un seul indicateur physique et n’intègrent aucune analyse cognitive.
+
+    \item \textbf{Dispositifs portables (wearables)} : tels que Fitbit \cite{fitbit} ou Oura \cite{oura}, permettant de suivre des indicateurs physiologiques comme la fréquence cardiaque, la qualité du sommeil ou le niveau d’activité. Ces données restent néanmoins globales et ne permettent pas de mesurer directement le niveau de concentration en temps réel.
+
+    \item \textbf{Approches académiques basées sur la vision par ordinateur} : des travaux de recherche utilisent MediaPipe \cite{mediapipe} et YOLO \cite{yolo} pour la détection de la fatigue \cite{fatiguedetection} ou le suivi de l’attention des étudiants \cite{studentattention}. Bien que techniquement avancées, ces approches restent confinées à des contextes spécifiques (conduite automobile, salle de classe) et ne proposent pas d’accompagnement personnalisé de l’utilisateur.
+\end{itemize}
+
+Afin d’évaluer ces différentes approches, une étude comparative a été réalisée selon plusieurs critères : la détection de la posture, de la fatigue, de la distraction, le fonctionnement en temps réel, le caractère multimodal et la capacité de planification adaptative.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{Solution} & \textbf{Posture} & \textbf{Fatigue} & \textbf{Distraction} & \textbf{Temps réel} & \textbf{Multimodal} & \textbf{Planification} \\
+\hline
+Forest / Pomodoro        & $\times$ & $\times$ & $\times$ & $\times$ & $\times$ & $\times$ \\
+\hline
+SitSense / Upright GO    & $\checkmark$ & $\times$ & $\times$ & $\checkmark$ & $\times$ & $\times$ \\
+\hline
+Wearables (Fitbit, Oura) & $\times$ & $\checkmark$ & $\times$ & $\times$ & $\times$ & $\times$ \\
+\hline
+Approches académiques    & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\times$ & $\times$ \\
+\hline
+\textbf{Smart Focus}     & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+\hline
+\end{tabular}
+\caption{Comparaison des solutions existantes}
+\label{tab:comparaison_solutions_existantes}
+\end{table}
+
+Cette analyse met en évidence trois limites majeures communes aux solutions existantes. Premièrement, elles adoptent une approche mono-dimensionnelle : chaque outil se concentre sur un seul aspect (le temps, la posture ou la physiologie), sans recouper plusieurs sources d’information pour obtenir une image complète de l’état de l’utilisateur.
+
+Deuxièmement, aucune de ces solutions ne combine en temps réel l’analyse comportementale visuelle avec des données physiologiques et environnementales, ce qui empêche toute évaluation fiable et contextuelle du niveau de concentration.
+
+Troisièmement, ces outils sont passifs : ils collectent des données mais ne génèrent pas de recommandations personnalisées ni de planification adaptée à l’état de l’utilisateur. Ces limites justifient la nécessité de concevoir une solution plus complète et intégrée.
+
+\subsection{Positionnement de la solution proposée}
+
+Face à ces limites, le projet \textbf{SmartFocus} adopte une approche globale et intégrée, combinant la vision par ordinateur, l’intelligence artificielle et l’exploitation de capteurs.
+
+Contrairement aux solutions existantes, souvent limitées à une seule fonctionnalité, SmartFocus vise à fournir une analyse continue et intelligente du comportement de l’utilisateur. Cette approche permet d’obtenir une vision plus complète et cohérente de l’état de concentration.
+
+\section{Solution proposée}
+\label{sec:solution}
+
+Afin de répondre aux limites identifiées, nous proposons un système intelligent appelé \textbf{SmartFocus}.
+
+Le système repose sur un dispositif embarqué équipé d'une caméra et de capteurs, permettant de collecter en temps réel des données relatives au comportement de l'utilisateur. Ces données sont analysées à l’aide de modèles d’intelligence artificielle afin de détecter différents états tels que la fatigue, la distraction ou encore les postures inadéquates.
+
+En complément, une application mobile est intégrée afin de permettre à l’utilisateur de consulter ses statistiques, suivre ses sessions de travail et planifier ses activités.
+
+Par ailleurs, une dimension interactive est introduite à travers un assistant vocal intelligent capable de fournir des recommandations personnalisées, ainsi qu’un chatbot basé sur la technique \ac{RAG}, permettant d’assister l’utilisateur dans ses révisions à partir de documents.
+
+L’objectif de cette solution est de proposer un système complet, adaptatif et intelligent, visant à améliorer la concentration, l’organisation et le bien-être de l’utilisateur.
+
+\section{Méthode de développement}
+
+\subsection{Approche adoptée}
+
+Le choix d’une méthodologie de développement constitue une étape essentielle dans tout projet informatique, car il influence directement la qualité du produit final, la gestion des délais ainsi que la capacité à s’adapter aux imprévus.
+
+Dans le cadre du projet \textbf{SmartFocus}, caractérisé par une forte dimension expérimentale (modèles d’intelligence artificielle, traitement vidéo en temps réel et intégration matérielle), nous avons opté pour une approche de développement agile \cite{agilemanifesto}, inspirée du cadre \textbf{Scrum} \cite{scrumguide}.
+
+Contrairement aux méthodes traditionnelles comme le cycle en cascade, qui reposent sur une progression linéaire, l’approche agile permet une évolution progressive du système. En effet, les résultats obtenus à chaque itération influencent directement les choix techniques des étapes suivantes. Cette flexibilité est particulièrement adaptée à un projet évolutif comme SmartFocus.
+
+\subsection{Justification du choix de Scrum}
+
+Parmi les différentes méthodologies agiles existantes — telles que Kanban, eXtreme Programming (XP) ou encore \ac{RUP} — Scrum \cite{scrumguide} s’est révélé être le cadre le plus adapté au contexte du projet SmartFocus pour plusieurs raisons :
+
+\begin{itemize}
+    \item Il permet un développement incrémental, où chaque fonctionnalité est validée progressivement avant de passer à la suivante.
+    \item Les phases de révision et de rétrospective offrent un cadre structuré pour analyser les performances et corriger les anomalies, notamment celles liées aux modèles de vision.
+    \item Il favorise une communication fluide entre les membres de l’équipe, essentielle dans un projet combinant plusieurs domaines techniques.
+    \item Sa flexibilité permet d’ajuster les priorités et les objectifs en fonction des résultats obtenus à chaque sprint.
+\end{itemize}
+
+Ainsi, Scrum constitue un choix pertinent pour gérer efficacement un projet complexe et évolutif.
+
+\subsection{Cadre de fonctionnement Scrum}
+
+Le cadre Scrum \cite{scrumguide} repose sur des cycles de développement courts appelés \textbf{sprints}, généralement d’une durée de une à quatre semaines. Chaque sprint aboutit à un incrément fonctionnel du système.
+
+Dans le cadre de notre projet, des sprints de trois à huit semaines ont été adoptés afin de s’adapter au rythme académique tout en tenant compte de la complexité technique des fonctionnalités à implémenter.
+
+Chaque sprint s’organise autour de quatre événements principaux :
+
+\begin{itemize}
+    \item \textbf{Sprint Planning} : définition des objectifs du sprint et des tâches à réaliser.
+    \item \textbf{Daily Meeting} : réunion quotidienne permettant de suivre l’avancement et d’identifier les éventuels blocages.
+    \item \textbf{Sprint Review} : présentation des fonctionnalités développées et évaluation des résultats obtenus.
+    \item \textbf{Sprint Retrospective} : analyse du déroulement du sprint dans le but d’améliorer les pratiques pour les cycles suivants.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/scrumprocess.png}
+    \caption{Cycle de développement Scrum \cite{scrumprocessimage}}
+    \label{fig:scrum}
+\end{figure}
+
+\subsection{Constitution de l'équipe Scrum}
+
+Le projet SmartFocus s’appuie sur une organisation inspirée des rôles fondamentaux du cadre Scrum \cite{scrumguide} :
+
+\begin{itemize}
+    \item \textbf{Product Owner :} assuré par \textbf{Mr Chawki Gharsellaoui}, encadrant professionnel. Il est responsable de la définition des besoins, de la priorisation des fonctionnalités et de la validation des livrables.
+
+    \item \textbf{Scrum Master :} assuré par \textbf{Mr Hamdi Aloulou}, encadrant académique. Il veille au bon déroulement du processus Scrum et facilite la coordination entre les membres de l’équipe.
+
+    \item \textbf{Development Team :} composée de \textbf{Ghofrane Hamdi} et \textbf{Kacem Jemni}. Cette équipe est chargée de la réalisation technique du projet, incluant le développement des modèles d’intelligence artificielle, du backend et de l’interface utilisateur.
+\end{itemize}
+
+Cette organisation favorise une collaboration efficace et permet un développement parallèle des différentes composantes du système, avec des points d’intégration réguliers.
+
+\subsection{Langage de modélisation}
+
+Afin de structurer la conception du système SmartFocus, nous avons utilisé le langage \textbf{\ac{UML}} \cite{omguml}, qui constitue un standard reconnu dans le domaine de l’ingénierie logicielle. 
+
+L’utilisation d’UML répond à plusieurs objectifs :
+
+\begin{itemize}
+    \item Représenter les interactions entre les utilisateurs et le système à travers des diagrammes de cas d’utilisation.
+    \item Décrire les échanges dynamiques entre les composants via des diagrammes de séquence.
+    \item Modéliser la structure du système à l’aide de diagrammes de classes.
+\end{itemize}
+
+Au-delà de sa rigueur formelle, UML constitue un outil de communication essentiel entre les membres de l’équipe, notamment dans un projet combinant intelligence artificielle et développement logiciel.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/UML_logo.svg}
+    \caption{Logo officiel UML \cite{omguml}}
+    \label{fig:uml}
+\end{figure}
+
+
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+Dans ce chapitre, nous avons présenté le cadre général du projet Smart Focus. Nous avons d'abord décrit le contexte dans lequel s'inscrit ce travail et formulé la problématique principale. Nous avons ensuite analysé les solutions existantes afin de mettre en évidence leurs limites, puis décrit la méthodologie de développement adoptée. Enfin, nous avons présenté la solution proposée.
+
+Le chapitre suivant sera consacré à l'analyse détaillée des besoins et à la conception des différents composants du système.
+
+\clearpage
