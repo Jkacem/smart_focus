@@ -1,0 +1,558 @@
+\chapter{Sprint 3 : Planning intelligent et assistant d'apprentissage}
+\label{chap:sprint3}
+
+\section{Introduction}
+\addcontentsline{toc}{section}{Introduction}
+
+Jusqu'au deuxième sprint, Smart Focus savait observer l'utilisateur. À partir du troisième, il commence vraiment à l'aider. Ce sprint est celui où le système prend une dimension pédagogique : il ne se contente plus de mesurer, il propose, génère, planifie.
+
+Deux grandes lignes ont structuré ce sprint. La première concerne la planification : le système peut désormais générer automatiquement un planning de révision adapté au profil de l'utilisateur, à ses examens à venir, et à son niveau de récupération mesuré par le score de sommeil. La deuxième concerne l'assistance documentaire : un chatbot RAG pour interroger des PDF, un générateur de quiz QCM, et un système de flashcards basé sur la répétition espacée.
+
+C'est le sprint le plus riche fonctionnellement, et celui qui a demandé le plus d'intégration entre le backend, les API IA externes et l'interface mobile.
+
+\section{Backlog du Sprint 3}
+
+Le backlog du Sprint 3 comprend quatre user stories. Une chose importante à noter : le pipeline RAG est commun au chatbot, aux quiz et aux flashcards, une décision d'architecture prise dès le départ pour éviter de dupliquer la logique d'indexation et de recherche sémantique.
+
+Le tableau~\ref{tab:backlogs3} présente le détail de ces user stories.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|p{3cm}|p{6cm}|p{4cm}|}
+\hline
+\textbf{ID} & \textbf{Fonctionnalité} & \textbf{User Story} & \textbf{Tâche} \\
+\hline
+
+US9 & Chatbot intelligent
+& En tant qu'utilisateur, je souhaite interagir avec un chatbot pour poser des
+  questions et réviser mes cours
+& Développement d'un assistant de révision capable de répondre aux questions
+  de l'utilisateur à partir de ses propres documents \\ \hline
+
+US10 & Import de documents
+& En tant qu'utilisateur, je souhaite importer mes cours au format PDF afin
+  qu'ils soient utilisés par le chatbot
+& Développement de la fonctionnalité d'importation et d'indexation de documents
+  pour les rendre exploitables par le système \\ \hline
+
+US11 & Génération de quiz et flashcards
+& En tant qu'utilisateur, je souhaite générer des quiz QCM et des flashcards
+  pour tester et consolider mes connaissances
+& Développement des outils de génération de quiz et de flashcards avec
+  planification automatique des révisions \\ \hline
+
+US12 & Planification intelligente
+& En tant qu'utilisateur, je souhaite obtenir un planning de révision adapté
+  à mon profil et à mon état de récupération
+& Développement d'un système de planification automatique adapté au profil
+  et aux disponibilités de l'utilisateur \\ \hline
+
+\end{tabular}
+\caption{Backlog du Sprint 3}
+\label{tab:backlogs3}
+\end{table}
+
+\section{Spécifications fonctionnelles}
+
+\subsection{Diagramme de cas d'utilisation du Sprint 3}
+
+Le diagramme suivant couvre les fonctionnalités développées durant ce sprint : import de documents, chatbot RAG, quiz, flashcards, et planning intelligent.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{images/Sprint3UC.png}
+\caption{Diagramme de cas d'utilisation du Sprint 3}
+\end{figure}
+
+
+\subsection{Description textuelle des cas d'utilisation}
+
+Les fiches ci-dessous décrivent chaque cas d'utilisation du sprint : conditions de déclenchement, scénario nominal, et gestion des erreurs.
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Uploader un document}
+
+L'import de document est le point de départ de toutes les fonctionnalités d'assistance : sans document indexé, le chatbot n'a rien à interroger, les quiz n'ont pas de contenu à exploiter, et les flashcards ne peuvent pas être générées. Le tableau~\ref{tab:uc_upload} décrit le processus complet, de la sélection du fichier jusqu'à sa mise à disposition.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+\textbf{Objectif} & Importer un document PDF pour l'exploiter via le chatbot,
+                    les quiz et les flashcards \\ \hline
+\textbf{Conditions initiales} & Utilisateur connecté, fichier PDF valide \\ \hline
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L'utilisateur sélectionne un fichier depuis son appareil
+    \item L'utilisateur envoie le fichier au système
+    \item Le système extrait le contenu textuel du document
+    \item Le système découpe le contenu en segments exploitables
+    \item Le système analyse et indexe chaque segment pour la recherche
+    \item Le système enregistre les informations du document
+\end{itemize} \\ \hline
+\textbf{Cas d'erreur} & Fichier vide ou sans contenu lisible → refus avec
+                        message d'erreur \\ \hline
+\textbf{Résultat} & Document disponible pour le chatbot, les quiz et les flashcards \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Uploader un document »}
+\label{tab:uc_upload}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Poser une question RAG}
+
+Une fois les documents en place, l'utilisateur peut poser des questions en langage naturel. Le système recherche les passages les plus pertinents, construit une réponse à partir de ce contexte et indique les références utilisées. Le tableau~\ref{tab:uc_rag_chat} détaille ce processus.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+\textbf{Objectif} & Obtenir une réponse basée sur le contenu de ses documents importés \\ \hline
+\textbf{Conditions initiales} & Au moins un document importé \\ \hline
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L'utilisateur saisit sa question dans l'interface du chatbot
+    \item L'utilisateur sélectionne les documents à interroger
+    \item Le système recherche les passages les plus pertinents dans les documents
+    \item Le moteur d'intelligence artificielle génère une réponse à partir de ces passages
+    \item L'utilisateur voit la réponse avec les références aux sources utilisées
+    \item Le système enregistre l'échange
+\end{itemize} \\ \hline
+\textbf{Cas d'erreur} & Problème de modele ia → le système ne peut pas repondre
+                        au question \\ \hline
+\textbf{Résultat} & Réponse avec références aux passages sources \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Poser une question au chatbot »}
+\label{tab:uc_rag_chat}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Générer un quiz}
+
+Plutôt que de se limiter à consulter ses cours, l'utilisateur peut tester activement sa compréhension. Le système génère des questions QCM à partir du contenu de ses documents, avec des explications pour chaque bonne réponse. Le tableau~\ref{tab:uc_quiz} décrit ce cas d'utilisation.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+\textbf{Objectif} & Tester ses connaissances à travers un quiz QCM généré
+                    automatiquement \\ \hline
+\textbf{Conditions initiales} & Au moins un document indexé ou une session
+                                 terminée avec documents liés \\ \hline
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L'utilisateur sélectionne le ou les documents sources
+    \item L'utilisateur choisit le nombre de questions souhaité (3 à 30)
+    \item Le système analyse le contenu des documents sélectionnés
+    \item Le moteur d'intelligence artificielle génère des questions à choix multiples avec explications
+    \item Le système enregistre le quiz
+    \item L'utilisateur voit les questions s'afficher (les bonnes réponses sont masquées avant soumission)
+\end{itemize} \\ \hline
+\textbf{Cas d'erreur} & Contenu insuffisant dans le document →
+                        message d'erreur \\ \hline
+\textbf{Résultat} & Quiz QCM prêt à être complété par l'utilisateur \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Générer un quiz »}
+\label{tab:uc_quiz}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Générer et réviser des flashcards}
+
+Les flashcards utilisent un principe éprouvé : la répétition espacée. L'idée est simple ; on revoit une notion juste avant qu'on soit sur le point de l'oublier. Le système calcule automatiquement le moment optimal pour représenter chaque carte, en tenant compte de la facilité avec laquelle l'utilisateur l'a rappelée lors des révisions précédentes. Le tableau~\ref{tab:uc_flashcard} décrit ce mécanisme.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+\textbf{Objectif} & Réviser ses cours à l'aide de flashcards avec répétition
+                    espacée \\ \hline
+\textbf{Conditions initiales} & Au moins un document importé \\ \hline
+\textbf{Déroulement} &
+\begin{itemize}
+    \item L'utilisateur sélectionne le ou les documents sources
+    \item Le moteur d'intelligence artificielle génère des cartes avec une question au recto et sa réponse au verso
+    \item L'utilisateur révise une carte et évalue la facilité avec laquelle il a rappelé la réponse
+    \item Le système calcule automatiquement la prochaine date de révision optimale
+    \item Le système affiche uniquement les cartes dont la révision est prévue ce jour
+\end{itemize} \\ \hline
+\textbf{Cas d'erreur} & Document sans contenu suffisant →
+                        message d'erreur \\ \hline
+\textbf{Résultat} & Paquet de flashcards avec planification automatique
+                    des révisions \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Générer et réviser des flashcards »}
+\label{tab:uc_flashcard}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Générer un planning intelligent}
+
+La planification intelligente est la fonctionnalité la plus intégrée de ce sprint. Elle croise plusieurs sources de données : profil utilisateur, historique de sommeil, examens à venir, emploi du temps importé, pour générer un planning adapté à l'état réel de l'utilisateur. L'approche adoptée est hybride : un algorithme déterministe calcule les créneaux disponibles, et l'IA intervient uniquement pour attribuer les sujets à ces créneaux. Cette séparation garantit un planning toujours valide, même en cas de défaillance du service IA. Le tableau~\ref{tab:uc_planning} décrit les étapes de ce processus.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{4cm}|p{10cm}|}
+\hline
+\textbf{Acteur} & Utilisateur \\ \hline
+\textbf{Objectif} & Obtenir un planning de révision optimisé et adapté à
+                    son état \\ \hline
+\textbf{Conditions initiales} & Utilisateur authentifié avec un profil
+                                 configuré \\ \hline
+\textbf{Déroulement} &
+\begin{itemize}
+    \item Le système analyse le profil de l'utilisateur et ses disponibilités
+    \item Si un emploi du temps a été fourni, le système l'analyse pour identifier les créneaux libres
+    \item Le système calcule les créneaux disponibles en respectant les pauses entre sessions
+    \item Les sessions sont filtrées selon la préférence horaire de l'utilisateur (matin, après-midi, soir)
+    \item La durée des sessions est adaptée en fonction de l'état de récupération de l'utilisateur
+    \item Le moteur d'intelligence artificielle attribue les sujets à réviser à chaque créneau
+    \item En cas d'indisponibilité du service IA, le système attribue les sujets automatiquement
+    \item Le système enregistre les sessions dans le planning de l'utilisateur
+\end{itemize} \\ \hline
+\textbf{Cas d'erreur} & Aucun créneau disponible dans la journée →
+                        aucune session générée \\ \hline
+\textbf{Résultat} & Planning journalier avec sessions adaptées au profil
+                    utilisateur \\ \hline
+\end{tabular}
+\caption{Description du cas d'utilisation « Générer un planning intelligent »}
+\label{tab:uc_planning}
+\end{table}
+
+\section{Conception}
+
+\subsection{Diagrammes de séquence}
+
+Les diagrammes de séquence ci-dessous décrivent les échanges entre l'interface mobile, le backend FastAPI, les services IA et les bases de données pour chaque cas d'utilisation du sprint.
+
+%----------------------------------------
+\subsubsection{Processus d'upload et d'indexation d'un document}
+
+La Figure~\ref{fig:seq_upload} montre la chaîne de traitement déclenchée à l'upload. PyMuPDF \cite{pymupdf} extrait le texte page par page, LangChain le découpe en segments, le modèle HuggingFace \cite{sentencetransformers} génère les vecteurs, et ChromaDB \cite{chromadb} les stocke. Les métadonnées du document sont sauvegardées en parallèle dans PostgreSQL \cite{postgresql}. À l'issue de ce pipeline, le document est accessible par toutes les fonctionnalités IA.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/uploadSeq.png}
+\caption{Diagramme de séquence :upload et indexation d'un document}
+\label{fig:seq_upload}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Processus de chat RAG}
+
+La Figure~\ref{fig:seq_chat_rag} illustre le parcours d'une question depuis l'interface jusqu'à la réponse. La question est d'abord vectorisée, puis ChromaDB \cite{chromadb} identifie les passages les plus proches sémantiquement. Ces passages sont assemblés en contexte et transmis à Groq \cite{groq} avec la question. La réponse retournée indique les sources utilisées, ce qui permet à l'utilisateur de retrouver facilement le passage original dans son cours.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/RagSeq.png}
+\caption{Diagramme de séquence :chat RAG}
+\label{fig:seq_chat_rag}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Processus de génération de quiz}
+
+La Figure~\ref{fig:seq_quiz} détaille la génération d'un quiz. Le backend sélectionne un échantillon représentatif de chunks depuis ChromaDB, construit un prompt structuré, et envoie la requête à Groq. La réponse JSON est validée côté backend avant d'être enregistrée en base et envoyée à l'application.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/quizSeq_2.png}
+\caption{Diagramme de séquence :génération de quiz}
+\label{fig:seq_quiz}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Processus de génération du planning intelligent}
+
+La Figure~\ref{fig:seq_planning} illustre l'approche hybride de planification. Un algorithme déterministe calcule d'abord les créneaux disponibles, en tenant compte des blocs occupés, des pauses minimales entre sessions, et des préférences horaires de l'utilisateur. Groq \cite{groq} intervient ensuite uniquement pour affecter les sujets à ces créneaux. Si le service IA est indisponible, un mécanisme de fallback prend le relais et attribue les sujets automatiquement, garantissant que l'utilisateur obtient toujours un planning exploitable.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/PlanningSeq.png}
+\caption{Diagramme de séquence :génération du planning intelligent}
+\label{fig:seq_planning}
+\end{figure}
+
+\subsection{Diagramme de classes du Sprint 3}
+
+La Figure~\ref{fig:class_sprint3} montre le modèle de classes du Sprint 3. Trois groupes d'entités ressortent.
+
+Le premier gravite autour de l'assistant documentaire. \textit{ChatDocument} représente un PDF importé et indexé. Il est lié aux échanges du chatbot via \textit{ChatMessage}, et sert de source aux quiz et aux flashcards. \textit{Quiz} agrège des \textit{QuizQuestion} avec leurs options et explications. \textit{Flashcard} intègre les paramètres SM-2 : \textit{ease\_factor}, \textit{interval}, \textit{repetitions}, \textit{next\_review}, qui pilotent automatiquement les dates de révision.
+
+Le deuxième groupe concerne la planification. \textit{StudySession} représente une session d'étude, générée par l'IA ou créée manuellement. Elle peut être liée à plusieurs documents et à un quiz. La classe \textit{Exam} permet de déclarer les échéances à venir, qui sont prises en compte lors de la génération du planning.
+
+Tout est rattaché à \textit{User} et \textit{UserProfile}, qui centralisent les données de compte et les préférences personnelles utilisées pour la personnalisation.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{images/Sprint3Class.png}
+\caption{Diagramme de classes du Sprint 3}
+\label{fig:class_sprint3}
+\end{figure}
+
+\subsection{Choix du modèle de langage}
+\label{sec:choix_modele}
+
+L'ensemble des fonctionnalités IA du système repose sur un modèle de langage
+accessible via API. Ce choix est structurant : il conditionne la qualité des
+réponses générées, la fiabilité du format JSON produit pour les quiz et le
+planning, ainsi que la fluidité perçue dans l'interface de chat.
+
+\subsubsection*{Critères de sélection}
+
+Quatre critères ont guidé l'évaluation des alternatives disponibles :
+
+\begin{itemize}
+    \item \textbf{Vitesse d'inférence} : dans une interface de chat, la latence
+    est directement perçue par l'utilisateur. Un modèle lent dégrade l'expérience
+    même si ses réponses sont de bonne qualité.
+
+    \item \textbf{Fiabilité du format JSON} : la génération de quiz et la
+    planification nécessitent que le modèle retourne systématiquement une structure
+    JSON valide et exploitable. Tout écart impose un fallback déterministe.
+
+    \item \textbf{Fenêtre de contexte} : le pipeline RAG transmet plusieurs chunks
+    de documents en même temps. Une fenêtre courte force à tronquer le contexte,
+    dégradant la qualité des réponses.
+
+    \item \textbf{Accessibilité} : dans le cadre d'un projet académique, la
+    disponibilité d'un tier gratuit utilisable sans carte bancaire est un critère
+    déterminant.
+\end{itemize}
+
+\subsubsection*{Comparaison des alternatives}
+
+Le tableau~\ref{tab:model_comparison} confronte les principaux modèles envisagés
+sur ces quatre axes, ainsi que leur adéquation au contexte du projet.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|p{3.8cm}|p{2cm}|p{2cm}|p{2.2cm}|p{1.8cm}|p{2cm}|}
+\hline
+\textbf{Modèle} & \textbf{Vitesse} \newline (tokens/s)
+                & \textbf{JSON} \newline \textbf{fiabilité}
+                & \textbf{Contexte}
+                & \textbf{Tier} \newline \textbf{gratuit}
+                & \textbf{RPM gratuit} \\
+\hline
+
+\textbf{Groq \cite{groq}, llama-3.3-70b \cite{llama3}} \newline \textit{(retenu)}
+    & $\sim$400 & Élevée & 128 K & Oui & 30 \\
+\hline
+
+Groq \cite{groq}, llama-3.1-8b \cite{llama3}
+    & $\sim$900 & Moyenne & 128 K & Oui & 30 \\
+\hline
+
+Google Gemini 2.0 Flash \cite{gemini}
+    & $\sim$200 & Élevée & 1 M & Oui & 15 \\
+\hline
+
+OpenAI GPT-4o-mini \cite{openai}
+    & $\sim$100 & Très élevée & 128 K & Non & N/A \\
+\hline
+
+Anthropic Claude Haiku 3.5 \cite{anthropic}
+    & $\sim$120 & Très élevée & 200 K & Non & N/A \\
+\hline
+
+Mistral 8x7B (Groq) \cite{mistral}
+    & $\sim$350 & Moyenne & 32 K & Oui & 30 \\
+\hline
+
+\end{tabular}%
+}
+\caption{Comparaison des modèles de langage évalués}
+\label{tab:model_comparison}
+\end{table}
+
+\subsubsection*{Justification du choix}
+
+Ce qui a d'abord orienté notre choix vers Groq \cite{groq}, c'est la vitesse
+d'inférence. Son architecture LPU propriétaire atteint $\sim$400 tokens/s pour
+llama-3.3-70b \cite{llama3}, contre 80--200 tokens/s pour les API concurrentes sur
+GPU classique. Concrètement, les réponses du chatbot RAG apparaissent presque
+instantanément ; c'est ce qui rend l'interface réellement utilisable au quotidien,
+pas juste fonctionnelle.
+
+La fiabilité JSON de Llama 3.3 70B a confirmé ce choix. À
+\texttt{temperature=0.2}, le modèle produit des structures exploitables pour les
+quiz et le planning de façon systématique. On a validé ça avec Llama 3.1 8B comme
+alternative, plus rapide encore, mais les sorties JSON étaient insuffisamment
+fiables pour nos cas d'usage critiques.
+
+Côté accessibilité, Groq offre 30 RPM gratuits sans carte bancaire, contre 15 RPM
+seulement pour Gemini. Le rate-limiter interne du projet est configuré à 25 RPM
+pour rester sous ce seuil avec une marge de sécurité, un détail qui a évité
+plusieurs erreurs 429 lors des phases de test intensif.
+
+\textbf{Limites identifiées} : GPT-4o-mini et Claude Haiku 3.5 offriraient une
+fiabilité JSON légèrement supérieure pour des schémas très complexes, mais à un
+coût unitaire incompatible avec le cadre académique du projet. Gemini 2.0 Flash
+constitue une alternative viable, raison pour laquelle le système l'intègre
+comme second fournisseur configurable ; mais sa limite de 15 RPM le rend moins
+adapté aux phases de test intensif. Llama 3.1 8B, bien que plus rapide encore,
+produit des sorties JSON insuffisamment fiables pour les cas d'usage critiques
+du projet.
+
+En définitive, \textbf{llama-3.3-70b-versatile sur Groq représente le meilleur
+compromis vitesse / qualité / gratuité} pour les besoins spécifiques du système
+\textit{Smart Focus}.
+
+\section{Environnement technique}
+
+Cette section présente les technologies utilisées dans le Sprint 3. Chaque outil répond à un rôle précis dans le pipeline RAG ou dans le moteur de planification.
+
+%----------------------------------------
+\subsection{Pipeline RAG (Retrieval-Augmented Generation)}
+
+L'approche RAG repose sur un principe simple mais efficace : au lieu de demander au modèle de langage de répondre uniquement à partir de ce qu'il a appris lors de son entraînement, on lui fournit du contexte tiré directement des documents de l'utilisateur. Le modèle génère alors une réponse ancrée dans le contenu réel du cours, avec une traçabilité vers les sources.
+
+Ce pipeline comprend quatre étapes : extraction du texte, découpage en segments, vectorisation, et recherche par similarité.
+
+%----------------------------------------
+\subsection{PyMuPDF : Extraction du texte}
+
+PyMuPDF \cite{pymupdf} est la bibliothèque utilisée pour extraire le texte des fichiers PDF. Elle gère bien les mises en page complexes et supporte les documents multi-pages. Sans cette étape, rien ne peut être indexé ; c'est la première brique du pipeline.
+
+%----------------------------------------
+\subsection{LangChain : Découpage en segments}
+
+De LangChain \cite{langchain}, on n'utilise qu'un seul composant : \texttt{RecursiveCharacterTextSplitter}. Il découpe le texte extrait en segments de 500 caractères avec un chevauchement de 50 caractères. Ce chevauchement est important : il évite que le sens d'une phrase soit perdu parce qu'elle se trouve à la frontière de deux segments.
+
+%----------------------------------------
+\subsection{Sentence Transformers (HuggingFace) : Représentation vectorielle}
+
+Le modèle \texttt{all-MiniLM-L6-v2} \cite{sentencetransformers} transforme chaque segment en un vecteur de 384 dimensions représentant son sens sémantique. C'est ce qui permet au système de retrouver les passages pertinents à une question sans chercher des mots-clés exacts ; deux phrases qui parlent du même sujet avec des mots différents auront des vecteurs proches.
+
+Un avantage non négligeable : ce modèle fonctionne entièrement en local, donc les documents de l'utilisateur ne transitent jamais vers un service externe.
+
+%----------------------------------------
+\subsection{ChromaDB : Base de données vectorielle}
+
+ChromaDB \cite{chromadb} stocke les vecteurs et les organise en collections, une par document importé. Lors d'une requête, elle calcule la similarité cosinus entre le vecteur de la question et ceux des segments, et retourne les \textit{k} plus proches. ChromaDB fonctionne en mode local (fichiers sur disque), sans serveur supplémentaire à gérer.
+
+%----------------------------------------
+\subsection{Algorithme SM-2 : Répétition espacée}
+
+L'algorithme SM-2 \cite{sm2}, développé par Piotr Woźniak, est le socle de nombreux systèmes de révision par répétition espacée, dont Anki. Son principe : l'intervalle avant la prochaine révision d'une carte est ajusté dynamiquement selon la facilité avec laquelle l'utilisateur l'a rappelée (note de 0 à 5).
+
+Trois paramètres évoluent après chaque révision :
+\begin{itemize}
+    \item \textbf{Facteur de facilité} (\textit{ease factor}) : augmente si la carte est bien maîtrisée, diminue sinon. Il conditionne la vitesse de progression de l'intervalle.
+    \item \textbf{Intervalle} : nombre de jours avant la prochaine présentation. Pour une carte bien rappelée, il croît exponentiellement ; pour une carte ratée, il revient à 1.
+    \item \textbf{Répétitions} : remis à zéro si la note est inférieure à 3, garantissant que les cartes difficiles sont revues rapidement.
+\end{itemize}
+
+En pratique, une carte facile peut ne revenir que dans plusieurs semaines, tandis qu'une carte ratée sera représentée dès le lendemain.
+
+%----------------------------------------
+\subsection{Groq API : Modèle de langage}
+
+Groq \cite{groq} donne accès au modèle \textbf{Llama 3.3 70B Versatile} \cite{llama3} via API. Ce modèle gère toutes les tâches de génération du sprint : réponses RAG, questions de quiz, et attribution des sujets de planning. Le choix de Groq plutôt qu'une alternative est justifié en détail dans la section~\ref{sec:choix_modele}.
+
+%----------------------------------------
+\newpage
+\section{Implémentation}
+\subsection{Interfaces de l'application mobile}
+
+Les interfaces du Sprint 3 donnent accès aux modules IA. Le défi de conception était de garder quelque chose d'simple à utiliser malgré la complexité des fonctionnalités sous-jacentes.
+
+%----------------------------------------
+\subsubsection{Interface du chatbot RAG}
+
+L'interface du chatbot permet de sélectionner les documents à interroger et d'engager une conversation. Chaque réponse indique les pages de référence utilisées. L'historique est conservé et consultable à tout moment.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.30\textwidth]{images/chatbot1.png}
+\hspace{0.5cm}
+\includegraphics[width=0.30\textwidth]{images/chatbot2.png}
+\hspace{0.5cm}
+\includegraphics[width=0.30\textwidth]{images/chatbot3.png}
+\caption{Interface du chatbot RAG : gestion des documents et conversation}
+\label{fig:chatbot_screens}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interfaces de génération et passage de quiz}
+
+L'interface de quiz guide l'utilisateur depuis la sélection des documents jusqu'aux
+résultats détaillés. Chaque question est présentée avec ses quatre options et,
+après soumission, l'explication de la bonne réponse est affichée pour favoriser
+la compréhension plutôt que la simple mémorisation du résultat.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.30\textwidth]{images/quiz1.png}
+\hspace{0.5cm}
+\includegraphics[width=0.30\textwidth]{images/quiz2.png}
+\hspace{0.5cm}
+\includegraphics[width=0.30\textwidth]{images/quiz3.png}
+\caption{Interfaces de quiz : génération et passage du quiz}
+\label{fig:quiz_screens}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interfaces des flashcards avec révision espacée}
+
+L'interface de flashcards adopte un format recto/verso classique. Après avoir
+retourné une carte, l'utilisateur évalue son niveau de rappel sur une échelle
+de 0 à 5. Cette note est immédiatement traitée par l'algorithme SM-2, qui
+recalcule l'intervalle avant la prochaine révision de cette carte.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.30\textwidth]{images/flashcard1.png}
+\hspace{0.5cm}
+\includegraphics[width=0.30\textwidth]{images/flashcard2.png}
+\hspace{0.5cm}
+\includegraphics[width=0.30\textwidth]{images/flashcard3.png}
+\caption{Interfaces des flashcards : génération et révision}
+\label{fig:flashcard_screens}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interface du planning intelligent}
+
+L'interface de planning présente les sessions générées sous forme de vue
+quotidienne ou hebdomadaire. L'utilisateur peut visualiser d'un coup d'œil
+les blocs de révision attribués par le système, consulter le sujet et la
+priorité de chaque session, et compléter le planning par des entrées manuelles
+si nécessaire.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.35\textwidth]{images/planning1.png}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/planning2.png}
+\caption{Interface du planning intelligent : vue quotidienne et génération IA}
+\label{fig:planning_screens}
+\end{figure}
+
+\section{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+
+À l'issue de ce troisième sprint, \textit{Smart Focus} dispose d'un ensemble
+cohérent de fonctionnalités pédagogiques pilotées par l'intelligence artificielle.
+Le chatbot RAG, les quiz QCM, les flashcards SM-2 et la planification adaptative
+forment un écosystème dans lequel chaque outil se nourrit des mêmes documents
+importés par l'utilisateur, garantissant une expérience unifiée.
+
+L'architecture retenue pour la planification, calcul déterministe des créneaux
+combiné à une personnalisation par Groq \cite{groq} avec fallback automatique, illustre
+une approche pragmatique : l'IA enrichit le résultat sans en compromettre la
+fiabilité. Ce principe guidera également les développements du sprint suivant,
+consacré au monitoring comportemental en temps réel et aux alertes intelligentes.

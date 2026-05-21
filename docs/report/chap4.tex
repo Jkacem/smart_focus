@@ -1,0 +1,660 @@
+\chapter{Sprint 2 : Modèle de Vision et Calcul du Score de Concentration}
+
+\section{Introduction du Sprint}
+
+Le deuxième sprint, c'est vraiment le cœur du projet. C'est là qu'on a développé le module de vision par ordinateur — le mécanisme qui permet au système de « voir » l'utilisateur et d'en déduire son niveau de concentration.
+
+L'objectif était d'analyser un flux vidéo en temps réel, d'en extraire des indicateurs comportementaux pertinents — orientation du regard, posture, signes de fatigue, présence d'objets distracteurs — et de les combiner pour produire un score de concentration continu et fiable. Ce sprint a été de loin le plus complexe techniquement, avec de nombreux cycles d'expérimentation avant d'arriver à un pipeline stable.
+%--------------------------------------------------
+
+\section{Planification du Sprint}
+
+%---------------------------------------------------------
+\subsection{Objectifs du Sprint}
+
+Les objectifs de ce sprint étaient :
+
+\begin{itemize}
+    \item Mettre en place un pipeline de capture vidéo fluide, adapté à une exécution continue sur système embarqué ;
+    \item Extraire les points caractéristiques du visage et de la posture à partir de chaque frame ;
+    \item Détecter les objets distracteurs, en particulier le téléphone portable ;
+    \item Implémenter un lissage temporel pour stabiliser les prédictions et réduire les faux positifs ;
+    \item Développer le moteur de calcul du score de concentration ;
+    \item Comparer deux approches de modélisation pour retenir la plus adaptée au contexte du projet.
+\end{itemize}
+
+\subsection{Backlog du Sprint 2}
+
+Le backlog du Sprint 2 couvre l’ensemble du pipeline de vision : de la capture vidéo à l’envoi des résultats vers le backend. Le tableau~\ref{tab:backlogs2} détaille les user stories et les tâches associées.
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.18}
+\resizebox{0.90\textwidth}{!}{
+\begin{tabular}{|c|p{2.6cm}|p{5.2cm}|p{3.5cm}|}
+\hline
+\textbf{ID} & \textbf{Fonctionnalité} & \textbf{User Story} & \textbf{Tâche} \\
+\hline
+
+US1 & Capturer le flux vidéo 
+& En tant qu’utilisateur, je souhaite lancer une session d’analyse afin que le système puisse capturer mon flux vidéo en temps réel 
+& Mise en place de la capture vidéo avec OpenCV et gestion des sessions d’analyse \\ \hline
+
+US2 & Analyser le visage et la posture 
+& En tant qu’utilisateur, je souhaite que le système analyse mes mouvements et ma posture afin d’évaluer mon niveau d’attention 
+& Intégration de MediaPipe FaceMesh et Pose pour l’analyse physiologique et comportementale \\ \hline
+
+US3 & Détecter l’utilisation du téléphone 
+& En tant qu’utilisateur, je souhaite que le système détecte les distractions liées au téléphone afin d’améliorer ma concentration 
+& Déploiement et intégration du modèle YOLOv8 pour la détection du téléphone portable \\ \hline
+
+US4 & Calculer le score de concentration 
+& En tant qu’utilisateur, je souhaite obtenir un score représentant mon niveau de concentration pendant la session 
+& Développement du moteur de calcul du score et implémentation du lissage temporel (\textit{Temporal Engine}) \\ \hline
+
+US5 & Recevoir des alertes intelligentes 
+& En tant qu’utilisateur, je souhaite être averti en cas de distraction ou de fatigue afin de corriger mon comportement 
+& Implémentation du système d’alertes en temps réel basé sur des règles comportementales \\ \hline
+
+US6 & Visualiser les métriques de session 
+& En tant qu’utilisateur, je souhaite visualiser les résultats de ma session afin de suivre l’évolution de ma concentration 
+& Développement de l’interface locale Minimal UI et synchronisation des données avec le backend \\ \hline
+
+US7 & Évaluer les performances des modèles 
+& En tant qu’administrateur du système, je souhaite comparer les différentes approches de vision afin de sélectionner le modèle le plus performant 
+& Réalisation des tests comparatifs entre les modèles MediaPipe/YOLO et le modèle entraîné personnalisé \\ \hline
+
+\end{tabular}
+}
+\caption{Backlog du Sprint 2}
+\label{tab:backlogs2}
+\end{table}
+
+%=========================================================
+\section{Spécifications fonctionnelles}
+%---------------------------------------------------------
+\subsection{Diagramme de cas d’utilisation du Sprint 2}
+
+Le diagramme ci-dessous couvre les fonctionnalités du module de vision développées durant ce sprint.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{images/UCsprint2FINAL.drawio.png} 
+\caption{Diagramme de cas d’utilisation du Sprint 2}
+\label{fig:usecase_sprint2}
+\end{figure}
+%---------------------------------------------------------
+%========================================
+\subsection{Description textuelle des cas d’utilisation}
+
+Les fiches ci-dessous décrivent les principaux cas d’utilisation du sprint du point de vue de l’étudiant. Les détails du pipeline de vision et du moteur de scoring sont traités dans les sections techniques qui suivent.
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Démarrer une session}
+
+Démarrer une session déclenche l'ensemble du pipeline d'analyse : capture vidéo, détection faciale et corporelle, extraction des indicateurs comportementaux, et calcul du score de concentration en continu. Le tableau~\ref{tab:uc_start_session} en décrit les étapes.
+\begin{table}[H]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.05}
+\resizebox{0.92\textwidth}{!}{
+\begin{tabular}{|p{3.2cm}|p{8.5cm}|}
+\hline
+\textbf{Acteur} & Étudiant \\ \hline
+
+\textbf{Objectif} & Initier une session d'analyse comportementale afin de surveiller son niveau de concentration en temps réel \\ \hline
+
+\textbf{Conditions initiales} & 
+\begin{itemize}
+    \item L'étudiant est authentifié dans le système
+    \item Une caméra fonctionnelle est disponible et accessible
+    \item Aucune session n'est déjà en cours
+\end{itemize} \\ \hline
+
+\textbf{Déroulement} & 
+\begin{itemize}
+    \item L'étudiant accède à l'interface principale et clique sur « Démarrer une session »
+    \item Le système active la capture du flux vidéo via la caméra
+    \item Le pipeline de détection faciale et corporelle est initialisé
+    \item L'extraction des caractéristiques comportementales démarre en continu
+    \item Les modules d'analyse sont exécutés en parallèle
+    \item Le calcul du score global commence en temps réel
+    \item L'interface affiche l'état actif de la session
+\end{itemize} \\ \hline
+
+\textbf{Cas d'erreur} & 
+\begin{itemize}
+    \item Caméra non détectée ou inaccessible → message d'erreur affiché
+    \item Visage non détecté après initialisation → analyse temporairement suspendue
+\end{itemize} \\ \hline
+
+\textbf{Résultat} & La session devient active et le système démarre l’analyse comportementale en temps réel \\ \hline
+
+\end{tabular}
+}
+\caption{Description du cas d'utilisation « Démarrer une session »}
+\label{tab:uc_start_session}
+\end{table}
+%----------------------------------------
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Consulter les scores comportementaux}
+
+Pendant ou après une session, l'étudiant peut consulter ses scores comportementaux — posture, vigilance, attention et concentration globale. Ces indicateurs sont le principal retour que le système fournit. Le tableau~\ref{tab:uc_consult_scores} décrit ce cas d'utilisation.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.05}
+\resizebox{0.92\textwidth}{!}{
+\begin{tabular}{|p{3.2cm}|p{8.5cm}|}
+\hline
+\textbf{Acteur} & Étudiant \\ \hline
+
+\textbf{Objectif} & Visualiser les scores comportementaux (posture, fatigue, distraction, attention) ainsi que le Focus Score global calculé par le système \\ \hline
+
+\textbf{Conditions initiales} & 
+\begin{itemize}
+    \item L'étudiant est authentifié
+    \item Au moins une session a été réalisée ou est en cours
+\end{itemize} \\ \hline
+
+\textbf{Déroulement} & 
+\begin{itemize}
+    \item L'étudiant accède à la section « Scores comportementaux » via le tableau de bord
+    \item Le système récupère les données de la session concernée
+    \item Les scores unitaires sont affichés : posture, fatigue, distraction et attention
+    \item Le Focus Score global est affiché sous forme d’indicateur visuel
+    \item Les statistiques temporelles sont présentées sous forme de graphiques
+\end{itemize} \\ \hline
+
+\textbf{Cas d'erreur} & Aucune session disponible → message informatif invitant l'étudiant à démarrer une session \\ \hline
+
+\textbf{Résultat} & L'étudiant visualise l’ensemble des indicateurs comportementaux associés à sa session \\ \hline
+
+\end{tabular}
+}
+\caption{Description du cas d'utilisation « Consulter les scores comportementaux »}
+\label{tab:uc_consult_scores}
+\end{table}
+
+%----------------------------------------
+\subsubsection{Cas d'utilisation : Recevoir des alertes comportementales}
+
+Le système est capable de détecter des dégradations comportementales significatives au cours d'une session et d'en informer l'étudiant en temps réel via des alertes ciblées. Ces alertes peuvent concerner la posture, la fatigue ou les distractions détectées. Le Tableau~\ref{tab:uc_alerts} présente ce cas d'utilisation, qui s'exécute de manière conditionnelle selon l'état comportemental de l'étudiant.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.5cm}|>{\raggedright\arraybackslash}p{9.5cm}|}
+\hline
+
+\textbf{Acteur} & Étudiant \\ \hline
+
+\textbf{Objectif} & 
+Être notifié en temps réel lorsqu'un comportement problématique est détecté.
+\\ \hline
+
+\textbf{Conditions initiales} & 
+-- Une session est en cours. \newline
+-- Le pipeline d'analyse est actif. \newline
+-- Un seuil critique est franchi pour l'un des scores comportementaux.
+\\ \hline
+
+\textbf{Déroulement} &
+\begin{itemize} 
+    \item Le système calcule les scores comportementaux en continu.
+    \item Une alerte posturale est déclenchée si le score postural devient critique.
+    \item Une alerte de fatigue est générée en cas de vigilance faible. 
+    \item Une alerte de distraction est émise lorsqu'une distraction prolongée est détectée. 
+    \item Une notification visuelle ou sonore est affichée à l'étudiant.
+    \item L'événement est enregistré dans le journal de session.
+\end{itemize} \\ \hline
+
+\textbf{Cas d'erreur} &
+Faux positif détecté : le système ignore les trames non exploitables afin d'éviter des alertes injustifiées.
+\\ \hline
+
+\textbf{Résultat} &
+L'étudiant est informé en temps réel d'un comportement à corriger.
+\\ \hline
+
+\end{tabular}
+
+\caption{Description du cas d'utilisation « Recevoir des alertes comportementales »}
+\label{tab:uc_alerts}
+
+\end{table}
+
+\clearpage
+
+%=========================================================
+
+\subsubsection{Cas d'utilisation : Arrêter une session}
+
+Arrêter une session met fin à l'analyse en cours, libère les ressources et déclenche l'enregistrement des résultats. Un résumé est alors affiché à l'utilisateur. Le tableau~\ref{tab:uc_stop_session} décrit ce processus.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.15}
+
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.5cm}|>{\raggedright\arraybackslash}p{9.5cm}|}
+\hline
+
+\textbf{Acteur} & Étudiant \\ \hline
+
+\textbf{Objectif} &
+Mettre fin à la session d'analyse et sauvegarder les données comportementales collectées.
+\\ \hline
+
+\textbf{Conditions initiales} &
+Une session est en cours d'exécution.
+\\ \hline
+
+\textbf{Déroulement} &
+1. L'étudiant clique sur « Arrêter la session ». \newline
+2. Le système interrompt la capture vidéo et stoppe le pipeline d'analyse. \newline
+3. Les scores comportementaux finaux sont calculés et agrégés. \newline
+4. Les données de la session sont sauvegardées en base. \newline
+5. Un résumé de la session est affiché. \newline
+6. L'étudiant est redirigé vers le tableau de bord.
+\\ \hline
+
+\textbf{Cas d'erreur} &
+Erreur lors de la sauvegarde des données : notification d'échec et tentative de récupération automatique.
+\\ \hline
+
+\textbf{Résultat} &
+La session est clôturée, les ressources sont libérées et les résultats deviennent disponibles pour consultation.
+\\ \hline
+
+\end{tabular}
+
+\caption{Description du cas d'utilisation « Arrêter une session »}
+\label{tab:uc_stop_session}
+
+\end{table}
+%=========================================================
+\section{Conception}
+%---------------------------------------------------------
+\subsection{Diagrammes de séquence}
+
+\subsubsection{Démarrage d’une session d’étude}
+
+La Figure~\ref{fig:seq_start_session} montre comment une session est démarrée. Après vérification de la disponibilité de la caméra, le pipeline de vision est initialisé et les scores commencent à être calculés et transmis à l’application mobile en temps réel.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{images/seq_01_demarrer_session_v2.drawio.png}
+\caption{Diagramme de séquence du démarrage d’une session d’étude}
+\label{fig:seq_start_session}
+\end{figure}
+
+%---------------------------------------------------------
+\subsubsection{Gestion intelligente des alertes}
+
+La Figure~\ref{fig:seq_alerts} décrit le mécanisme de génération des alertes. Quand un score franchit un seuil critique — fatigue trop élevée, distraction prolongée, mauvaise posture — une alerte est générée, enregistrée, et notifiée à l’étudiant via l’interface mobile.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{images/seq_04_alertes_v2.drawio.png}
+\caption{Diagramme de séquence de la gestion des alertes intelligentes}
+\label{fig:seq_alerts}
+\end{figure}
+%---------------------------------------------------------
+\subsubsection{Consultation des scores et statistiques}
+
+La Figure~\ref{fig:seq_scores} illustre la consultation des scores. L’étudiant accède à l’historique de ses sessions depuis l’application, le système récupère les données correspondantes et les affiche sous forme de graphiques temporels.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{images/seq_03_consulter_scores_v2.drawio.png}
+\caption{Diagramme de séquence de la consultation des scores}
+\label{fig:seq_scores}
+\end{figure}
+%---------------------------------------------------------
+\subsubsection{Clôture d’une session d’étude}
+
+La Figure~\ref{fig:seq_stop_session} montre la séquence de clôture. Le pipeline est interrompu, les scores finaux calculés et agrégés, puis un résumé de session est affiché avant redirection vers le tableau de bord.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{images/seq_02_arreter_session_v2.drawio.png}
+\caption{Diagramme de séquence de la clôture d’une session d’étude}
+\label{fig:seq_stop_session}
+\end{figure}
+%---------------------------------------------------------
+
+%---------------------------------------------------------
+\subsection{Diagramme de classes du Sprint 2}
+
+La Figure~\ref{fig:class_sprint2} présente les entités du Sprint 2 : gestion des sessions, analyse comportementale, calcul des scores, et génération des alertes.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{images/Classe.png}
+\caption{Diagramme de classes du Sprint 2}
+\label{fig:class_sprint2}
+\end{figure}
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%=========================================================
+%=========================================================
+\section{Implémentation}
+%=========================================================
+
+%=========================================================
+\subsection{Architecture du pipeline de vision et de calcul du score}
+
+Le pipeline de vision de Smart Focus fonctionne en continu pendant toute la durée d’une session. Il traite chaque frame capturée par la caméra à travers plusieurs couches successives avant de produire un score de concentration :
+
+\begin{itemize}
+    \item \textbf{Couche d’acquisition :} récupération des frames vidéo depuis la caméra ;
+    
+    \item \textbf{Couche d’analyse :} extraction des informations physiologiques et comportementales ;
+    
+    \item \textbf{Couche comportementale :} analyse de l’attention, de la fatigue, de la posture et des distractions ;
+    
+    \item \textbf{Couche temporelle :} stabilisation et lissage des prédictions afin de réduire les variations brusques ;
+    
+    \item \textbf{Couche décisionnelle :} fusion des différents indicateurs et calcul du score global de concentration ;
+    
+    \item \textbf{Couche de sortie :} génération des alertes et synchronisation des résultats avec le backend.
+\end{itemize}
+
+La figure~\ref{fig:pipeline_vision_score} illustre l’architecture générale du pipeline et les étapes successives du traitement.
+%---------------------------------------------------------
+
+\subsubsection{Flux de traitement des données}
+
+Chaque frame passe par une chaîne de traitements : extraction des indicateurs comportementaux (regard, posture, fatigue, distractions), filtrage temporel pour éliminer les variations brusques, puis fusion de tous ces signaux en un score global de concentration.
+
+%=========================================================
+\subsection{Développement des modèles de vision}
+
+Pour trouver l’approche la plus adaptée, on a développé et comparé deux modèles de vision distincts.
+
+%---------------------------------------------------------
+\subsubsection{Modèle 1 : Approche hybride basée sur l’analyse comportementale}
+
+\paragraph{Principe de fonctionnement}
+
+La première approche est basée sur l’analyse comportementale : on n’entraîne pas de modèle, on observe directement des caractéristiques physiologiques et posturales — mouvements de la tête, ouverture des paupières, orientation du regard, alignement du corps. Ces indicateurs sont calculés en temps réel à partir des landmarks extraits par MediaPipe, ce qui rend les résultats facilement interprétables.
+
+%---------------------------------------------------------
+
+\paragraph{Architecture du modèle}
+
+Le modèle hybride combine plusieurs modules spécialisés :
+
+\begin{itemize}
+    \item Analyse du visage ;
+    
+    \item Analyse de la posture ;
+    
+    \item Estimation de l’attention ;
+    
+    \item Détection de la fatigue ;
+    
+    \item Détection des distractions.
+\end{itemize}
+
+%---------------------------------------------------------
+
+\paragraph{Analyse des comportements détectés}
+
+Le système analyse plusieurs comportements importants :
+
+\begin{itemize}
+    \item orientation du regard ;
+    
+    \item inclinaison de la tête ;
+    
+    \item fermeture prolongée des yeux ;
+    
+    \item mauvaise posture ;
+    
+    \item présence d’objets distracteurs.
+\end{itemize}
+
+%---------------------------------------------------------
+
+\paragraph{Résultats visuels du modèle 1}
+
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.9\textwidth]{images/model1_detection_1.png}
+    \caption{Détection comportementale réalisée par le modèle 1}
+    \label{fig:model1_detection1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.9\textwidth]{images/model1_detection_2.png}
+    \caption{Analyse temps réel et génération des scores}
+    \label{fig:model1_detection2}
+\end{figure}
+
+%=========================================================
+\subsubsection{Modèle 2 : Approche basée sur un modèle entraîné}
+
+\paragraph{Préparation du dataset}
+
+La deuxième approche repose sur un modèle entraîné. On a constitué un dataset à partir de situations comportementales variées et d’images d’objets distracteurs, enrichi d’images capturées dans des conditions réelles d’utilisation pour améliorer la généralisation du modèle.
+
+%---------------------------------------------------------
+
+\paragraph{Architecture du modèle}
+
+Le modèle utilisé est basé sur une architecture de détection d’objets optimisée pour les systèmes embarqués et les traitements temps réel.
+
+%---------------------------------------------------------
+
+\paragraph{Processus d’entraînement}
+
+L’entraînement du modèle a été réalisé à partir de plusieurs phases :
+
+\begin{itemize}
+    \item préparation des données ;
+    
+    \item annotation des objets ;
+    
+    \item entraînement du modèle ;
+    
+    \item validation des performances ;
+    
+    \item ajustement des paramètres.
+\end{itemize}
+
+%---------------------------------------------------------
+
+\paragraph{Résultats visuels du modèle 2}
+
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.9\textwidth]{images/model2_detection.png}
+    \caption{Exemple de détection réalisée par le modèle entraîné}
+    \label{fig:model2_detection}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.85\textwidth]{images/model2_metrics.png}
+    \caption{Résultats d'entraînement et performances du modèle}
+    \label{fig:model2_metrics}
+\end{figure}
+
+%=========================================================
+\subsection{Calcul du score de concentration}
+
+\subsubsection{Architecture du moteur de scoring}
+
+Le calcul du score de concentration est réalisé à travers un moteur de scoring chargé de fusionner les différents indicateurs comportementaux générés par le pipeline de vision.
+
+%---------------------------------------------------------
+
+\subsubsection{Indicateurs comportementaux utilisés}
+
+Le score global repose principalement sur les indicateurs suivants :
+
+\begin{itemize}
+    \item niveau d’attention ;
+    
+    \item état de fatigue ;
+    
+    \item qualité posturale ;
+    
+    \item stabilité comportementale ;
+    
+    \item niveau de distraction.
+\end{itemize}
+
+%---------------------------------------------------------
+
+\subsubsection{Fusion des signaux comportementaux}
+
+Les différents signaux comportementaux sont combinés afin de produire un score unique représentant l’état global de concentration de l’utilisateur.
+
+%---------------------------------------------------------
+
+\subsubsection{Système de pénalités}
+
+Le système applique des pénalités dynamiques lorsqu’un comportement de distraction ou une mauvaise posture est détecté pendant une longue durée.
+
+%---------------------------------------------------------
+
+\subsubsection{Stabilisation temporelle des scores}
+
+Afin d’éviter les variations brusques du score, plusieurs techniques de lissage temporel sont utilisées pour stabiliser les prédictions.
+
+%---------------------------------------------------------
+
+\subsubsection{Processus global de calcul}
+
+Le score final est calculé dynamiquement à partir de l’ensemble des indicateurs comportementaux générés durant la session.
+
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.9\textwidth]{images/score_calculation.png}
+    \caption{Processus de calcul du score de concentration}
+    \label{fig:score_calculation}
+\end{figure}
+
+%=========================================================
+\subsection{Tests et résultats expérimentaux}
+
+%---------------------------------------------------------
+\subsubsection{Résultats du modèle 1}
+
+\paragraph{Performances temps réel}
+
+Le premier modèle offre une excellente fluidité d’exécution et maintient une analyse comportementale stable en temps réel.
+
+%---------------------------------------------------------
+
+\paragraph{Robustesse des détections}
+
+Les expérimentations montrent une bonne robustesse face aux variations de posture et aux changements d’orientation du visage.
+
+%---------------------------------------------------------
+
+\paragraph{Qualité des scores générés}
+
+Le système produit des scores cohérents et relativement stables durant les différentes sessions de test.
+
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.9\textwidth]{images/results_model1.png}
+    \caption{Résultats expérimentaux du modèle 1}
+    \label{fig:results_model1}
+\end{figure}
+
+%=========================================================
+\subsubsection{Résultats du modèle 2}
+
+\paragraph{Résultats d’entraînement}
+
+Les résultats d’entraînement montrent une bonne convergence du modèle ainsi qu’une précision satisfaisante pour la détection des objets distracteurs.
+
+%---------------------------------------------------------
+
+\paragraph{Performances de classification}
+
+Le modèle détecte correctement les smartphones et plusieurs situations de distraction dans des conditions variées.
+
+%---------------------------------------------------------
+
+\paragraph{Limites observées}
+
+Certaines limitations apparaissent dans les environnements à faible luminosité ou lorsque les objets sont partiellement cachés.
+
+\begin{figure}[H]
+    \centering
+    %\includegraphics[width=0.9\textwidth]{images/results_model2.png}
+    \caption{Résultats expérimentaux du modèle 2}
+    \label{fig:results_model2}
+\end{figure}
+
+%=========================================================
+\subsection{Comparaison des modèles}
+
+En termes de fluidité, le modèle 1 est nettement supérieur. Le modèle 2 offre une meilleure précision pour la détection de certains objets distracteurs, mais au prix d’une latence plus importante et d’une dépendance forte à la qualité du dataset d’entraînement.
+
+Sur le plan de la robustesse, l’approche hybride est plus stable dans des scénarios comportementaux variés. Le modèle entraîné, lui, montre des limites dès que les conditions d’éclairage changent ou que les objets sont partiellement masqués.
+
+Du côté des contraintes matérielles, le modèle 1 consomme moins de ressources — un critère décisif pour une exécution continue sur Raspberry Pi.
+
+Enfin, l’explicabilité des résultats est bien meilleure avec l’approche hybride. Chaque indicateur a une signification directe (score de posture, score de vigilance, etc.), ce qui facilite le débogage et l’ajustement des seuils d’alerte.
+
+%---------------------------------------------------------
+
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+
+\begin{tabular}{|p{4cm}|p{4cm}|p{4cm}|}
+\hline
+\textbf{Critère} & \textbf{Modèle 1} & \textbf{Modèle 2} \\ \hline
+
+Temps réel & Très bon & Moyen \\ \hline
+
+Explicabilité & Élevée & Faible \\ \hline
+
+Complexité & Moyenne & Élevée \\ \hline
+
+Besoin en données & Faible & Important \\ \hline
+
+Robustesse & Bonne & Moyenne \\ \hline
+
+Déploiement embarqué & Facile & Plus complexe \\ \hline
+
+\end{tabular}
+
+\caption{Comparaison entre les deux approches de vision}
+\label{tab:comparaison_modeles}
+\end{table}
+
+%=========================================================
+\subsection{Choix du modèle final}
+
+Au terme de cette comparaison, le modèle 1 — l’approche hybride basée sur l’analyse comportementale — a été retenu comme solution principale de Smart Focus. Ce choix s’est imposé principalement pour des raisons de stabilité temps réel et de compatibilité avec le Raspberry Pi. La consommation de ressources plus faible et la lisibilité des indicateurs produits sont des avantages supplémentaires non négligeables.
+
+Le modèle 2 reste intéressant pour la détection des téléphones et pourrait compléter l’approche hybride dans une version future du système, une fois les contraintes matérielles assouplies.
+
+%=========================================================
+\subsection{Limites et perspectives}
+
+Le système fonctionne bien dans des conditions normales d’utilisation, mais certaines limites ont été identifiées lors des tests. La sensibilité aux éclairages très faibles ou très intenses reste un point à améliorer, tout comme la gestion des cas où le visage est partiellement masqué (main devant la bouche, port de lunettes très réfléchissantes).
+
+Parmi les pistes d’amélioration envisagées : intégrer une meilleure normalisation de l’éclairage, explorer l’ajout de capteurs physiologiques complémentaires (fréquence cardiaque), et affiner les pondérations du score de concentration à partir d’un plus grand nombre de sessions de test réelles.
+
+%=========================================================
+\subsection{Conclusion}
+
+Ce deuxième sprint a posé la brique la plus importante du système : un pipeline de vision par ordinateur capable d’évaluer le comportement de l’utilisateur en temps réel. Les expérimentations menées sur les deux approches ont permis de faire un choix éclairé, et le modèle retenu s’est montré suffisamment fiable et performant pour servir de base aux fonctionnalités développées dans les sprints suivants.

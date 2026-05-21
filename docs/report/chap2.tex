@@ -1,0 +1,533 @@
+
+%==================================================
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\chapter{Gestion du projet : Analyse et Planification}
+
+\section{Introduction}
+Avant d’écrire la moindre ligne de code, il a fallu prendre le temps de comprendre ce que le système devait vraiment faire ; pas seulement dans les grandes lignes, mais dans le détail. Quels sont les besoins réels des utilisateurs ? Quelles contraintes techniques doit-on anticiper ? Comment répartir le travail sur les différents sprints de façon réaliste ?
+
+Ce chapitre retrace cette phase d’analyse. On y présente la collecte et la priorisation des besoins, les acteurs du système, les diagrammes de cas d’utilisation, l’architecture globale choisie, et enfin la planification des sprints qui a guidé tout le développement.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% RECUEIL DES BESOINS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Recueil des besoins}
+
+La collecte des besoins a été une étape structurante pour le projet. Sans elle, on risquait de développer des fonctionnalités qui ne correspondent pas à ce que les utilisateurs attendent réellement, ou de négliger des contraintes techniques importantes. Pour éviter ça, on a combiné plusieurs approches : analyse du domaine, échanges avec les encadrants, et étude des retours d’expérience sur les outils existants.
+% IDENTIFICATION DES ACTEURS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Identification des acteurs}
+Le système Smart Focus interagit avec deux types d’acteurs. Le tableau ci-dessous résume leurs rôles respectifs.
+
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.5}
+\setlength{\tabcolsep}{8pt}
+
+\begin{tabularx}{\textwidth}{|>{\raggedright\arraybackslash}p{4cm}|c|>{\raggedright\arraybackslash}X|}
+\hline
+\textbf{Acteur} & \textbf{Type} & \textbf{Description} \\
+\hline
+
+Utilisateur 
+& Principal 
+& Étudiant, professionnel ou enseignant utilisant le système pour suivre sa concentration, gérer ses sessions et consulter les informations fournies. \\
+\hline
+
+Service d’intelligence artificielle externe 
+& Secondaire 
+& Service externe accessible via API, utilisé pour analyser les données, générer des recommandations et fournir des fonctionnalités intelligentes (chatbot, assistance). \\
+\hline
+
+\end{tabularx}
+
+\caption{Identification des acteurs du système}
+\label{tab:acteurs}
+
+\end{table}
+%\subsection{Identification des besoins}
+
+%En se basant sur les méthodes de recueil décrites ci-dessus, il a été possible d’identifier plusieurs besoins clés pour le projet \textit{Smart Focus}. Ces besoins traduisent à la fois les attentes des utilisateurs en matière de fonctionnalités et les contraintes techniques à respecter.
+
+%\vspace{0.5em}
+%\begin{table}[H]
+ %   \centering
+  %\begin{tabular}{|p{5.5cm}|p{8.5cm}|}
+   %     \hline
+      %  \textbf{Catégorie} & \textbf{Description} \\ \hline
+      %  Détection de la concentration & Analyse en temps réel de la posture, de la fatigue et des distractions via la vision par ordinateur pour calculer un score de concentration. \\ \hline
+       % Planification intelligente & Génération automatique de sessions d'étude adaptées au profil de l'utilisateur, à son sommeil et à ses examens à venir, en exploitant l'\ac{IA}. \\ \hline
+      %  Assistance pédagogique & Chatbot \ac{RAG} permettant de poser des questions sur ses cours (PDF), de générer des quiz QCM et des flashcards avec répétition espacée. \\ \hline
+      %  Suivi du sommeil & Enregistrement et analyse de la qualité du sommeil, avec adaptation automatique de la charge de travail du lendemain. \\ \hline
+     %   Feedback intelligent & Retours visuels (LEDs, écran TFT), sonores et via notifications mobiles pour alerter l'utilisateur en cas de baisse de concentration ou de mauvaise posture. \\ \hline
+     %   Interface mobile ergonomique & Application Flutter intuitive offrant dashboard, statistiques, gestion des sessions et accès à toutes les fonctionnalités du système. \\ \hline
+ %   \end{tabular}
+ %   \caption{Synthèse des besoins identifiés}
+ %   \label{tab:besoins_identifies}
+%\end{table}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ANALYSE DES BESOINS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Identification des besoins}
+
+Les besoins identifiés ont été organisés en trois catégories : fonctionnels, non fonctionnels et contraintes. Cette classification permet de distinguer ce que le système doit faire, comment il doit le faire, et dans quelles limites il doit fonctionner.
+
+\vspace{0.5em}
+\begin{itemize}
+    \item \textbf{Besoins fonctionnels} :
+    \begin{itemize}
+        \item Capturer et analyser les données visuelles afin d'évaluer la posture, la fatigue et le niveau de concentration de l'utilisateur en temps réel.
+        \item Détecter les situations de distraction et générer des alertes adaptées.
+        \item Calculer un score de concentration dynamique basé sur plusieurs indicateurs comportementaux.
+        \item Gérer des sessions de travail intelligentes, incluant le démarrage, le suivi et l'historique.
+        \item Proposer un système de planification adaptatif permettant d'organiser les sessions en fonction de l'état de l'utilisateur (fatigue, concentration, sommeil) et de ses examens.
+        \item Intégrer un assistant pédagogique basé sur un chatbot \ac{RAG} permettant d'exploiter des documents (PDF et CSV), de répondre aux questions, de générer des quiz et des flashcards.
+        \item Offrir un système de suivi du sommeil permettant d'évaluer sa qualité et d'influencer l'organisation des activités.
+        \item Fournir un accompagnement via un agent vocal intelligent capable d'interagir avec l'utilisateur et de proposer des recommandations.
+        \item Afficher les données et statistiques à travers une application mobile.
+        \item Assurer la synchronisation des données entre les différents composants du système (boîtier \ac{IoT}, backend, application).
+    \end{itemize}
+
+    \item \textbf{Besoins non fonctionnels} :
+    \begin{itemize}
+        \item \textbf{Performance :} Traitement rapide des données garantissant un fonctionnement en temps réel.
+        \item \textbf{Précision :} Analyses IA fiables et cohérentes.
+        \item \textbf{Ergonomie :} Interface simple, intuitive et adaptée à une utilisation quotidienne.
+        \item \textbf{Disponibilité :} Fonctionnement maintenu même en cas de perte temporaire de connexion.
+        \item \textbf{Scalabilité :} Architecture permettant l'ajout de nouvelles fonctionnalités.
+        \item \textbf{Sécurité :} Protection des données de l'utilisateur (\ac{JWT}, bcrypt).
+        \item \textbf{Compatibilité :} Fonctionnement sur plateforme embarquée et accès via application mobile.
+        \item \textbf{Maintenabilité :} Code structuré facilitant les mises à jour et améliorations.
+    \end{itemize}
+
+    \item \textbf{Contraintes} :
+    \begin{itemize}
+        \item Ressources matérielles limitées de Raspberry (mémoire, puissance de calcul).
+        \item Dépendance à un service \ac{LLM} externe (Groq, avec Google Gemini en alternative) nécessitant une connexion Internet.
+        \item Séparation des responsabilités entre deux membres de l'équipe (hardware / logiciel).
+        \item Compatibilité avec les technologies retenues (FastAPI, Flutter, PostgreSQL, ChromaDB).
+    \end{itemize}
+\end{itemize}
+\vspace{1em}
+
+\noindent\colorbox{gray!15}{%
+    \parbox{\dimexpr\linewidth-2\fboxsep}{%
+        \small
+        \textbf{Résumé :} Cette classification permet de mieux cibler les efforts de développement en mettant en lumière les aspects essentiels à couvrir pour assurer la réussite du projet.
+    }%
+}
+
+\subsection{Priorisation des besoins}
+
+Tous les besoins identifiés n'ont pas la même importance. Pour concentrer les efforts sur ce qui compte vraiment, on a classé les fonctionnalités par priorité en tenant compte de leur impact sur l'utilisateur et de leur faisabilité technique dans le cadre du projet.
+
+\vspace{0.5em}
+\begin{table}[H]
+    \centering
+    \renewcommand{\arraystretch}{1.3}
+    
+    \begin{tabular}{|p{5cm}|p{6.5cm}|c|}
+        \hline
+        \textbf{Besoin} & \textbf{Justification} & \textbf{Priorité} \\ \hline
+        
+        Authentification et gestion de profil 
+        & Nécessaire pour la gestion des utilisateurs et la persistance des données 
+        & Haute \\ \hline
+        
+        Détection de la concentration (score focus) 
+        & Cœur du système basé sur la vision par ordinateur et le hardware 
+        & Haute \\ \hline
+        
+        Chatbot \ac{RAG} (upload, chat, quiz, flashcards) 
+        & Apporte une forte valeur ajoutée pédagogique et personnalisation via l’IA 
+        & Haute \\ \hline
+        
+        Planification intelligente 
+        & Permet d’adapter les sessions en fonction des données utilisateur et du niveau de fatigue 
+        & Haute \\ \hline
+        
+        Dashboard et statistiques 
+        & Permet l’analyse des performances et l’amélioration continue de l’utilisateur 
+        & Moyenne \\ \hline
+        
+        Posture et feedback ergonomique 
+        & Améliore l’expérience utilisateur via des recommandations physiques basées sur la vision 
+        & Moyenne \\ \hline
+        
+        Suivi du sommeil et alarme 
+        & Fonction complémentaire influençant indirectement la performance de l’utilisateur 
+        & Basse \\ \hline
+        
+        Agent vocal intelligent
+        & Fonctionnalité complémentaire prévue en phase finale, permettant une interaction naturelle avec le système
+        & Basse \\ \hline
+        
+    \end{tabular}
+
+    \caption{Priorisation des besoins}
+    \label{tab:priorisation_besoins}
+\end{table}
+
+\vspace{1em}
+\noindent\colorbox{gray!15}{%
+    \parbox{\dimexpr\linewidth-2\fboxsep}{%
+        \textbf{Conclusion :} On a accordé la priorité aux besoins relatifs à l’authentification, à l’assistance pédagogique et à la planification intelligente, afin de poser une base solide pour le système tout en prévoyant une intégration progressive des fonctionnalités dépendant du hardware.
+    }%
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MODÉLISATION : CAS D'UTILISATION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Modélisation des besoins}
+
+\subsection{Diagramme de cas d’utilisation global}
+Le diagramme ci-dessous offre une vue d’ensemble des fonctionnalités du système. Smart Focus compte 46 cas d’utilisation répartis en 9 modules fonctionnels.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\textwidth]{images/UCDiagram.png}
+    \caption{Diagramme de cas d'utilisation global}
+    \label{fig:uml_global}
+\end{figure}
+
+
+\section{Planification du projet}
+\subsection{Backlog du produit}
+{\singlespacing
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{5pt}
+
+\begin{tabularx}{\textwidth}{|c|p{3cm}|X|c|}
+\hline
+\textbf{ID} & \textbf{Fonctionnalité} & \textbf{User Story} & \textbf{Priorité} \\
+\hline
+
+US1 & Authentification
+& En tant qu’utilisateur, je veux créer un compte et me connecter afin d’accéder à mes données personnelles.
+& Haute \\ \hline
+
+US2 & Démarrage session
+& En tant qu’utilisateur, je veux démarrer une session de travail afin de suivre mon niveau de concentration.
+& Haute \\ \hline
+
+US3 & Capture vidéo (Raspberry Pi)
+& En tant que système, je veux capturer les images en temps réel afin d’analyser le comportement de l’utilisateur.
+& Haute \\ \hline
+
+US4 & Détection de concentration
+& En tant que système, je veux analyser les images pour calculer un score de concentration.
+& Haute \\ \hline
+
+US5 & Détection fatigue et posture
+& En tant que système, je veux détecter la fatigue et la posture afin d’évaluer l’état de l’utilisateur.
+& Haute \\ \hline
+
+US6 & Enregistrement des métriques
+& En tant que système, je veux stocker les données de session afin de permettre leur exploitation.
+& Haute \\ \hline
+
+US7 & Génération d’alertes
+& En tant que système, je veux déclencher des alertes lorsque la fatigue est élevée afin d’améliorer la concentration.
+& Haute \\ \hline
+
+US8 & Affichage temps réel
+& En tant qu’utilisateur, je veux visualiser mes scores en temps réel sur l’application mobile.
+& Haute \\ \hline
+
+US9 & Chatbot intelligent (RAG)
+& En tant qu’utilisateur, je veux interagir avec un chatbot pour poser des questions et réviser mes cours.
+& Haute \\ \hline
+
+US10 & Import de documents
+& En tant qu’utilisateur, je veux importer mes cours afin qu’ils soient utilisés par le chatbot.
+& Haute \\ \hline
+
+US11 & Génération de quiz/flashcards
+& En tant qu’utilisateur, je veux générer des quiz pour tester mes connaissances.
+& Moyenne \\ \hline
+
+US12 & Planification intelligente
+& En tant qu’utilisateur, je veux obtenir un planning adapté à mon niveau de fatigue et mes performances.
+& Haute \\ \hline
+
+US13 & Dashboard et statistiques
+& En tant qu’utilisateur, je veux visualiser mes performances pour suivre mon évolution.
+& Moyenne \\ \hline
+
+US14 & Feedback ergonomique
+& En tant qu’utilisateur, je veux recevoir des recommandations sur ma posture.
+& Moyenne \\ \hline
+
+US15 & Suivi du sommeil
+& En tant qu’utilisateur, je veux suivre mon sommeil afin d’améliorer mes sessions de travail.
+& Basse \\ \hline
+
+US16 & Agent vocal
+& En tant qu’utilisateur, je veux interagir avec le système via la voix.
+& Basse \\ \hline
+
+\end{tabularx}
+
+\caption{Backlog du produit}
+\label{tab:backlog}
+\end{table}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\subsection{Planification des sprints}
+
+Le développement a été découpé en quatre sprints successifs. La durée de chaque sprint a été définie en fonction de la complexité des fonctionnalités à réaliser ; le sprint de vision par ordinateur a par exemple pris deux fois plus de temps que le sprint d’authentification, ce qui était attendu dès le départ.
+{\singlespacing
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{5pt}
+
+\begin{tabularx}{\textwidth}{|c|p{3.8cm}|X|c|}
+\hline
+\textbf{Sprint} & \textbf{Intitulé} & \textbf{Description} & \textbf{Durée} \\
+\hline
+
+Sprint 1 & 
+Authentification et interfaces de base & 
+Développement du module d’authentification permettant l’inscription, la connexion et la gestion du profil utilisateur côté backend et application mobile. Mise en place des interfaces principales de l’application (tableau de bord, statistiques, sommeil, paramètres) ainsi que de la navigation entre les écrans. &
+20 jours \\ \hline
+
+Sprint 2 & 
+Surveillance intelligente de la concentration (Vision + Score) & 
+Implémentation du module de vision par ordinateur permettant l’analyse en temps réel de l’état de l’utilisateur à partir du flux vidéo. Détection de la fatigue, des distractions et de la posture via des techniques d’intelligence artificielle, puis calcul d’un score global de concentration transmis au backend. &
+40 jours \\ \hline
+
+Sprint 3 & 
+Planning intelligent et assistant d’apprentissage & 
+Développement du système de planning intelligent basé sur l’intelligence artificielle pour la génération automatique des sessions d’étude. Intégration du chatbot RAG permettant l’interrogation de documents PDF, ainsi que la génération automatique de quiz et de flashcards avec révision espacée . Connexion des interfaces mobiles aux données dynamiques du backend. &
+30 jours \\ \hline
+
+Sprint 4 & 
+Système IoT et alertes intelligentes & 
+Intégration du dispositif matériel de monitoring permettant la capture continue des données utilisateur via caméra et capteurs. Mise en place du suivi temps réel dans l’application mobile ainsi que du système d’alertes intelligentes basé sur le niveau de concentration et les données de sommeil afin d’adapter le comportement du système et le planning de travail. &
+30 jours \\ \hline
+
+\end{tabularx}
+
+\caption{Planification des sprints du projet}
+\label{tab:sprints_final}
+\end{table}
+}
+%==================================================
+\section{Diagramme de Gantt}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/Gant.png}
+\caption{Diagramme de Gantt}
+\end{figure}
+%==================================================
+\section{Environnement de travail}
+
+\subsection{Choix des technologies}
+
+Le choix des technologies a été guidé par des critères pratiques : performance, compatibilité avec les contraintes du projet, disponibilité de ressources et facilité d'intégration entre les différentes couches du système. Voici les principaux outils retenus, organisés par catégorie.
+
+\subsubsection{Langages de programmation}
+
+\begin{itemize}
+
+\item \textbf{Python}  \textbf{:} Le choix de Python \cite{python} s'est imposé naturellement pour le backend et les modules IA. C'est le langage de référence pour la vision par ordinateur et le machine learning, avec un écosystème de bibliothèques très riche. On l'a utilisé pour FastAPI, le pipeline de vision, et tous les modules d'intelligence artificielle.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/pythonLogo.png}
+    \caption{Logo Python}
+\end{figure}
+
+\item \textbf{Dart}  \textbf{:} Dart \cite{dart} est le langage de Flutter. Il a été choisi par défaut avec le framework pour le développement de l'application mobile Smart Focus, et s'est montré suffisamment performant pour nos besoins.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\textwidth]{images/dart.jpg}
+    \caption{Logo Dart}
+\end{figure}
+
+\end{itemize}
+
+\subsubsection{Frameworks et bibliothèques}
+
+\begin{itemize}
+
+\item \textbf{FastAPI}  \textbf{:} Framework Python moderne pour la création d'API REST \cite{fastapi}. On a choisi FastAPI notamment parce que la validation automatique des données via Pydantic nous a évité beaucoup de bugs en phase de test ; les erreurs de type sont détectées avant d'atteindre la base de données. Il gère l'ensemble des services backend : authentification, monitoring, planning, chatbot, quiz, flashcards et sommeil.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\textwidth]{images/fastapi.jpg}
+    \caption{Logo FastAPI}
+\end{figure}
+
+\item \textbf{Flutter} \textbf{:} Framework open-source de Google pour les applications mobiles multiplateformes \cite{flutter}. Un seul code source, deux plateformes. Dans la pratique, ça nous a vraiment simplifié le travail ; pas besoin de maintenir deux bases de code séparées. L'application couvre le tableau de bord, le planning, le chatbot, les flashcards et le suivi des sessions en temps réel.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/flutter.png}
+    \caption{Logo Flutter}
+\end{figure}
+
+
+
+\item \textbf{OpenCV} \textbf{:} Bibliothèque de traitement d'images et de vision par ordinateur \cite{opencv}. C'est la brique de base du pipeline de capture : OpenCV récupère les frames depuis la caméra du Raspberry Pi et les prépare avant de les envoyer aux modules d'analyse. Sans ça, rien ne démarre.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/openCV.png}
+    \caption{Logo OpenCV}
+\end{figure}
+
+\item \textbf{MediaPipe} \textbf{:} Framework de Google pour l'analyse en temps réel de flux multimédia \cite{mediapipe}. On a retenu MediaPipe pour la détection des landmarks ; à 25 FPS sur Raspberry Pi sans GPU, c'est la bibliothèque qui offrait le meilleur compromis vitesse/précision pour notre pipeline. On n'utilise que deux modules : FaceMesh pour les repères faciaux et Pose pour la posture corporelle.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.45\textwidth]{images/mediaPipe.png}
+    \caption{Logo MediaPipe}
+\end{figure}
+
+\item \textbf{LangChain} \textbf{:} Framework Python pour construire des pipelines autour de modèles de langage \cite{langchain}. On n'en utilise qu'un seul composant, le \texttt{RecursiveCharacterTextSplitter}, pour découper les documents en segments exploitables. Le reste du pipeline RAG est implémenté directement sans passer par les abstractions de LangChain, ce qui nous donne plus de contrôle sur la logique de recherche sémantique.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/langchainLogo.png}
+    \caption{Logo LangChain}
+\end{figure}
+
+\end{itemize}
+
+\subsubsection{Intelligence artificielle et bases de données}
+
+\begin{itemize}
+
+\item \textbf{Groq} \textbf{:} Plateforme d'inférence LLM avec une architecture matérielle spécialisée (LPU) \cite{groq}. Ce qui nous a convaincus, c'est la vitesse : environ 400 tokens/seconde pour Llama 3.3 70B, contre 80 à 200 pour les alternatives GPU classiques. Concrètement, les réponses du chatbot RAG apparaissent presque instantanément. Groq gère toutes les tâches de génération : réponses du chatbot, quiz, flashcards et attribution des sujets du planning.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/groq.png}
+    \caption{Logo Groq}
+\end{figure}
+
+\item \textbf{ChromaDB} \textbf{:} Base de données vectorielle open-source \cite{chromadb}. ChromaDB s'est imposé naturellement : il fonctionne entièrement en local sans serveur séparé, ce qui simplifiait le déploiement Docker, et l'API Python est très directe à utiliser. C'est la couche de mémoire sémantique du chatbot ; c'est lui qui retrouve les passages pertinents lors d'une question RAG.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/chromaDB.png}
+    \caption{Logo ChromaDB}
+\end{figure}
+
+\item \textbf{PostgreSQL} \textbf{:} Système de gestion de base de données relationnelle \cite{postgresql}. C'est la base principale du projet ; tout ce qui est structuré y est stocké : comptes, profils, sessions, snapshots de monitoring, événements de concentration, planning, examens, documents, messages du chatbot, quiz, flashcards et données de sommeil. Le schéma a évolué au fil des sprints, et PostgreSQL a bien tenu la charge lors des tests avec des sessions longues.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.3\textwidth]{images/PostgreSQL.jpg}
+    \caption{Logo PostgreSQL}
+\end{figure}
+
+\end{itemize}
+
+%==================================================
+
+\subsection{Choix des logiciels}
+
+En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outils pour structurer le développement, gérer les versions du code et produire la documentation technique.
+
+\begin{itemize}
+
+\item \textbf{Visual Studio Code} \textbf{:} Éditeur de code léger et extensible de Microsoft \cite{vscode}. C'est l'IDE principal utilisé pour tout le projet : backend Python, Flutter, et modules de vision. Les extensions disponibles (Pylance, Dart, Remote SSH pour le Raspberry Pi) ont vraiment facilité le développement.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/vs.png}
+    \caption{Visual Studio Code}
+\end{figure}
+
+\item \textbf{Android Studio} \textbf{:} IDE officiel Android \cite{androidstudio}. On l'a utilisé principalement pour gérer l'émulateur Android et configurer les SDK nécessaires au build Flutter. Pas l'outil qu'on a le plus ouvert au quotidien, mais indispensable pour faire tourner l'application sans téléphone physique pendant les premières phases de développement.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.15\textwidth]{images/androidStudio.png}
+    \caption{Android Studio}
+\end{figure}
+
+\item \textbf{Git et GitHub} \textbf{:} Système de contrôle de version et plateforme de collaboration \cite{github}. Travailler à deux sur un projet aussi hétérogène sans versionnement serait un cauchemar. Git a permis de maintenir des branches séparées pour le hardware et le software, et de fusionner sans trop de conflits aux points d'intégration.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/gitHub.png}
+    \caption{GitHub}
+\end{figure}
+
+\item \textbf{Docker} \textbf{:} Plateforme de conteneurisation \cite{docker}. Conteneuriser FastAPI, PostgreSQL et ChromaDB ensemble a résolu les problèmes classiques de "ça marche sur ma machine mais pas sur la tienne". En développement comme en démo, l'environnement est identique ; un \texttt{docker-compose up} suffit à tout lancer.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/docker.png}
+    \caption{Docker}
+\end{figure}
+
+
+\item \textbf{Draw.io} \textbf{:} Outil de diagrammes en ligne gratuit \cite{drawio}. On l'a utilisé pour tous les diagrammes UML du projet : cas d'utilisation, classes, séquences, architecture système. Simple d'utilisation et collaboratif, il a suffi à nos besoins sans overhead.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.25\textwidth]{images/draw io.png}
+    \caption{Draw.io}
+\end{figure}
+
+\item \textbf{Overleaf} \textbf{:} Plateforme \LaTeX{} collaborative en ligne \cite{overleaf}. Rédiger un rapport technique en \LaTeX{} sans outil collaboratif est fastidieux. Overleaf permet d'éditer le document depuis n'importe où, de voir le rendu PDF en temps réel et de synchroniser facilement les modifications entre les deux auteurs.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.2\textwidth]{images/overleaf.png}
+    \caption{Overleaf}
+\end{figure}
+
+\end{itemize}
+
+%==================================================
+%==================================================
+\section{Architecture du système}
+
+L’architecture de Smart Focus a été pensée pour séparer clairement les responsabilités entre les différentes parties du système. Cette séparation facilite la maintenance, permet de faire évoluer chaque composant indépendamment, et simplifie l’intégration. Elle s’articule autour de quatre couches :
+
+\begin{enumerate}
+    \item \textbf{Couche Hardware} : Boîtier Raspberry Pi (caméra OV2640, capteurs, écran TFT, LEDs WS2812B)
+
+    \item \textbf{Couche Backend} : Serveur FastAPI (Python 3.11) assurant la logique métier et les services \ac{API} REST
+
+    \item \textbf{Couche Données} : PostgreSQL (données relationnelles) et ChromaDB (données vectorielles), avec stockage des fichiers (PDF)
+
+    \item \textbf{Couche Client} : Application mobile Flutter utilisant Riverpod et GoRouter pour la gestion d’état et la navigation
+\end{enumerate}
+
+
+
+
+Cette organisation garantit que chaque couche peut être modifiée ou remplacée sans impacter les autres, tant que les interfaces entre elles restent stables.
+%==================================================
+\section{Diagramme de classes global}
+
+Le diagramme de classes ci-dessous présente la structure globale du système. On y retrouve les entités principales, leurs attributs et les relations entre elles.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/DiagClassGlobale.png}
+\caption{Diagramme de classes global}
+\label{fig:class_diagram}
+\end{figure}
+%==================================================
+\section*{Conclusion}
+
+Ce chapitre a posé les bases de tout ce qui suit : identification des besoins, modélisation du système, choix des technologies et planification des sprints. Ces éléments constituent la feuille de route qui a guidé le développement de Smart Focus.
+
+Les chapitres suivants entrent dans le détail de chaque sprint : ce qui a été conçu, comment ça a été implémenté, et ce que les tests ont montré.
