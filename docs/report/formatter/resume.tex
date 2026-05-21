@@ -1,0 +1,40 @@
+\chapter*{Résumé}
+\addcontentsline{toc}{chapter}{Résumé}
+
+  Ce mémoire porte sur Smart Focus, un système que nous avons conçu et développé pour analyser en continu l'état de l'utilisateur pendant ses sessions de
+  travail ou de révision : concentration, posture, fatigue, stress, à partir d'une caméra et de capteurs intégrés dans un boîtier basé sur Raspberry Pi.
+
+  L'idée de départ était simple : plutôt que de laisser l'utilisateur estimer lui-même son niveau d'attention, le système le mesure objectivement et réagit en
+  conséquence. Une application mobile complète le dispositif avec des fonctionnalités de suivi des sessions, de planification intelligente, et d'un chatbot
+  pédagogique basé sur une approche \ac{RAG}, capable de répondre à des questions sur des documents uploadés par l'utilisateur.
+
+  Le développement s'est déroulé en trois sprints Agile, chacun livrant un incrément fonctionnel testé sur du matériel réel : authentification et profil,
+  module de vision et calcul du score, puis les fonctionnalités pédagogiques.
+
+  Au final, Smart Focus est un système complet, du traitement temps réel sur Raspberry Pi jusqu'à l'interface mobile, pensé pour s'intégrer dans la routine
+  quotidienne sans friction.
+
+\bigskip
+\noindent
+\textbf{Mots-clés :} IoT, intelligence artificielle, concentration, stress, posture, fatigue, Raspberry Pi, RAG.
+
+\cleardoublepage
+
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+  Smart Focus is an IoT and AI system that monitors a user's concentration, posture, fatigue, and stress in real time during work or study sessions. The core
+  hardware is a Raspberry Pi enclosure fitted with a camera and sensors; a companion mobile application handles session tracking, intelligent scheduling, and
+  learning support through a RAG-based chatbot.
+
+  The system was built around a straightforward question: instead of asking users to estimate their own attention level, can we measure it objectively and give
+   them actionable feedback? The vision pipeline runs continuously on the Raspberry Pi, extracting behavioral cues: gaze direction, posture, facial signals,
+  and combining them into a live concentration score.
+
+  Development followed an Agile methodology across three sprints, each delivering working functionality tested on real hardware before moving forward. The
+  architecture connects an embedded processing layer, a Python backend, and a Flutter mobile interface, three components that had to work together in real
+  time.
+
+\bigskip
+\noindent
+\textbf{Keywords:} IoT, artificial intelligence, concentration, stress, posture, fatigue, Raspberry Pi, RAG.

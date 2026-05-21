@@ -2,9 +2,9 @@
 
 \section{Introduction du Sprint}
 
-Le deuxième sprint, c'est vraiment le cœur du projet. C'est là qu'on a développé le module de vision par ordinateur — le mécanisme qui permet au système de « voir » l'utilisateur et d'en déduire son niveau de concentration.
+Le deuxième sprint, c'est vraiment le cœur du projet. C'est là qu'on a développé le module de vision par ordinateur, le mécanisme qui permet au système de « voir » l'utilisateur et d'en déduire son niveau de concentration.
 
-L'objectif était d'analyser un flux vidéo en temps réel, d'en extraire des indicateurs comportementaux pertinents — orientation du regard, posture, signes de fatigue, présence d'objets distracteurs — et de les combiner pour produire un score de concentration continu et fiable. Ce sprint a été de loin le plus complexe techniquement, avec de nombreux cycles d'expérimentation avant d'arriver à un pipeline stable.
+L'objectif était d'analyser un flux vidéo en temps réel, d'en extraire des indicateurs comportementaux pertinents : orientation du regard, posture, signes de fatigue, présence d'objets distracteurs, et de les combiner pour produire un score de concentration continu et fiable. Ce sprint a été de loin le plus complexe techniquement, avec de nombreux cycles d'expérimentation avant d'arriver à un pipeline stable.
 %--------------------------------------------------
 
 \section{Planification du Sprint}
@@ -140,7 +140,7 @@ Démarrer une session déclenche l'ensemble du pipeline d'analyse : capture vid�
 %----------------------------------------
 \subsubsection{Cas d'utilisation : Consulter les scores comportementaux}
 
-Pendant ou après une session, l'étudiant peut consulter ses scores comportementaux — posture, vigilance, attention et concentration globale. Ces indicateurs sont le principal retour que le système fournit. Le tableau~\ref{tab:uc_consult_scores} décrit ce cas d'utilisation.
+Pendant ou après une session, l'étudiant peut consulter ses scores comportementaux : posture, vigilance, attention et concentration globale. Ces indicateurs sont le principal retour que le système fournit. Le tableau~\ref{tab:uc_consult_scores} décrit ce cas d'utilisation.
 
 \begin{table}[H]
 \centering
@@ -294,7 +294,7 @@ La Figure~\ref{fig:seq_start_session} montre comment une session est démarrée.
 %---------------------------------------------------------
 \subsubsection{Gestion intelligente des alertes}
 
-La Figure~\ref{fig:seq_alerts} décrit le mécanisme de génération des alertes. Quand un score franchit un seuil critique — fatigue trop élevée, distraction prolongée, mauvaise posture — une alerte est générée, enregistrée, et notifiée à l’étudiant via l’interface mobile.
+La Figure~\ref{fig:seq_alerts} décrit le mécanisme de génération des alertes. Quand un score franchit un seuil critique : fatigue trop élevée, distraction prolongée, mauvaise posture, une alerte est générée, enregistrée, et notifiée à l’étudiant via l’interface mobile.
 
 \begin{figure}[H]
 \centering
@@ -384,7 +384,7 @@ Pour trouver l’approche la plus adaptée, on a développé et comparé deux mo
 
 \paragraph{Principe de fonctionnement}
 
-La première approche est basée sur l’analyse comportementale : on n’entraîne pas de modèle, on observe directement des caractéristiques physiologiques et posturales — mouvements de la tête, ouverture des paupières, orientation du regard, alignement du corps. Ces indicateurs sont calculés en temps réel à partir des landmarks extraits par MediaPipe, ce qui rend les résultats facilement interprétables.
+La première approche est basée sur l’analyse comportementale : on n’entraîne pas de modèle, on observe directement des caractéristiques physiologiques et posturales : mouvements de la tête, ouverture des paupières, orientation du regard, alignement du corps. Ces indicateurs sont calculés en temps réel à partir des landmarks extraits par MediaPipe, ce qui rend les résultats facilement interprétables.
 
 %---------------------------------------------------------
 
@@ -605,9 +605,9 @@ Certaines limitations apparaissent dans les environnements à faible luminosité
 
 En termes de fluidité, le modèle 1 est nettement supérieur. Le modèle 2 offre une meilleure précision pour la détection de certains objets distracteurs, mais au prix d’une latence plus importante et d’une dépendance forte à la qualité du dataset d’entraînement.
 
-Sur le plan de la robustesse, l’approche hybride est plus stable dans des scénarios comportementaux variés. Le modèle entraîné, lui, montre des limites dès que les conditions d’éclairage changent ou que les objets sont partiellement masqués.
+L’approche hybride s’est aussi montrée nettement plus robuste face à la variété des scénarios comportementaux. Le modèle entraîné, lui, perd en fiabilité dès que les conditions d’éclairage changent ou que les objets sont partiellement masqués, une fragilité qu’on a constatée assez tôt lors des tests.
 
-Du côté des contraintes matérielles, le modèle 1 consomme moins de ressources — un critère décisif pour une exécution continue sur Raspberry Pi.
+Du côté des contraintes matérielles, le modèle 1 consomme moins de ressources, un critère décisif pour une exécution continue sur Raspberry Pi.
 
 Enfin, l’explicabilité des résultats est bien meilleure avec l’approche hybride. Chaque indicateur a une signification directe (score de posture, score de vigilance, etc.), ce qui facilite le débogage et l’ajustement des seuils d’alerte.
 
@@ -643,9 +643,11 @@ Déploiement embarqué & Facile & Plus complexe \\ \hline
 %=========================================================
 \subsection{Choix du modèle final}
 
-Au terme de cette comparaison, le modèle 1 — l’approche hybride basée sur l’analyse comportementale — a été retenu comme solution principale de Smart Focus. Ce choix s’est imposé principalement pour des raisons de stabilité temps réel et de compatibilité avec le Raspberry Pi. La consommation de ressources plus faible et la lisibilité des indicateurs produits sont des avantages supplémentaires non négligeables.
+Au terme de cette comparaison, le modèle 1, l’approche hybride basée sur l’analyse comportementale, a été retenu comme solution principale de Smart Focus. Ce choix s’est imposé principalement pour des raisons de stabilité temps réel et de compatibilité avec le Raspberry Pi. La consommation de ressources plus faible et la lisibilité des indicateurs produits sont des avantages supplémentaires non négligeables.
 
-Le modèle 2 reste intéressant pour la détection des téléphones et pourrait compléter l’approche hybride dans une version future du système, une fois les contraintes matérielles assouplies.
+Ce n’est pas un choix sans concessions. Dans certaines configurations : lumière tamisée, angle de caméra bas, le modèle 2 détectait mieux les téléphones posés sur la table. On a essayé de compenser en affinant les seuils du modèle 1, avec un résultat acceptable mais pas parfait. On s’est dit que pour une première version déployable, la stabilité valait plus que la précision marginale sur ce cas précis.
+
+Le modèle 2 reste intéressant et pourrait compléter l’approche hybride dans une version future, une fois les contraintes matérielles assouplies.
 
 %=========================================================
 \subsection{Limites et perspectives}

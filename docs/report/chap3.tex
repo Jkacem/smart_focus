@@ -6,7 +6,7 @@
 
 Avant de pouvoir faire quoi que ce soit d’intelligent, il faut d’abord savoir à qui on parle. C’est le rôle du premier sprint : mettre en place le module d’authentification et la gestion du compte utilisateur.
 
-Ce n’est pas la partie la plus spectaculaire du projet, mais c’est une fondation indispensable. Toutes les données collectées par le système — sessions de travail, scores de concentration, planning, documents — sont liées à un compte utilisateur. Sans authentification fiable, rien de tout ça ne tient. Ce sprint a également été l’occasion de mettre en place les premières interfaces de l’application mobile et d’établir la communication entre le frontend Flutter et le backend FastAPI.
+Ce n’est pas la partie la plus spectaculaire du projet, mais c’est une fondation indispensable. Toutes les données collectées par le système : sessions de travail, scores de concentration, planning, documents, sont liées à un compte utilisateur. Sans authentification fiable, rien de tout ça ne tient. Ce sprint a également été l’occasion de mettre en place les premières interfaces de l’application mobile et d’établir la communication entre le frontend Flutter et le backend FastAPI.
 
 \section{Backlog du Sprint 1}
 
@@ -128,7 +128,7 @@ La connexion permet à un utilisateur déjà inscrit d’accéder à son compte.
 %----------------------------------------
 \subsubsection{Cas d’utilisation : Se connecter via Gmail}
 
-Pour simplifier l’accès, le système offre une option de connexion via Google. L’utilisateur n’a pas besoin de créer un mot de passe — il s’authentifie directement avec son compte Gmail. Le tableau~\ref{tab:uc_login_google} décrit le déroulement de ce processus.
+Pour simplifier l’accès, le système offre une option de connexion via Google. L’utilisateur n’a pas besoin de créer un mot de passe ; il s’authentifie directement avec son compte Gmail. Le tableau~\ref{tab:uc_login_google} décrit le déroulement de ce processus.
 
 \begin{table}[H]
 \centering
@@ -244,7 +244,7 @@ Lors de l’inscription, l’application transmet les données saisies au serveu
 %----------------------------------------
 \subsubsection{Processus de connexion}
 
-Pour la connexion, l’application envoie les identifiants au backend, qui compare le mot de passe saisi à son empreinte stockée via bcrypt. Si la vérification réussit, deux tokens sont générés — un access token de courte durée et un refresh token — et la session est ouverte.
+Pour la connexion, l’application envoie les identifiants au backend, qui compare le mot de passe saisi à son empreinte stockée via bcrypt. Si la vérification réussit, deux tokens sont générés : un access token de courte durée et un refresh token, et la session est ouverte.
 
 \begin{figure}[H]
 \centering
@@ -293,32 +293,34 @@ Le diagramme de classes de la Figure~\ref{fig:class_sprint1} montre comment le m
 %----------------------------------------
 \section{Environnement technique}
 
-Cette section détaille les technologies utilisées dans le Sprint 1. Les choix ont été orientés par des impératifs de sécurité — notamment pour la gestion des mots de passe et des sessions — ainsi que par la nécessité d'une architecture maintenable sur le long terme.
+Cette section détaille les technologies utilisées dans le Sprint 1. Les choix ont été orientés par des impératifs de sécurité, notamment pour la gestion des mots de passe et des sessions, ainsi que par la nécessité d'une architecture maintenable sur le long terme.
 
 %----------------------------------------
 \subsection{JSON Web Token (JWT)}
 
-Les JWT \cite{jwt} (RFC 7519) sont utilisés pour gérer les sessions utilisateur. À la connexion, le serveur génère deux tokens :
+On avait d'abord envisagé un système de sessions côté serveur avec Redis ; c'est une approche courante, et on la connaissait bien. Mais ajouter Redis aurait alourdi l'infrastructure au moment où on essayait justement de la simplifier. JWT s'est imposé comme un meilleur compromis : pas d'état à maintenir côté serveur, une validation possible sans appel base de données, et une gestion propre de l'expiration.
+
+Les JWT \cite{jwt} (RFC 7519) gèrent les sessions utilisateur. À la connexion, le serveur génère deux tokens :
 \begin{itemize}
     \item \textbf{Access token} : valide 15 minutes, il accompagne chaque requête de l'application pour authentifier l'utilisateur.
     \item \textbf{Refresh token} : valide 7 jours, il permet de renouveler l'access token expirée sans redemander les identifiants.
 \end{itemize}
 
-Chaque token est structuré en trois parties encodées en Base64 : l'en-tête, la charge utile (contenant les données utilisateur), et la signature garantissant l'intégrité du token. Cette approche évite de stocker l'état de session côté serveur, ce qui simplifie le déploiement.
+Chaque token est structuré en trois parties encodées en Base64 : l'en-tête, la charge utile (contenant les données utilisateur), et la signature garantissant l'intégrité du token.
 
 %----------------------------------------
 \subsection{Hachage des mots de passe avec Bcrypt}
 
-Pour le stockage des mots de passe, on a utilisé bcrypt \cite{bcrypt}. Cet algorithme de hachage est conçu pour être lent, ce qui le rend résistant aux attaques par force brute. Il intègre aussi un mécanisme de salage : même deux utilisateurs avec le même mot de passe auront des empreintes différentes en base de données.
+On a regardé argon2id brièvement ; c'est l'algorithme recommandé par OWASP depuis quelques années. Mais l'intégration Python était un peu plus complexe, et bcrypt \cite{bcrypt} s'intégrait mieux avec \texttt{passlib}, qu'on utilisait déjà. Pour un projet de cette taille, le gain de sécurité marginal d'argon2 ne justifiait pas la complexité supplémentaire.
 
-Le facteur de coût a été fixé à 12 — un réglage courant qui offre une bonne résistance sans trop pénaliser les performances lors de la connexion. Lors de l'authentification, bcrypt compare directement le mot de passe saisi à son empreinte, sans jamais le décoder.
+bcrypt est conçu pour être lent, ce qui le rend résistant aux attaques par force brute. Il intègre aussi un mécanisme de salage : même deux utilisateurs avec le même mot de passe auront des empreintes différentes en base de données. Le facteur de coût a été fixé à 12 après quelques tests : à 10, ça allait trop vite ; à 14, la connexion prenait un temps perceptible sur le serveur de dev. 12 était le bon milieu. Lors de l'authentification, bcrypt compare directement le mot de passe saisi à son empreinte, sans jamais le décoder.
 
 %----------------------------------------
 \subsection{Authentification via Google OAuth 2.0}
 
-Google OAuth 2.0 est un protocole d'autorisation permettant à l'utilisateur de s'authentifier auprès du système en utilisant son compte Google, sans avoir à créer ni mémoriser un mot de passe supplémentaire.
+L'ajout de Google OAuth n'était pas prévu au départ ; on pensait que l'authentification classique email/mot de passe suffirait. Mais lors des premiers tests avec des utilisateurs réels, la question "est-ce qu'on peut se connecter avec Google ?" est revenue plusieurs fois. Les étudiants utilisent déjà leurs comptes Google pour tout le reste : Drive, Meet, mails académiques. Ajouter une connexion supplémentaire créait une friction inutile. On a donc décidé d'intégrer OAuth 2.0 dès le Sprint 1.
 
-Le flux d'authentification se déroule en trois étapes principales :
+Google OAuth 2.0 permet à l'utilisateur de s'authentifier avec son compte Google, sans créer de nouveau mot de passe. Le flux se déroule en trois étapes :
 \begin{enumerate}
     \item L'application mobile redirige l'utilisateur vers la page de connexion Google, qui lui demande d'autoriser l'accès.
     \item Google retourne un \textit{id\_token} signé contenant les informations du compte (email, nom, photo de profil).
@@ -403,12 +405,57 @@ L’écran de profil permet à l’utilisateur de consulter et modifier ses info
 \label{fig:profile_settings}
 \end{figure}
 
+%----------------------------------------
+\subsubsection{Interface du tableau de bord}
+
+Le tableau de bord constitue la page principale de l’application. Il offre à l’utilisateur une vue synthétique de son état courant : session de travail active, score de concentration en temps réel, progression du planning du jour et résumé des dernières activités.
+
+\begin{figure}[H]
+\centering
+% TODO: remplacer dashboard1.jpg et dashboard2.jpg par les vraies captures
+\includegraphics[width=0.35\textwidth]{images/dashboard1.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/dashboard2.jpg}
+\caption{Interface du tableau de bord}
+\label{fig:dashboard}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interface des statistiques}
+
+L’écran des statistiques présente les indicateurs de performance agrégés sur la période sélectionnée : temps d’étude total, taux de complétion des sessions, évolution du score de concentration et sujets les plus travaillés. Ces données permettent à l’utilisateur d’identifier ses points forts et ses axes d’amélioration.
+
+\begin{figure}[H]
+\centering
+% TODO: remplacer stats1.jpg et stats2.jpg par les vraies captures
+\includegraphics[width=0.35\textwidth]{images/stats1.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/stats2.jpg}
+\caption{Interface des statistiques de performance}
+\label{fig:statistics}
+\end{figure}
+
+%----------------------------------------
+\subsubsection{Interface de suivi du sommeil}
+
+L’écran de sommeil permet à l’utilisateur d’enregistrer ses nuits et de consulter l’historique de ses données de sommeil : durée totale, score de qualité et corrélation avec les performances d’étude. Ces informations alimentent directement le planificateur intelligent pour adapter l’intensité des sessions du lendemain.
+
+\begin{figure}[H]
+\centering
+% TODO: remplacer sleep1.jpg et sleep2.jpg par les vraies captures
+\includegraphics[width=0.35\textwidth]{images/sleep1.jpg}
+\hspace{0.5cm}
+\includegraphics[width=0.35\textwidth]{images/sleep2.jpg}
+\caption{Interface de suivi du sommeil}
+\label{fig:sleep_tracking}
+\end{figure}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Conclusion}
 \addcontentsline{toc}{section}{Conclusion}
 
-À l’issue de ce premier sprint, les fondations du système sont en place : authentification sécurisée par JWT et bcrypt, connexion via Google OAuth, gestion du profil, et premières interfaces mobiles opérationnelles. Ces éléments sont indispensables pour la suite — tout ce qui sera développé dans les sprints suivants repose sur une gestion fiable de l’identité utilisateur.
+À l’issue de ce premier sprint, les fondations du système sont en place : authentification sécurisée par JWT et bcrypt, connexion via Google OAuth, gestion du profil, et premières interfaces mobiles opérationnelles. Ces éléments sont indispensables pour la suite ; tout ce qui sera développé dans les sprints suivants repose sur une gestion fiable de l’identité utilisateur.
 
 Le sprint 2 aborde désormais la partie la plus technique du projet : la vision par ordinateur et le calcul du score de concentration. 

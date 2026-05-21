@@ -10,7 +10,7 @@ La Pépinière d'Entreprises \ac{APII} Mahdia est une structure rattachée à l'
 
 Sa vocation principale est d'accompagner les porteurs de projets et les jeunes startups dans leurs premières étapes de développement. Pour ce faire, elle met à disposition des formations, un encadrement technique et entrepreneurial, ainsi qu'un réseau de partenaires et de ressources matérielles.
 
-Dans le domaine technologique — IoT, IA, développement logiciel — la pépinière offre un cadre de travail adapté qui a facilité la réalisation de ce projet, tant sur le plan de l'accès aux équipements que sur celui du suivi professionnel.
+Dans le domaine technologique : IoT, IA, développement logiciel, la pépinière offre un cadre de travail adapté qui a facilité la réalisation de ce projet, tant sur le plan de l'accès aux équipements que sur celui du suivi professionnel.
 
 \begin{figure}[H]
     \centering
@@ -26,10 +26,10 @@ Dans le domaine technologique — IoT, IA, développement logiciel — la pépin
 Les avancées en intelligence artificielle et en vision par ordinateur ouvrent aujourd'hui une nouvelle voie : analyser le comportement humain en temps réel, de manière automatique, sans effort de la part de l'utilisateur. Couplées à des dispositifs IoT, ces technologies rendent possible un suivi continu et non invasif directement dans l'environnement de travail.
 
 \subsection{Domaine d'application}
-Smart Focus s'inscrit dans le domaine des systèmes intelligents combinant \ac{IA} et \ac{IoT}. L'objectif est d'exploiter des données visuelles et comportementales — issues d'une caméra et de capteurs — pour évaluer en continu le niveau de concentration d'un utilisateur, et lui proposer un accompagnement adapté à son état réel.
+Smart Focus s'inscrit dans le domaine des systèmes intelligents combinant \ac{IA} et \ac{IoT}. L'objectif est d'exploiter des données visuelles et comportementales, issues d'une caméra et de capteurs, pour évaluer en continu le niveau de concentration d'un utilisateur, et lui proposer un accompagnement adapté à son état réel.
 
 \section{Problématique}
-La question qu'on s'est posée au départ est simple : comment savoir si une personne est vraiment concentrée pendant qu'elle travaille ? Pas ce qu'elle pense d'elle-même, mais son état réel, tel qu'il se manifeste dans son comportement — la position du corps, le mouvement des yeux, les signes de fatigue, les objets qui captent son attention.
+La question qu'on s'est posée au départ est simple : comment savoir si une personne est vraiment concentrée pendant qu'elle travaille ? Pas ce qu'elle pense d'elle-même, mais son état réel, tel qu'il se manifeste dans son comportement : la position du corps, le mouvement des yeux, les signes de fatigue, les objets qui captent son attention.
 
 Les outils actuels ne répondent pas à cette question. Ils supposent que l'utilisateur est concentré tant qu'il n'a pas cliqué sur quelque chose d'interdit, ou tant que le minuteur n'a pas sonné. Mais la réalité est plus nuancée : on peut regarder son écran en ayant la tête complètement ailleurs, ou passer vingt minutes à fixer un document sans en avoir retenu une ligne.
 
@@ -77,7 +77,7 @@ Approches académiques    & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\check
 \label{tab:comparaison_solutions_existantes}
 \end{table}
 
-Ce tableau parle de lui-même. Aucune des solutions existantes ne dépasse la case « analyse partielle ». Chacune se focalise sur un angle — le temps, la posture, ou les données physiologiques — sans vraiment croiser ces informations.
+Ce tableau parle de lui-même. Aucune des solutions existantes ne dépasse la case « analyse partielle ». Chacune se focalise sur un angle : le temps, la posture, ou les données physiologiques, sans vraiment croiser ces informations.
 
 Il y a aussi quelque chose de fondamental qui manque dans toutes ces approches : elles sont passives. Elles mesurent, parfois alertent, mais ne proposent aucun accompagnement personnalisé. Elles ne génèrent pas de planning adapté à la fatigue du jour, ne suggèrent pas de pauses en fonction de l’état réel de l’utilisateur, et n’intègrent pas de dimension pédagogique.
 
@@ -85,16 +85,16 @@ C’est exactement là que Smart Focus cherche à se différencier.
 
 \subsection{Positionnement de la solution proposée}
 
-Là où les outils existants choisissent une seule dimension, Smart Focus en combine plusieurs : vision par ordinateur pour l’analyse comportementale, intelligence artificielle pour l’interprétation et la planification, IoT pour l’intégration matérielle. Ce n’est pas une question de complexité pour le plaisir — c’est la seule façon d’obtenir une évaluation crédible de l’état de concentration d’un utilisateur.
+Là où les outils existants choisissent une seule dimension, Smart Focus en combine plusieurs : vision par ordinateur pour l’analyse comportementale, intelligence artificielle pour l’interprétation et la planification, IoT pour l’intégration matérielle. Ce n’est pas une question de complexité pour le plaisir ; c’est la seule façon d’obtenir une évaluation crédible de l’état de concentration d’un utilisateur.
 
-Le tableau de comparaison ci-dessus illustre bien pourquoi cette approche intégrée était nécessaire. Smart Focus est le seul système qui coche toutes les colonnes, non par ambition marketing, mais parce que chaque indicateur — posture, fatigue, distraction — apporte une information complémentaire aux autres.
+Le tableau de comparaison ci-dessus illustre bien pourquoi cette approche intégrée était nécessaire. Smart Focus est le seul système qui coche toutes les colonnes, non par ambition marketing, mais parce que chaque indicateur : posture, fatigue, distraction, apporte une information complémentaire aux autres.
 
 \section{Solution proposée}
 \label{sec:solution}
 
 Le système \textbf{SmartFocus} qu’on a conçu s’articule autour de trois composantes principales qui fonctionnent ensemble.
 
-La première, c’est le boîtier matériel — un Raspberry Pi équipé d’une caméra et de capteurs — qui collecte en continu des données sur le comportement de l’utilisateur. Ces données transitent vers un backend intelligent qui les analyse avec des modèles d’IA pour détecter la fatigue, évaluer la posture, repérer les distractions et calculer un score de concentration.
+La première, c’est le boîtier matériel, un Raspberry Pi équipé d’une caméra et de capteurs, qui collecte en continu des données sur le comportement de l’utilisateur. Ces données transitent vers un backend intelligent qui les analyse avec des modèles d’IA pour détecter la fatigue, évaluer la posture, repérer les distractions et calculer un score de concentration.
 
 La deuxième composante est l’application mobile, qui sert d’interface principale pour l’utilisateur. C’est là qu’il consulte ses statistiques, suit ses sessions en temps réel, gère son planning et interagit avec les modules d’assistance.
 
@@ -106,23 +106,23 @@ Ensemble, ces trois composantes forment un système qui ne se contente pas de su
 
 \subsection{Approche adoptée}
 
-Dès le départ, il était clair qu’on ne pouvait pas planifier ce projet de A à Z avant de commencer à coder. Les modèles d’IA, le traitement vidéo en temps réel, l’intégration matérielle — tout ça comporte une part d’incertitude que seule l’expérimentation peut lever. Choisir une méthode en cascade dans ce contexte aurait été une erreur.
+Dès le départ, il était clair qu’on ne pouvait pas planifier ce projet de A à Z avant de commencer à coder. Les modèles d’IA, le traitement vidéo en temps réel, l’intégration matérielle, tout ça comporte une part d’incertitude que seule l’expérimentation peut lever. Choisir une méthode en cascade dans ce contexte aurait été une erreur.
 
 On a donc opté pour une approche agile \cite{agilemanifesto} basée sur Scrum \cite{scrumguide}. L’idée est simple : avancer par petites itérations, valider ce qui marche, ajuster ce qui ne marche pas, et construire le système progressivement plutôt que de tout livrer en une seule fois.
 
 \subsection{Justification du choix de Scrum}
 
-Parmi les méthodes agiles disponibles — Kanban, XP, \ac{RUP} — Scrum \cite{scrumguide} nous a semblé le mieux adapté pour plusieurs raisons concrètes.
+Parmi les méthodes agiles disponibles : Kanban, XP, \ac{RUP}, Scrum \cite{scrumguide} nous a semblé le mieux adapté pour plusieurs raisons concrètes.
 
 D’abord, le projet mélange plusieurs domaines techniques assez différents : modèles de vision, backend web, application mobile, intégration hardware. Scrum permet à chaque sprint de se concentrer sur un sous-ensemble cohérent de fonctionnalités, ce qui évite de se disperser.
 
-Ensuite, les revues et rétrospectives ont eu un rôle vraiment important dans ce projet. Par exemple, après le deuxième sprint, on a réajusté certaines pondérations du score de concentration suite aux tests réels — quelque chose qu’une méthode en cascade n’aurait pas facilité.
+Ensuite, les revues et rétrospectives ont eu un rôle vraiment important dans ce projet. Par exemple, après le deuxième sprint, on a réajusté certaines pondérations du score de concentration suite aux tests réels, quelque chose qu’une méthode en cascade n’aurait pas facilité.
 
-Enfin, travailler à deux sur un projet aussi hétérogène exige une communication régulière. Les daily meetings — même informels dans notre cas — ont permis de garder une vision partagée de l’avancement et d’identifier rapidement les points de blocage.
+Enfin, travailler à deux sur un projet aussi hétérogène exige une communication régulière. Les daily meetings, même informels dans notre cas, ont permis de garder une vision partagée de l’avancement et d’identifier rapidement les points de blocage.
 
 \subsection{Cadre de fonctionnement Scrum}
 
-Le cadre Scrum \cite{scrumguide} s’organise autour de cycles courts appelés \textbf{sprints}, chacun aboutissant à un incrément fonctionnel du système. Dans notre projet, les sprints ont duré entre trois et huit semaines selon la complexité des fonctionnalités à réaliser — le sprint de vision par ordinateur, par exemple, a nécessité plus de temps en raison des phases d’expérimentation et d’ajustement des modèles.
+Le cadre Scrum \cite{scrumguide} s’organise autour de cycles courts appelés \textbf{sprints}, chacun aboutissant à un incrément fonctionnel du système. Dans notre projet, les sprints ont duré entre trois et huit semaines selon la complexité des fonctionnalités à réaliser ; le sprint de vision par ordinateur, par exemple, a nécessité plus de temps en raison des phases d’expérimentation et d’ajustement des modèles.
 
 Chaque sprint comprend quatre temps forts :
 
@@ -149,12 +149,12 @@ L’équipe du projet est organisée selon les rôles Scrum \cite{scrumguide} :
 
     \item \textbf{Scrum Master :} \textbf{Mr Hamdi Aloulou}, encadrant académique. Il supervise le bon déroulement du processus et joue le rôle de facilitateur entre l’équipe et les parties prenantes.
 
-    \item \textbf{Development Team :} \textbf{Ghofrane Hamdi} et \textbf{Kacem Jemni}. Les deux membres de l’équipe se sont réparti les responsabilités — matériel et vision par ordinateur d’un côté, backend et application mobile de l’autre — tout en maintenant une coordination régulière pour assurer l’intégration des différentes parties.
+    \item \textbf{Development Team :} \textbf{Ghofrane Hamdi} et \textbf{Kacem Jemni}. Les deux membres de l’équipe se sont réparti les responsabilités : matériel et vision par ordinateur d’un côté, backend et application mobile de l’autre, tout en maintenant une coordination régulière pour assurer l’intégration des différentes parties.
 \end{itemize}
 
 \subsection{Langage de modélisation}
 
-Pour modéliser le système, nous avons utilisé \textbf{\ac{UML}} \cite{omguml}. Ce n’est pas un choix original — c’est simplement le langage de modélisation standard dans le domaine du génie logiciel, et il s’adapte bien à ce type de projet.
+Pour modéliser le système, nous avons utilisé \textbf{\ac{UML}} \cite{omguml}. Ce n’est pas un choix original ; c’est simplement le langage de modélisation standard dans le domaine du génie logiciel, et il s’adapte bien à ce type de projet.
 
 Les diagrammes de cas d’utilisation nous ont permis de clarifier les fonctionnalités attendues du système. Les diagrammes de séquence ont été utiles pour visualiser les échanges entre les composants, notamment pour les flux complexes comme le pipeline RAG ou la gestion des alertes. Et les diagrammes de classes ont servi de référence commune pendant le développement pour s’assurer que les structures de données restaient cohérentes entre le backend et l’application mobile.
 

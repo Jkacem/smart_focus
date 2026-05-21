@@ -12,7 +12,7 @@ C'est le sprint le plus riche fonctionnellement, et celui qui a demandé le plus
 
 \section{Backlog du Sprint 3}
 
-Le backlog du Sprint 3 comprend quatre user stories. Une chose importante à noter : le pipeline RAG est commun au chatbot, aux quiz et aux flashcards, une décision d'architecture prise dès le départ pour éviter de dupliquer la logique d'indexation et de recherche sémantique.
+Le backlog du Sprint 3 comprend quatre user stories. Une chose importante à noter : le pipeline RAG est commun au chatbot, aux quiz et aux flashcards — une décision d'architecture prise dès le départ pour éviter de dupliquer la logique d'indexation et de recherche sémantique.
 
 Le tableau~\ref{tab:backlogs3} présente le détail de ces user stories.
 
@@ -68,7 +68,7 @@ Le diagramme suivant couvre les fonctionnalités développées durant ce sprint 
 
 \subsection{Description textuelle des cas d'utilisation}
 
-Les fiches ci-dessous décrivent chaque cas d'utilisation du sprint : conditions de déclenchement, scénario nominal, et gestion des erreurs.
+Les fiches ci-dessous décrivent chaque cas d'utilisation du sprint — conditions de déclenchement, scénario nominal, et gestion des erreurs.
 
 %----------------------------------------
 \subsubsection{Cas d'utilisation : Uploader un document}
@@ -166,7 +166,7 @@ Plutôt que de se limiter à consulter ses cours, l'utilisateur peut tester acti
 %----------------------------------------
 \subsubsection{Cas d'utilisation : Générer et réviser des flashcards}
 
-Les flashcards utilisent un principe éprouvé : la répétition espacée. L'idée est simple ; on revoit une notion juste avant qu'on soit sur le point de l'oublier. Le système calcule automatiquement le moment optimal pour représenter chaque carte, en tenant compte de la facilité avec laquelle l'utilisateur l'a rappelée lors des révisions précédentes. Le tableau~\ref{tab:uc_flashcard} décrit ce mécanisme.
+Les flashcards utilisent un principe éprouvé : la répétition espacée. L'idée est simple — on revoit une notion juste avant qu'on soit sur le point de l'oublier. Le système calcule automatiquement le moment optimal pour représenter chaque carte, en tenant compte de la facilité avec laquelle l'utilisateur l'a rappelée lors des révisions précédentes. Le tableau~\ref{tab:uc_flashcard} décrit ce mécanisme.
 
 \begin{table}[H]
 \centering
@@ -197,7 +197,7 @@ Les flashcards utilisent un principe éprouvé : la répétition espacée. L'id�
 %----------------------------------------
 \subsubsection{Cas d'utilisation : Générer un planning intelligent}
 
-La planification intelligente est la fonctionnalité la plus intégrée de ce sprint. Elle croise plusieurs sources de données : profil utilisateur, historique de sommeil, examens à venir, emploi du temps importé, pour générer un planning adapté à l'état réel de l'utilisateur. L'approche adoptée est hybride : un algorithme déterministe calcule les créneaux disponibles, et l'IA intervient uniquement pour attribuer les sujets à ces créneaux. Cette séparation garantit un planning toujours valide, même en cas de défaillance du service IA. Le tableau~\ref{tab:uc_planning} décrit les étapes de ce processus.
+La planification intelligente est la fonctionnalité la plus intégrée de ce sprint. Elle croise plusieurs sources de données — profil utilisateur, historique de sommeil, examens à venir, emploi du temps importé — pour générer un planning adapté à l'état réel de l'utilisateur. L'approche adoptée est hybride : un algorithme déterministe calcule les créneaux disponibles, et l'IA intervient uniquement pour attribuer les sujets à ces créneaux. Cette séparation garantit un planning toujours valide, même en cas de défaillance du service IA. Le tableau~\ref{tab:uc_planning} décrit les étapes de ce processus.
 
 \begin{table}[H]
 \centering
@@ -243,7 +243,7 @@ La Figure~\ref{fig:seq_upload} montre la chaîne de traitement déclenchée à l
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.85\textwidth]{images/uploadSeq.png}
-\caption{Diagramme de séquence :upload et indexation d'un document}
+\caption{Diagramme de séquence — upload et indexation d'un document}
 \label{fig:seq_upload}
 \end{figure}
 
@@ -255,7 +255,7 @@ La Figure~\ref{fig:seq_chat_rag} illustre le parcours d'une question depuis l'in
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.85\textwidth]{images/RagSeq.png}
-\caption{Diagramme de séquence :chat RAG}
+\caption{Diagramme de séquence — chat RAG}
 \label{fig:seq_chat_rag}
 \end{figure}
 
@@ -267,19 +267,19 @@ La Figure~\ref{fig:seq_quiz} détaille la génération d'un quiz. Le backend sé
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.85\textwidth]{images/quizSeq_2.png}
-\caption{Diagramme de séquence :génération de quiz}
+\caption{Diagramme de séquence — génération de quiz}
 \label{fig:seq_quiz}
 \end{figure}
 
 %----------------------------------------
 \subsubsection{Processus de génération du planning intelligent}
 
-La Figure~\ref{fig:seq_planning} illustre l'approche hybride de planification. Un algorithme déterministe calcule d'abord les créneaux disponibles, en tenant compte des blocs occupés, des pauses minimales entre sessions, et des préférences horaires de l'utilisateur. Groq \cite{groq} intervient ensuite uniquement pour affecter les sujets à ces créneaux. Si le service IA est indisponible, un mécanisme de fallback prend le relais et attribue les sujets automatiquement, garantissant que l'utilisateur obtient toujours un planning exploitable.
+La Figure~\ref{fig:seq_planning} illustre l'approche hybride de planification. Un algorithme déterministe calcule d'abord les créneaux disponibles — en tenant compte des blocs occupés, des pauses minimales entre sessions, et des préférences horaires de l'utilisateur. Groq \cite{groq} intervient ensuite uniquement pour affecter les sujets à ces créneaux. Si le service IA est indisponible, un mécanisme de fallback prend le relais et attribue les sujets automatiquement, garantissant que l'utilisateur obtient toujours un planning exploitable.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.85\textwidth]{images/PlanningSeq.png}
-\caption{Diagramme de séquence :génération du planning intelligent}
+\caption{Diagramme de séquence — génération du planning intelligent}
 \label{fig:seq_planning}
 \end{figure}
 
@@ -287,7 +287,7 @@ La Figure~\ref{fig:seq_planning} illustre l'approche hybride de planification. U
 
 La Figure~\ref{fig:class_sprint3} montre le modèle de classes du Sprint 3. Trois groupes d'entités ressortent.
 
-Le premier gravite autour de l'assistant documentaire. \textit{ChatDocument} représente un PDF importé et indexé. Il est lié aux échanges du chatbot via \textit{ChatMessage}, et sert de source aux quiz et aux flashcards. \textit{Quiz} agrège des \textit{QuizQuestion} avec leurs options et explications. \textit{Flashcard} intègre les paramètres SM-2 : \textit{ease\_factor}, \textit{interval}, \textit{repetitions}, \textit{next\_review}, qui pilotent automatiquement les dates de révision.
+Le premier gravite autour de l'assistant documentaire. \textit{ChatDocument} représente un PDF importé et indexé. Il est lié aux échanges du chatbot via \textit{ChatMessage}, et sert de source aux quiz et aux flashcards. \textit{Quiz} agrège des \textit{QuizQuestion} avec leurs options et explications. \textit{Flashcard} intègre les paramètres SM-2 — \textit{ease\_factor}, \textit{interval}, \textit{repetitions}, \textit{next\_review} — qui pilotent automatiquement les dates de révision.
 
 Le deuxième groupe concerne la planification. \textit{StudySession} représente une session d'étude, générée par l'IA ou créée manuellement. Elle peut être liée à plusieurs documents et à un quiz. La classe \textit{Exam} permet de déclarer les échéances à venir, qui sont prises en compte lors de la génération du planning.
 
@@ -348,11 +348,11 @@ sur ces quatre axes, ainsi que leur adéquation au contexte du projet.
                 & \textbf{RPM gratuit} \\
 \hline
 
-\textbf{Groq \cite{groq}, llama-3.3-70b \cite{llama3}} \newline \textit{(retenu)}
+\textbf{Groq \cite{groq} — llama-3.3-70b \cite{llama3}} \newline \textit{(retenu)}
     & $\sim$400 & Élevée & 128 K & Oui & 30 \\
 \hline
 
-Groq \cite{groq}, llama-3.1-8b \cite{llama3}
+Groq \cite{groq} — llama-3.1-8b \cite{llama3}
     & $\sim$900 & Moyenne & 128 K & Oui & 30 \\
 \hline
 
@@ -361,11 +361,11 @@ Google Gemini 2.0 Flash \cite{gemini}
 \hline
 
 OpenAI GPT-4o-mini \cite{openai}
-    & $\sim$100 & Très élevée & 128 K & Non & N/A \\
+    & $\sim$100 & Très élevée & 128 K & Non & — \\
 \hline
 
 Anthropic Claude Haiku 3.5 \cite{anthropic}
-    & $\sim$120 & Très élevée & 200 K & Non & N/A \\
+    & $\sim$120 & Très élevée & 200 K & Non & — \\
 \hline
 
 Mistral 8x7B (Groq) \cite{mistral}
@@ -380,29 +380,38 @@ Mistral 8x7B (Groq) \cite{mistral}
 
 \subsubsection*{Justification du choix}
 
-Ce qui a d'abord orienté notre choix vers Groq \cite{groq}, c'est la vitesse
-d'inférence. Son architecture LPU propriétaire atteint $\sim$400 tokens/s pour
-llama-3.3-70b \cite{llama3}, contre 80--200 tokens/s pour les API concurrentes sur
-GPU classique. Concrètement, les réponses du chatbot RAG apparaissent presque
-instantanément ; c'est ce qui rend l'interface réellement utilisable au quotidien,
-pas juste fonctionnelle.
+Le modèle retenu est \textbf{Llama 3.3 70B Versatile}, exécuté via la plateforme
+\textbf{Groq} \cite{groq}. Ce choix se justifie par la convergence de plusieurs avantages
+complémentaires.
 
-La fiabilité JSON de Llama 3.3 70B a confirmé ce choix. À
-\texttt{temperature=0.2}, le modèle produit des structures exploitables pour les
-quiz et le planning de façon systématique. On a validé ça avec Llama 3.1 8B comme
-alternative, plus rapide encore, mais les sorties JSON étaient insuffisamment
-fiables pour nos cas d'usage critiques.
+\textbf{Sur le plan de la performance}, Groq se distingue par une architecture
+matérielle propriétaire (LPU — Language Processing Unit) conçue spécifiquement
+pour l'inférence de modèles de langage. Là où les API concurrentes reposent sur
+des GPU classiques et délivrent typiquement entre 80 et 200 tokens par seconde,
+Groq atteint environ 400 tokens par seconde pour llama-3.3-70b. Concrètement,
+une réponse du chatbot RAG apparaît presque instantanément, sans latence
+perceptible pour l'utilisateur.
 
-Côté accessibilité, Groq offre 30 RPM gratuits sans carte bancaire, contre 15 RPM
-seulement pour Gemini. Le rate-limiter interne du projet est configuré à 25 RPM
-pour rester sous ce seuil avec une marge de sécurité, un détail qui a évité
-plusieurs erreurs 429 lors des phases de test intensif.
+\textbf{Sur le plan de la qualité}, Llama 3.3 70B est le modèle open-source
+de Meta offrant le meilleur équilibre taille/capacité au moment du développement.
+Avec 70 milliards de paramètres et un entraînement optimisé pour le suivi
+d'instructions, il produit des sorties JSON cohérentes — notamment à
+\texttt{temperature=0.2} tel que configuré dans le système — ce qui est
+indispensable pour la génération de quiz et l'assignation des sujets de planning.
+Son support multilingue couvre naturellement le français académique utilisé dans
+les documents des étudiants.
+
+\textbf{Sur le plan de l'accessibilité}, Groq propose un tier gratuit de 30
+requêtes par minute sans nécessiter de carte bancaire, contre 15 RPM seulement
+pour Google Gemini (l'autre fournisseur intégré dans le système). Cette limite
+supérieure est directement exploitée par le rate-limiter interne du projet,
+configuré à 25 RPM pour rester sous le seuil avec une marge de sécurité.
 
 \textbf{Limites identifiées} : GPT-4o-mini et Claude Haiku 3.5 offriraient une
 fiabilité JSON légèrement supérieure pour des schémas très complexes, mais à un
 coût unitaire incompatible avec le cadre académique du projet. Gemini 2.0 Flash
-constitue une alternative viable, raison pour laquelle le système l'intègre
-comme second fournisseur configurable ; mais sa limite de 15 RPM le rend moins
+constitue une alternative viable — raison pour laquelle le système l'intègre
+comme second fournisseur configurable — mais sa limite de 15 RPM le rend moins
 adapté aux phases de test intensif. Llama 3.1 8B, bien que plus rapide encore,
 produit des sorties JSON insuffisamment fiables pour les cas d'usage critiques
 du projet.
@@ -423,31 +432,31 @@ L'approche RAG repose sur un principe simple mais efficace : au lieu de demander
 Ce pipeline comprend quatre étapes : extraction du texte, découpage en segments, vectorisation, et recherche par similarité.
 
 %----------------------------------------
-\subsection{PyMuPDF : Extraction du texte}
+\subsection{PyMuPDF — Extraction du texte}
 
-PyMuPDF \cite{pymupdf} est la bibliothèque utilisée pour extraire le texte des fichiers PDF. Elle gère bien les mises en page complexes et supporte les documents multi-pages. Sans cette étape, rien ne peut être indexé ; c'est la première brique du pipeline.
+PyMuPDF \cite{pymupdf} est la bibliothèque utilisée pour extraire le texte des fichiers PDF. Elle gère bien les mises en page complexes et supporte les documents multi-pages. Sans cette étape, rien ne peut être indexé — c'est la première brique du pipeline.
 
 %----------------------------------------
-\subsection{LangChain : Découpage en segments}
+\subsection{LangChain — Découpage en segments}
 
 De LangChain \cite{langchain}, on n'utilise qu'un seul composant : \texttt{RecursiveCharacterTextSplitter}. Il découpe le texte extrait en segments de 500 caractères avec un chevauchement de 50 caractères. Ce chevauchement est important : il évite que le sens d'une phrase soit perdu parce qu'elle se trouve à la frontière de deux segments.
 
 %----------------------------------------
-\subsection{Sentence Transformers (HuggingFace) : Représentation vectorielle}
+\subsection{Sentence Transformers (HuggingFace) — Représentation vectorielle}
 
-Le modèle \texttt{all-MiniLM-L6-v2} \cite{sentencetransformers} transforme chaque segment en un vecteur de 384 dimensions représentant son sens sémantique. C'est ce qui permet au système de retrouver les passages pertinents à une question sans chercher des mots-clés exacts ; deux phrases qui parlent du même sujet avec des mots différents auront des vecteurs proches.
+Le modèle \texttt{all-MiniLM-L6-v2} \cite{sentencetransformers} transforme chaque segment en un vecteur de 384 dimensions représentant son sens sémantique. C'est ce qui permet au système de retrouver les passages pertinents à une question sans chercher des mots-clés exacts — deux phrases qui parlent du même sujet avec des mots différents auront des vecteurs proches.
 
 Un avantage non négligeable : ce modèle fonctionne entièrement en local, donc les documents de l'utilisateur ne transitent jamais vers un service externe.
 
 %----------------------------------------
-\subsection{ChromaDB : Base de données vectorielle}
+\subsection{ChromaDB — Base de données vectorielle}
 
-ChromaDB \cite{chromadb} stocke les vecteurs et les organise en collections, une par document importé. Lors d'une requête, elle calcule la similarité cosinus entre le vecteur de la question et ceux des segments, et retourne les \textit{k} plus proches. ChromaDB fonctionne en mode local (fichiers sur disque), sans serveur supplémentaire à gérer.
+ChromaDB \cite{chromadb} stocke les vecteurs et les organise en collections — une par document importé. Lors d'une requête, elle calcule la similarité cosinus entre le vecteur de la question et ceux des segments, et retourne les \textit{k} plus proches. ChromaDB fonctionne en mode local (fichiers sur disque), sans serveur supplémentaire à gérer.
 
 %----------------------------------------
-\subsection{Algorithme SM-2 : Répétition espacée}
+\subsection{Algorithme SM-2 — Répétition espacée}
 
-L'algorithme SM-2 \cite{sm2}, développé par Piotr Woźniak, est le socle de nombreux systèmes de révision par répétition espacée, dont Anki. Son principe : l'intervalle avant la prochaine révision d'une carte est ajusté dynamiquement selon la facilité avec laquelle l'utilisateur l'a rappelée (note de 0 à 5).
+L'algorithme SM-2 \cite{sm2}, développé par Piotr Woźniak, est le socle de nombreux systèmes de révision par répétition espacée — dont Anki. Son principe : l'intervalle avant la prochaine révision d'une carte est ajusté dynamiquement selon la facilité avec laquelle l'utilisateur l'a rappelée (note de 0 à 5).
 
 Trois paramètres évoluent après chaque révision :
 \begin{itemize}
@@ -459,7 +468,7 @@ Trois paramètres évoluent après chaque révision :
 En pratique, une carte facile peut ne revenir que dans plusieurs semaines, tandis qu'une carte ratée sera représentée dès le lendemain.
 
 %----------------------------------------
-\subsection{Groq API : Modèle de langage}
+\subsection{Groq API — Modèle de langage}
 
 Groq \cite{groq} donne accès au modèle \textbf{Llama 3.3 70B Versatile} \cite{llama3} via API. Ce modèle gère toutes les tâches de génération du sprint : réponses RAG, questions de quiz, et attribution des sujets de planning. Le choix de Groq plutôt qu'une alternative est justifié en détail dans la section~\ref{sec:choix_modele}.
 
@@ -551,8 +560,8 @@ Le chatbot RAG, les quiz QCM, les flashcards SM-2 et la planification adaptative
 forment un écosystème dans lequel chaque outil se nourrit des mêmes documents
 importés par l'utilisateur, garantissant une expérience unifiée.
 
-L'architecture retenue pour la planification, calcul déterministe des créneaux
-combiné à une personnalisation par Groq \cite{groq} avec fallback automatique, illustre
+L'architecture retenue pour la planification — calcul déterministe des créneaux
+combiné à une personnalisation par Groq \cite{groq} avec fallback automatique — illustre
 une approche pragmatique : l'IA enrichit le résultat sans en compromettre la
 fiabilité. Ce principe guidera également les développements du sprint suivant,
 consacré au monitoring comportemental en temps réel et aux alertes intelligentes.

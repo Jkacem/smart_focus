@@ -4,19 +4,21 @@
 \chapter{Gestion du projet : Analyse et Planification}
 
 \section{Introduction}
-Avant d’écrire la moindre ligne de code, il a fallu prendre le temps de comprendre ce que le système devait vraiment faire ; pas seulement dans les grandes lignes, mais dans le détail. Quels sont les besoins réels des utilisateurs ? Quelles contraintes techniques doit-on anticiper ? Comment répartir le travail sur les différents sprints de façon réaliste ?
+Nous allons, dans ce chapitre, approfondir les besoins qui motivent le développement du système Smart Focus. C’est une étape clé pour s’assurer que la solution finale réponde aux attentes des utilisateurs et aux contraintes techniques identifiées.
 
-Ce chapitre retrace cette phase d’analyse. On y présente la collecte et la priorisation des besoins, les acteurs du système, les diagrammes de cas d’utilisation, l’architecture globale choisie, et enfin la planification des sprints qui a guidé tout le développement.
+En faisant partie de l’équipe projet et en assurant les différentes missions qui nous ont été assignées, nous avons pris une part active à cette phase d’analyse. Nous verrons tout d’abord comment les besoins ont été collectés, puis analysés et priorisés. Nous présenterons ensuite les acteurs du système, les diagrammes de cas d’utilisation ainsi que l’architecture globale adoptée. Enfin, nous rentrerons dans le détail de la planification des sprints, afin de poser les bases du projet en alignant clairement les objectifs fonctionnels et techniques sur les attentes réelles des utilisateurs.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % RECUEIL DES BESOINS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Recueil des besoins}
 
-La collecte des besoins a été une étape structurante pour le projet. Sans elle, on risquait de développer des fonctionnalités qui ne correspondent pas à ce que les utilisateurs attendent réellement, ou de négliger des contraintes techniques importantes. Pour éviter ça, on a combiné plusieurs approches : analyse du domaine, échanges avec les encadrants, et étude des retours d’expérience sur les outils existants.
+La collecte des besoins constitue une étape essentielle dans la conception du système \textit{SmartFocus}. Elle permet de comprendre les attentes des utilisateurs, d’identifier les fonctionnalités nécessaires et de définir les contraintes du projet.
+
+Cette démarche vise à poser les bases d’une suite solide du projet, en alignant clairement les objectifs fonctionnels et techniques avec les attentes réelles. Pour obtenir une vision claire et réaliste, plusieurs approches complémentaires ont été adoptées.
 % IDENTIFICATION DES ACTEURS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Identification des acteurs}
-Le système Smart Focus interagit avec deux types d’acteurs. Le tableau ci-dessous résume leurs rôles respectifs.
+Le système \textit{Smart Focus} met en jeu plusieurs acteurs, qu’ils soient principaux ou secondaires. Le tableau suivant présente de manière synthétique le rôle de chacun au sein du système.
 
 
 \begin{table}[H]
@@ -72,7 +74,7 @@ Service d’intelligence artificielle externe
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Identification des besoins}
 
-Les besoins identifiés ont été organisés en trois catégories : fonctionnels, non fonctionnels et contraintes. Cette classification permet de distinguer ce que le système doit faire, comment il doit le faire, et dans quelles limites il doit fonctionner.
+Pour mieux structurer les exigences du projet \textit{Smart Focus}, les besoins identifiés ont été classés selon leur nature et leur rôle dans le fonctionnement global du système. Cette classification facilite la compréhension des priorités et des contraintes à prendre en compte.
 
 \vspace{0.5em}
 \begin{itemize}
@@ -121,7 +123,7 @@ Les besoins identifiés ont été organisés en trois catégories : fonctionnels
 
 \subsection{Priorisation des besoins}
 
-Tous les besoins identifiés n'ont pas la même importance. Pour concentrer les efforts sur ce qui compte vraiment, on a classé les fonctionnalités par priorité en tenant compte de leur impact sur l'utilisateur et de leur faisabilité technique dans le cadre du projet.
+Afin d'assurer le progrès efficace du projet \textit{Smart Focus}, il est primordial de classer les besoins selon leur influence sur les utilisateurs et leur viabilité technique. Cette phase permet de focaliser les efforts sur les fonctionnalités qui sont les plus cruciales.
 
 \vspace{0.5em}
 \begin{table}[H]
@@ -178,12 +180,12 @@ Tous les besoins identifiés n'ont pas la même importance. Pour concentrer les 
 }
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MODÉLISATION : CAS D'UTILISATION
+% MODÉLISATION — CAS D'UTILISATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Modélisation des besoins}
 
-\subsection{Diagramme de cas d’utilisation global}
-Le diagramme ci-dessous offre une vue d’ensemble des fonctionnalités du système. Smart Focus compte 46 cas d’utilisation répartis en 9 modules fonctionnels.
+\subsection{Diagramme de cas d'utilisation global}
+Le diagramme suivant, présente la liste de tous les cas d'utilisation du système Smart Focus, classés par module fonctionnel. Le système comporte 46 cas d’usage organisés en 9 modules.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=1\textwidth]{images/UCDiagram.png}
@@ -281,7 +283,7 @@ US16 & Agent vocal
 
 \subsection{Planification des sprints}
 
-Le développement a été découpé en quatre sprints successifs. La durée de chaque sprint a été définie en fonction de la complexité des fonctionnalités à réaliser ; le sprint de vision par ordinateur a par exemple pris deux fois plus de temps que le sprint d’authentification, ce qui était attendu dès le départ.
+Le développement du projet a été organisé en quatre sprints successifs, chacun couvrant une période d’environ un mois. Cette planification a été définie de manière progressive afin d’assurer un équilibre entre les différentes composantes du système, notamment l’application mobile, les modules intelligents et la vision par ordinateur.
 {\singlespacing
 \begin{table}[H]
 \centering
@@ -333,13 +335,13 @@ Intégration du dispositif matériel de monitoring permettant la capture continu
 
 \subsection{Choix des technologies}
 
-Le choix des technologies a été guidé par des critères pratiques : performance, compatibilité avec les contraintes du projet, disponibilité de ressources et facilité d'intégration entre les différentes couches du système. Voici les principaux outils retenus, organisés par catégorie.
+Le développement du système \textit{Smart Focus} repose sur un ensemble de technologies modernes permettant de garantir performance, modularité et évolutivité. Les technologies retenues sont présentées ci-dessous, regroupées par catégorie.
 
 \subsubsection{Langages de programmation}
 
 \begin{itemize}
 
-\item \textbf{Python}  \textbf{:} Le choix de Python \cite{python} s'est imposé naturellement pour le backend et les modules IA. C'est le langage de référence pour la vision par ordinateur et le machine learning, avec un écosystème de bibliothèques très riche. On l'a utilisé pour FastAPI, le pipeline de vision, et tous les modules d'intelligence artificielle.
+\item \textbf{Python}  \textbf{:} Langage de programmation largement utilisé dans le développement web, l'intelligence artificielle et le traitement d'images. On a utilisé Python pour l'ensemble du backend et du pipeline de vision — c'est le langage qui s'imposait naturellement vu l'écosystème IA disponible : FastAPI, MediaPipe, LangChain, tous en Python.\cite{python}.
 
 \begin{figure}[H]
     \centering
@@ -347,7 +349,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
     \caption{Logo Python}
 \end{figure}
 
-\item \textbf{Dart}  \textbf{:} Dart \cite{dart} est le langage de Flutter. Il a été choisi par défaut avec le framework pour le développement de l'application mobile Smart Focus, et s'est montré suffisamment performant pour nos besoins.
+\item \textbf{Dart}  \textbf{:} Langage de programmation développé par Google, optimisé pour la création d'interfaces utilisateur performantes et multiplateformes. Dart est le langage de Flutter — on n'avait pas le choix, mais ça s'est avéré agréable à utiliser une fois pris en main, notamment grâce au typage fort qui a évité pas mal de bugs d'intégration \cite{dart}.
 
 \begin{figure}[H]
     \centering
@@ -361,7 +363,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
 
 \begin{itemize}
 
-\item \textbf{FastAPI}  \textbf{:} Framework Python moderne pour la création d'API REST \cite{fastapi}. On a choisi FastAPI notamment parce que la validation automatique des données via Pydantic nous a évité beaucoup de bugs en phase de test ; les erreurs de type sont détectées avant d'atteindre la base de données. Il gère l'ensemble des services backend : authentification, monitoring, planning, chatbot, quiz, flashcards et sommeil.
+\item \textbf{FastAPI}  \textbf{:} Framework Python moderne conçu pour la création d'API REST performantes avec documentation automatique. FastAPI gère tout le backend. On l'a choisi notamment pour la génération automatique de la doc Swagger — pendant les phases de test, pouvoir tester les endpoints directement depuis le navigateur sans Postman nous a fait gagner du temps \cite{fastapi}.
 
 \begin{figure}[H]
     \centering
@@ -369,7 +371,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
     \caption{Logo FastAPI}
 \end{figure}
 
-\item \textbf{Flutter} \textbf{:} Framework open-source de Google pour les applications mobiles multiplateformes \cite{flutter}. Un seul code source, deux plateformes. Dans la pratique, ça nous a vraiment simplifié le travail ; pas besoin de maintenir deux bases de code séparées. L'application couvre le tableau de bord, le planning, le chatbot, les flashcards et le suivi des sessions en temps réel.
+\item \textbf{Flutter} \textbf{:} Framework open-source de Google pour le développement d'applications mobiles multiplateformes à partir d'un seul code source. Flutter nous a permis de cibler Android sans avoir à maintenir deux codebases. Le hot reload a beaucoup aidé pendant le développement des interfaces — les modifications s'affichaient instantanément sur l'émulateur \cite{flutter} .
 
 \begin{figure}[H]
     \centering
@@ -379,7 +381,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
 
 
 
-\item \textbf{OpenCV} \textbf{:} Bibliothèque de traitement d'images et de vision par ordinateur \cite{opencv}. C'est la brique de base du pipeline de capture : OpenCV récupère les frames depuis la caméra du Raspberry Pi et les prépare avant de les envoyer aux modules d'analyse. Sans ça, rien ne démarre.
+\item \textbf{OpenCV} \textbf{:} Bibliothèque open-source de traitement d'images et de vision par ordinateur. OpenCV gère la capture du flux vidéo côté Raspberry Pi. C'est la bibliothèque standard pour ce type de tâche — fiable, légère, et son intégration avec MediaPipe est directe sans conversion de format \cite{opencv}.
 
 \begin{figure}[H]
     \centering
@@ -387,7 +389,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
     \caption{Logo OpenCV}
 \end{figure}
 
-\item \textbf{MediaPipe} \textbf{:} Framework de Google pour l'analyse en temps réel de flux multimédia \cite{mediapipe}. On a retenu MediaPipe pour la détection des landmarks ; à 25 FPS sur Raspberry Pi sans GPU, c'est la bibliothèque qui offrait le meilleur compromis vitesse/précision pour notre pipeline. On n'utilise que deux modules : FaceMesh pour les repères faciaux et Pose pour la posture corporelle.
+\item \textbf{MediaPipe} \textbf{:} Framework de Google pour l'analyse en temps réel de flux multimédia. On a retenu MediaPipe pour l'extraction des landmarks faciaux et posturaux. On a testé OpenPose brièvement, mais la latence sur Raspberry Pi était trop élevée. Avec MediaPipe, on tournait à 25 FPS sans GPU — suffisant pour notre cas \cite{mediapipe} .
 
 \begin{figure}[H]
     \centering
@@ -395,7 +397,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
     \caption{Logo MediaPipe}
 \end{figure}
 
-\item \textbf{LangChain} \textbf{:} Framework Python pour construire des pipelines autour de modèles de langage \cite{langchain}. On n'en utilise qu'un seul composant, le \texttt{RecursiveCharacterTextSplitter}, pour découper les documents en segments exploitables. Le reste du pipeline RAG est implémenté directement sans passer par les abstractions de LangChain, ce qui nous donne plus de contrôle sur la logique de recherche sémantique.
+\item \textbf{LangChain} \textbf{:} Framework Python pour le développement d'applications basées sur des modèles de langage. De LangChain, on n'utilise qu'un seul composant : le RecursiveCharacterTextSplitter. Le reste du pipeline RAG est géré directement — on a préféré garder le contrôle plutôt que d'abstraire trop de logique \cite{langchain} .
 
 \begin{figure}[H]
     \centering
@@ -409,7 +411,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
 
 \begin{itemize}
 
-\item \textbf{Groq} \textbf{:} Plateforme d'inférence LLM avec une architecture matérielle spécialisée (LPU) \cite{groq}. Ce qui nous a convaincus, c'est la vitesse : environ 400 tokens/seconde pour Llama 3.3 70B, contre 80 à 200 pour les alternatives GPU classiques. Concrètement, les réponses du chatbot RAG apparaissent presque instantanément. Groq gère toutes les tâches de génération : réponses du chatbot, quiz, flashcards et attribution des sujets du planning.
+\item \textbf{Groq} \textbf{:} Plateforme d'inférence LLM haute performance. Groq héberge le modèle Llama 3.3 70B qu'on utilise pour le chatbot, les quiz et le planning. La vitesse d'inférence (~400 tokens/s) était le critère principal — c'est ce qui rend le chat fluide sans serveur GPU dédié \cite{groq} .
 
 \begin{figure}[H]
     \centering
@@ -417,7 +419,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
     \caption{Logo Groq}
 \end{figure}
 
-\item \textbf{ChromaDB} \textbf{:} Base de données vectorielle open-source \cite{chromadb}. ChromaDB s'est imposé naturellement : il fonctionne entièrement en local sans serveur séparé, ce qui simplifiait le déploiement Docker, et l'API Python est très directe à utiliser. C'est la couche de mémoire sémantique du chatbot ; c'est lui qui retrouve les passages pertinents lors d'une question RAG.
+\item \textbf{ChromaDB} \textbf{:} Base de données vectorielle open-source. ChromaDB stocke les vecteurs des documents indexés. On l'a choisi parce qu'il fonctionne entièrement en local sans serveur séparé — un Docker de moins à gérer, et l'API Python est simple \cite{chromadb} .
 
 \begin{figure}[H]
     \centering
@@ -425,7 +427,7 @@ Le choix des technologies a été guidé par des critères pratiques : performan
     \caption{Logo ChromaDB}
 \end{figure}
 
-\item \textbf{PostgreSQL} \textbf{:} Système de gestion de base de données relationnelle \cite{postgresql}. C'est la base principale du projet ; tout ce qui est structuré y est stocké : comptes, profils, sessions, snapshots de monitoring, événements de concentration, planning, examens, documents, messages du chatbot, quiz, flashcards et données de sommeil. Le schéma a évolué au fil des sprints, et PostgreSQL a bien tenu la charge lors des tests avec des sessions longues.
+\item \textbf{PostgreSQL} \textbf{:} Système de gestion de base de données relationnelle robuste et open-source. PostgreSQL stocke toutes les données relationnelles du système. On avait envisagé SQLite pour simplifier, mais les besoins en concurrence et la taille des données de monitoring ont vite rendu PostgreSQL nécessaire \cite{postgresql} .
 
 \begin{figure}[H]
     \centering
@@ -439,11 +441,11 @@ Le choix des technologies a été guidé par des critères pratiques : performan
 
 \subsection{Choix des logiciels}
 
-En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outils pour structurer le développement, gérer les versions du code et produire la documentation technique.
+Dans le cadre du développement du projet \textit{Smart Focus}, plusieurs outils logiciels ont été utilisés afin d'assurer un environnement de travail efficace et structuré.
 
 \begin{itemize}
 
-\item \textbf{Visual Studio Code} \textbf{:} Éditeur de code léger et extensible de Microsoft \cite{vscode}. C'est l'IDE principal utilisé pour tout le projet : backend Python, Flutter, et modules de vision. Les extensions disponibles (Pylance, Dart, Remote SSH pour le Raspberry Pi) ont vraiment facilité le développement.
+\item \textbf{Visual Studio Code} \textbf{:} Éditeur de code source léger et extensible développé par Microsoft. On a travaillé avec VS Code pour l'ensemble du code — backend, vision et Flutter. L'extension Python avec Pylance a vraiment aidé pour naviguer dans un projet aussi éclaté en modules \cite{vscode}  .
 
 \begin{figure}[H]
     \centering
@@ -451,7 +453,7 @@ En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outi
     \caption{Visual Studio Code}
 \end{figure}
 
-\item \textbf{Android Studio} \textbf{:} IDE officiel Android \cite{androidstudio}. On l'a utilisé principalement pour gérer l'émulateur Android et configurer les SDK nécessaires au build Flutter. Pas l'outil qu'on a le plus ouvert au quotidien, mais indispensable pour faire tourner l'application sans téléphone physique pendant les premières phases de développement.
+\item \textbf{Android Studio} \textbf{:} Environnement de développement intégré officiel pour Android. Android Studio a servi uniquement pour l'émulateur Android. On aurait pu s'en passer avec un vrai device, mais pendant les phases de développement rapide, l'émulateur évitait les aller-retours avec le téléphone \cite{androidstudio} .
 
 \begin{figure}[H]
     \centering
@@ -459,7 +461,7 @@ En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outi
     \caption{Android Studio}
 \end{figure}
 
-\item \textbf{Git et GitHub} \textbf{:} Système de contrôle de version et plateforme de collaboration \cite{github}. Travailler à deux sur un projet aussi hétérogène sans versionnement serait un cauchemar. Git a permis de maintenir des branches séparées pour le hardware et le software, et de fusionner sans trop de conflits aux points d'intégration.
+\item \textbf{Git et GitHub} \textbf{:} Système de contrôle de version distribué et plateforme d'hébergement de code. Git et GitHub ont géré le versionnement. Travailler à deux sur des composants aussi différents — matériel, backend, mobile — sans versionning aurait été ingérable. On a eu quelques conflits de merge sur les modèles SQLAlchemy, mais rien de critique \cite{github}  .
 
 \begin{figure}[H]
     \centering
@@ -467,7 +469,7 @@ En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outi
     \caption{GitHub}
 \end{figure}
 
-\item \textbf{Docker} \textbf{:} Plateforme de conteneurisation \cite{docker}. Conteneuriser FastAPI, PostgreSQL et ChromaDB ensemble a résolu les problèmes classiques de "ça marche sur ma machine mais pas sur la tienne". En développement comme en démo, l'environnement est identique ; un \texttt{docker-compose up} suffit à tout lancer.
+\item \textbf{Docker} \textbf{:} Plateforme de conteneurisation permettant d'isoler et de déployer des applications. Docker conteneurise FastAPI, PostgreSQL et ChromaDB ensemble. Le vrai avantage, c'est qu'on a évité le classique "ça marche sur ma machine" — l'environnement était identique entre nos deux postes de développement  \cite{docker} .
 
 \begin{figure}[H]
     \centering
@@ -476,7 +478,7 @@ En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outi
 \end{figure}
 
 
-\item \textbf{Draw.io} \textbf{:} Outil de diagrammes en ligne gratuit \cite{drawio}. On l'a utilisé pour tous les diagrammes UML du projet : cas d'utilisation, classes, séquences, architecture système. Simple d'utilisation et collaboratif, il a suffi à nos besoins sans overhead.
+\item \textbf{Draw.io} \textbf{:} Outil de diagrammes en ligne gratuit et open-source.Draw.io a servi pour tous les diagrammes UML du projet. On a choisi l'outil en ligne pour pouvoir collaborer facilement — les fichiers  \cite{drawio} .
 
 \begin{figure}[H]
     \centering
@@ -484,7 +486,7 @@ En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outi
     \caption{Draw.io}
 \end{figure}
 
-\item \textbf{Overleaf} \textbf{:} Plateforme \LaTeX{} collaborative en ligne \cite{overleaf}. Rédiger un rapport technique en \LaTeX{} sans outil collaboratif est fastidieux. Overleaf permet d'éditer le document depuis n'importe où, de voir le rendu PDF en temps réel et de synchroniser facilement les modifications entre les deux auteurs.
+\item \textbf{Overleaf} \textbf{:} Plateforme \LaTeX{} collaborative en ligne.Overleaf a hébergé la rédaction du mémoire en LaTeX. Collaborer à deux sur un document LaTeX sans outil dédié aurait été compliqué — Overleaf a simplifié la synchronisation et évité les conflits sur les fichiers \cite{overleaf}  .
 
 \begin{figure}[H]
     \centering
@@ -498,26 +500,28 @@ En dehors des langages et frameworks, le projet s'est appuyé sur plusieurs outi
 %==================================================
 \section{Architecture du système}
 
-L’architecture de Smart Focus a été pensée pour séparer clairement les responsabilités entre les différentes parties du système. Cette séparation facilite la maintenance, permet de faire évoluer chaque composant indépendamment, et simplifie l’intégration. Elle s’articule autour de quatre couches :
+Le système \textit{Smart Focus} repose sur une architecture multicouche visant à séparer les différentes responsabilités et à assurer une meilleure modularité. Cette organisation permet de faciliter la maintenance, l’évolution du système ainsi que l’intégration de nouvelles fonctionnalités.
+
+L’architecture proposée est composée de quatre couches principales :
 
 \begin{enumerate}
-    \item \textbf{Couche Hardware} : Boîtier Raspberry Pi (caméra OV2640, capteurs, écran TFT, LEDs WS2812B)
+    \item \textbf{Couche Hardware} — Boîtier Raspberry Pi (caméra OV2640, capteurs, écran TFT, LEDs WS2812B)
 
-    \item \textbf{Couche Backend} : Serveur FastAPI (Python 3.11) assurant la logique métier et les services \ac{API} REST
+    \item \textbf{Couche Backend} — Serveur FastAPI (Python 3.11) assurant la logique métier et les services \ac{API} REST
 
-    \item \textbf{Couche Données} : PostgreSQL (données relationnelles) et ChromaDB (données vectorielles), avec stockage des fichiers (PDF)
+    \item \textbf{Couche Données} — PostgreSQL (données relationnelles) et ChromaDB (données vectorielles), avec stockage des fichiers (PDF)
 
-    \item \textbf{Couche Client} : Application mobile Flutter utilisant Riverpod et GoRouter pour la gestion d’état et la navigation
+    \item \textbf{Couche Client} — Application mobile Flutter utilisant Riverpod et GoRouter pour la gestion d’état et la navigation
 \end{enumerate}
 
 
 
 
-Cette organisation garantit que chaque couche peut être modifiée ou remplacée sans impacter les autres, tant que les interfaces entre elles restent stables.
+Cette architecture permet d’assurer une séparation claire entre les différentes couches du système, tout en garantissant une communication fluide entre les composants via des interfaces bien définies.
 %==================================================
 \section{Diagramme de classes global}
 
-Le diagramme de classes ci-dessous présente la structure globale du système. On y retrouve les entités principales, leurs attributs et les relations entre elles.
+Le diagramme de classes suivant illustre la structure globale du système, en mettant en évidence les principales entités, leurs attributs ainsi que leurs relations.
 
 \begin{figure}[H]
 \centering
@@ -528,6 +532,9 @@ Le diagramme de classes ci-dessous présente la structure globale du système. O
 %==================================================
 \section*{Conclusion}
 
-Ce chapitre a posé les bases de tout ce qui suit : identification des besoins, modélisation du système, choix des technologies et planification des sprints. Ces éléments constituent la feuille de route qui a guidé le développement de Smart Focus.
+Dans ce chapitre, nous avons présenté l'analyse et la modélisation des besoins du système Smart Focus. Nous avons d'abord décrit les méthodes de recueil des besoins, puis classé et priorisé ces besoins selon leur nature et leur impact.
 
-Les chapitres suivants entrent dans le détail de chaque sprint : ce qui a été conçu, comment ça a été implémenté, et ce que les tests ont montré.
+Nous avons ensuite identifié les acteurs du système et présenté les 46 cas d'utilisation répartis en 9 modules fonctionnels, illustrés dans le diagramme de cas d'utilisation global. L'architecture multicouche a été décrite, couvrant le boîtier, le backend FastAPI, les bases de données et l'application Flutter.
+
+Enfin, la planification des sprints a permis de structurer le développement de manière itérative, en alignant les efforts avec les priorités identifiées.
+    
