@@ -794,11 +794,11 @@ def create_snapshot(
         session_id=session_obj.id,
         timestamp=_parse_iso_timestamp(payload.timestamp),
         work_mode=payload.work_mode,
-        attention_score=scores.get("attention_score"),
-        posture_score=scores.get("posture_score"),
+        attention_score=scores.get("attention_score") or scores.get("concentration"),
+        posture_score=scores.get("posture_score") or scores.get("posture"),
         vigilance_score=scores.get("vigilance_score"),
         stress_risk_score=scores.get("stress_risk_score"),
-        global_focus_score=scores.get("focus_score_global", scores.get("global_focus_score")),
+        global_focus_score=scores.get("focus_score_global") or scores.get("global_focus_score") or scores.get("focus_global"),
         raw_payload_json=payload.model_dump(),
     )
     db.add(snapshot)
