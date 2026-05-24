@@ -3,39 +3,42 @@
 # Raspberry Pi 5 (ARM64)
 # ===========================
 
+# Pin CPU-only torch BEFORE sentence-transformers to block CUDA resolution.
+# torch >= 2.4 ships aarch64 CUDA wheels (Jetson support); 2.3.1 is CPU-only on ARM.
+torch==2.3.1
+
 # Framework
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 
-# Base de données
+# Database — binary wheel = no libpq compilation needed on ARM
 sqlalchemy==2.0.36
-psycopg2==2.9.10  # ARM64: requires `sudo apt install libpq-dev python3-dev` before pip install
+psycopg2-binary==2.9.10
 alembic==1.14.0
 
-# Authentification
+# Auth
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.17
 google-auth==2.35.0
 
-# Configuration
+# Config
 pydantic-settings==2.6.0
 python-dotenv==1.0.1
 
 # WebSocket
 websockets==14.1
 
-# Utilitaires
+# HTTP
 httpx==0.28.0
 
-# RAG
+# RAG stack
 langchain==0.3.0
 langchain-community==0.3.0
 langchain-chroma==0.1.4
 langchain-huggingface==0.1.2
 langchain-google-genai==2.0.0
 chromadb==0.5.0
-posthog==5.4.0
 pymupdf==1.24.0
 sentence-transformers==3.1.0
 google-generativeai>=0.7.0,<0.8.0
