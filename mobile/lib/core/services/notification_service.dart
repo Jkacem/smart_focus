@@ -24,9 +24,10 @@ class NotificationService {
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
+    const linux = LinuxInitializationSettings(defaultActionName: 'Open');
 
     await _plugin.initialize(
-      settings: const InitializationSettings(android: android, iOS: ios),
+      settings: const InitializationSettings(android: android, iOS: ios, linux: linux),
     );
 
     if (Platform.isAndroid) {
