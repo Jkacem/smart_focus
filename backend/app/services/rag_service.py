@@ -136,6 +136,33 @@ QUESTION : {question}
 RÉPONSE :""",
 )
 
+_SUMMARY_PROMPT = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""Tu es un assistant pédagogique intelligent pour l'application SmartFocus.
+Tu as accès à des extraits d'un cours. Fais un résumé complet et structuré en couvrant TOUS les thèmes présents dans le contexte.
+Structure ton résumé avec des sections claires (titres en gras). N'omets aucune section importante.
+Réponds en français sauf si la question est posée dans une autre langue.
+
+EXTRAITS DU COURS :
+{context}
+
+DEMANDE : {question}
+
+RÉSUMÉ COMPLET :""",
+)
+
+_SUMMARIZATION_RE = re.compile(
+    r"\b(r[ée]sum[ée]|synth[eè]se|synth[eé]tise|r[ée]capitule|r[ée]capitulatif"
+    r"|pr[ée]sente.{0,20}cours|cours.{0,20}r[ée]sum[ée]"
+    r"|tout le cours|l.ensemble du cours|de quoi (parle|traite)|"
+    r"les points (cl[eé]s|principaux|importants))\b",
+    re.IGNORECASE,
+)
+
+
+def _is_summarization_query(question: str) -> bool:
+    return bool(_SUMMARIZATION_RE.search(question))
+
 
 def query_rag(
     question: str,
@@ -158,7 +185,9 @@ def query_rag(
     embeddings = _get_embeddings()
     all_chunks: List[Document] = []
 
-    # Retrieve top-k chunks from each selected collection
+    is_summary = _is_summarization_query(question)
+    effective_k = 30 if is_summary else k
+
     for col_name in collection_names:
         try:
             vectorstore = Chroma(
@@ -166,7 +195,12 @@ def query_rag(
                 embedding_function=embeddings,
                 persist_directory=_chroma_path(),
             )
-            results = vectorstore.similarity_search(question, k=k)
+            if is_summary:
+                results = vectorstore.max_marginal_relevance_search(
+                    question, k=effective_k, fetch_k=min(effective_k * 4, 200)
+                )
+            else:
+                results = vectorstore.similarity_search(question, k=k)
             all_chunks.extend(results)
         except Exception:
             # Collection may not exist yet — skip silently
@@ -178,6 +212,10 @@ def query_rag(
             "sources": [],
         }
 
+    # Sort summarization chunks by page so the LLM sees the course in order
+    if is_summary:
+        all_chunks.sort(key=lambda c: c.metadata.get("page", 0))
+
     # Build context string from retrieved chunks
     context = "\n\n---\n\n".join(
         f"[{c.metadata.get('source', '?')}, p.{c.metadata.get('page', '?')}]\n{c.page_content}"
@@ -185,7 +223,8 @@ def query_rag(
     )
 
     # Generate answer with Gemini 2.5 Flash
-    prompt_text = _RAG_PROMPT.format(context=context, question=question)
+    active_prompt = _SUMMARY_PROMPT if is_summary else _RAG_PROMPT
+    prompt_text = active_prompt.format(context=context, question=question)
     answer = gemini_generate(prompt_text)
 
     # Build source citations (deduplicated by page)
